@@ -1,0 +1,105 @@
+use text_size::{TextRange, TextSize};
+use crate::surface::*;
+use crate::surface::lexer::*;
+use crate::surface::errors::*;
+
+grammar<'src>(
+);
+
+extern {
+    type Location = TextSize;
+    type Error = LexError;
+
+    enum Token<'src> {
+        "_" =>          Token::Underscore,
+        "Name" =>       Token::Name(<&'src str>),
+
+        "(" =>          Token::LParen,
+        ")" =>          Token::RParen,
+
+        "->" =>         Token::SingleArrow,
+        "=>" =>         Token::DoubleArrow,
+        "=" =>          Token::Eq,
+        ":" =>          Token::Colon,
+        ";" =>          Token::Semicolon,
+        "," =>          Token::Comma,
+
+        "fn" =>         Token::KwFn,
+        "Fn" =>         Token::KwFnType,
+        "in" =>         Token::KwIn,
+        "let" =>        Token::KwLet,
+    }
+}
+
+pub Module: Module<TextRange> = {
+    <decls: Decl*> => Module { decls: Rc::from(decls) },
+}
+
+Decl: Decl<TextRange> = {
+    <start: @L> "let" <pat: Pat> "=" <expr: Expr> ";" <end: @R> => Decl::Let(TextRange::new(start, end), LetDecl {pat, expr}),
+}
+
+pub Expr: Expr<TextRange> = {
+    AnnExpr => <>,
+}
+
+AnnExpr: Expr<TextRange> = {
+    <start: @L> <expr: CallExpr> ":" <ty: FunExpr> <end: @R> => Expr::Ann(TextRange::new(start, end), Rc::new(expr), Rc::new(ty)),
+    LetExpr => <>,
+}
+
+LetExpr: Expr<TextRange> = {
+    <start: @L> "let" <pat: Pat> "=" <init: Expr> "in" <body: LetExpr> <end: @R> => Expr::Let(TextRange::new(start, end), Rc::new(pat), Rc::new(init), Rc::new(body)),
+    FunExpr => <>,
+}
+
+FunExpr: Expr<TextRange> = {
+    <start: @L> "fn" "(" <args: List<Pat, ",">> ")" "=>" <body: FunExpr> <end: @R> => Expr::FunExpr(TextRange::new(start, end), args, Rc::new(body)),
+    <start: @L> "fn" "(" <args: List<Pat, ",">> ")" "->" <body: FunExpr> <end: @R> => Expr::FunType(TextRange::new(start, end), args, Rc::new(body)),
+    CallExpr => <>,
+}
+
+CallExpr: Expr<TextRange> = {
+    <start: @L> <fun: CallExpr> "(" <args: List<Expr, ",">> ")" <end: @R> => Expr::FunCall(TextRange::new(start, end), Rc::new(fun), args),
+    AtomExpr => <>,
+}
+
+AtomExpr: Expr<TextRange> = {
+    "(" <expr: Expr> ")" => expr,
+    <start: @L> <name: Name> <end: @R> => Expr::Name(TextRange::new(start, end), name),
+}
+
+pub Pat: Pat<TextRange> = {
+    AnnPat => <>,
+}
+
+AnnPat: Pat<TextRange> = {
+    <start: @L> <pat: AtomPat> ":" <ty: CallExpr> <end: @R> => Pat::Ann(TextRange::new(start, end), Rc::new(pat), Rc::new(ty)),
+    AtomPat => <>,
+}
+
+AtomPat: Pat<TextRange> = {
+    "(" <pat: Pat> ")" => pat,
+    <start: @L> "_" <end: @R> => Pat::Wildcard(TextRange::new(start, end)),
+    <start: @L> <name: Name> <end: @R> => Pat::Name(TextRange::new(start, end), name),
+}
+
+Name: RcStr = {
+    <name: "Name"> => Rc::from(name),
+}
+
+#[inline]
+List<T, Sep>: Rc<[T]> = {
+    <mut elems: (<T> Sep)*> <last: T?> => {
+        elems.extend(last);
+        Rc::from(elems)
+    }
+};
+
+#[inline]
+List1<T, Sep>: Rc<[T]> = {
+    <elems: (<T> Sep)*> <last: T> => {
+        elems.push(last);
+        Rc::from(elems)
+    }
+};

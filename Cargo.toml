@@ -1,0 +1,12 @@
+[package]
+name = "pion"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+lalrpop-util = "0.19.8"
+logos = "0.12.1"
+text-size = "1.1.0"
+
+[build-dependencies]
+lalrpop = "0.19.8"
