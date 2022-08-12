@@ -25,7 +25,6 @@ extern {
         "," =>          Token::Comma,
 
         "fn" =>         Token::KwFn,
-        "Fn" =>         Token::KwFnType,
         "in" =>         Token::KwIn,
         "let" =>        Token::KwLet,
     }

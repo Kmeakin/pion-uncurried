@@ -26,7 +26,6 @@ pub enum Token<'src> {
     #[token(",")]                                   Comma,
 
     #[token("fn")]                                  KwFn,
-    #[token("Fn")]                                  KwFnType,
     #[token("in")]                                  KwIn,
     #[token("let")]                                 KwLet,
 }
@@ -92,7 +91,6 @@ impl<'src> Token<'src> {
             Self::Semicolon => "`;`",
             Self::Comma => "`,`",
             Self::KwFn => "`fn`",
-            Self::KwFnType => "`Fn`",
             Self::KwIn => "`in`",
             Self::KwLet => "`let`",
         }
