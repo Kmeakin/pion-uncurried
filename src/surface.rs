@@ -18,6 +18,7 @@ pub struct Module<Range> {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Decl<Range> {
+    Error(Range),
     Let(Range, LetDecl<Range>),
 }
 

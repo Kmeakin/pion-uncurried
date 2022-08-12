@@ -4,6 +4,7 @@ use crate::surface::lexer::*;
 use crate::surface::errors::*;
 
 grammar<'src>(
+    errors: &mut Vec<ParseError>,
 );
 
 extern {
@@ -36,6 +37,11 @@ pub Module: Module<TextRange> = {
 
 Decl: Decl<TextRange> = {
     <start: @L> "let" <pat: Pat> "=" <expr: Expr> ";" <end: @R> => Decl::Let(TextRange::new(start, end), LetDecl {pat, expr}),
+
+    <start: @L> <error: !> <end: @R> => {
+        errors.push(ParseError::from(error));
+        Decl::Error(TextRange::new(start, end))
+    }
 }
 
 pub Expr: Expr<TextRange> = {
@@ -66,6 +72,11 @@ CallExpr: Expr<TextRange> = {
 AtomExpr: Expr<TextRange> = {
     "(" <expr: Expr> ")" => expr,
     <start: @L> <name: Name> <end: @R> => Expr::Name(TextRange::new(start, end), name),
+
+    <start: @L> <error: !> <end: @R> => {
+        errors.push(ParseError::from(error));
+        Expr::Error(TextRange::new(start, end))
+    }
 }
 
 pub Pat: Pat<TextRange> = {
@@ -81,6 +92,11 @@ AtomPat: Pat<TextRange> = {
     "(" <pat: Pat> ")" => pat,
     <start: @L> "_" <end: @R> => Pat::Wildcard(TextRange::new(start, end)),
     <start: @L> <name: Name> <end: @R> => Pat::Name(TextRange::new(start, end), name),
+
+    <start: @L> <error: !> <end: @R> => {
+        errors.push(ParseError::from(error));
+        Pat::Error(TextRange::new(start, end))
+    }
 }
 
 Name: RcStr = {
