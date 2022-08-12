@@ -20,6 +20,7 @@ impl LexError {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ParseError {
+    TooLong(TooLong),
     Lexer(LexError),
     InvalidToken(TextRange),
     UnrecognizedEOF(TextRange, Vec<String>),
@@ -28,8 +29,9 @@ pub enum ParseError {
 }
 
 impl ParseError {
-    pub const fn range(&self) -> TextRange {
+    pub fn range(&self) -> TextRange {
         match self {
+            Self::TooLong(_) => TextRange::new(TextSize::from(u32::MAX), TextSize::from(u32::MAX)),
             Self::Lexer(error, ..) => error.range(),
             Self::InvalidToken(range, ..)
             | Self::UnrecognizedEOF(range, _)
@@ -41,6 +43,10 @@ impl ParseError {
 
 type LalrpopError<'src> = lalrpop_util::ParseError<TextSize, lexer::Token<'src>, LexError>;
 type LalrpopRecovery<'src> = lalrpop_util::ErrorRecovery<TextSize, lexer::Token<'src>, LexError>;
+
+impl From<TooLong> for ParseError {
+    fn from(other: TooLong) -> Self { Self::TooLong(other) }
+}
 
 impl<'src> From<LalrpopError<'src>> for ParseError {
     fn from(other: LalrpopError) -> Self {

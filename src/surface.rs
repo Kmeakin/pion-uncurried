@@ -1,7 +1,9 @@
 use std::rc::Rc;
 
 use lalrpop_util::lalrpop_mod;
+use text_size::TextRange;
 
+use self::errors::ParseError;
 use crate::RcStr;
 
 pub mod errors;
@@ -14,6 +16,35 @@ lalrpop_mod!(
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Module<Range> {
     pub decls: Rc<[Decl<Range>]>,
+}
+
+impl Module<TextRange> {
+    pub fn parse(src: &str) -> (Self, Vec<ParseError>) {
+        let mut errors = Vec::new();
+        let tokens = match lexer::lex(src) {
+            Err(error) => {
+                let error = ParseError::from(error);
+                errors.push(error);
+                let module = Self {
+                    decls: Rc::from([]),
+                };
+                return (module, errors);
+            }
+            Ok(tokens) => tokens,
+        };
+
+        let module = grammar::ModuleParser::new()
+            .parse(&mut errors, tokens)
+            .unwrap_or_else(|error| {
+                let error = ParseError::from(error);
+                errors.push(error);
+                Self {
+                    decls: Rc::from([]),
+                }
+            });
+
+        (module, errors)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
