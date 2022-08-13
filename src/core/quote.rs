@@ -20,6 +20,8 @@ impl QuoteCtx {
         match value.as_ref() {
             Value::Error => Expr::Error,
             Value::Type => Expr::Type,
+            Value::BoolType => Expr::BoolType,
+            Value::Bool(b) => Expr::Bool(*b),
             Value::Stuck(head, spine) => {
                 let head_core = match head {
                     Head::Local(level) => match self.local_values.level_to_index(*level) {

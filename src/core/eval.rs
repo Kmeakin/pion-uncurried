@@ -19,6 +19,8 @@ impl<'env> EvalCtx<'env> {
         match expr {
             Expr::Error => Rc::new(Value::Error),
             Expr::Type => Rc::new(Value::Type),
+            Expr::BoolType => Rc::new(Value::BoolType),
+            Expr::Bool(b) => Rc::new(Value::Bool(*b)),
             Expr::Local(idx) => match self.local_values.get_by_index(*idx) {
                 Some(value) => value.clone(),
                 None => unreachable!("Unbound local variable: {idx:?}"),

@@ -41,12 +41,15 @@ impl ElabCtx {
                     return (Expr::Local(idx), ty);
                 }
 
-                if name.as_ref() == "Type" {
-                    return (Expr::Type, Rc::new(Value::Type));
+                match name.as_ref() {
+                    "Type" => return (Expr::Type, Rc::new(Value::Type)),
+                    "Bool" => return (Expr::BoolType, Rc::new(Value::Type)),
+                    _ => {}
                 }
 
                 todo!("Unbound name: {name}");
             }
+            surface::Expr::Bool(_, b) => (Expr::Bool(*b), Rc::new(Value::BoolType)),
             surface::Expr::FunType(_, pats, ret) => {
                 let mut names = Vec::with_capacity(pats.len());
                 let initial_len = self.local_env.len();

@@ -25,9 +25,11 @@ pub enum Token<'src> {
     #[token(";")]                                   Semicolon,
     #[token(",")]                                   Comma,
 
+    #[token("false")]                               KwFalse,
     #[token("fn")]                                  KwFn,
     #[token("in")]                                  KwIn,
     #[token("let")]                                 KwLet,
+    #[token("true")]                                KwTrue,
 }
 
 fn block_comment<'src>(lexer: &mut Lexer<'src, Token<'src>>) -> logos::Skip {
@@ -90,9 +92,11 @@ impl<'src> Token<'src> {
             Self::Colon => "`:`",
             Self::Semicolon => "`;`",
             Self::Comma => "`,`",
+            Self::KwFalse => "`false`",
             Self::KwFn => "`fn`",
             Self::KwIn => "`in`",
             Self::KwLet => "`let`",
+            Self::KwTrue => "`true`",
         }
     }
 }

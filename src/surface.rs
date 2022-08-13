@@ -63,6 +63,7 @@ pub struct LetDecl<Range> {
 pub enum Expr<Range> {
     Error(Range),
     Name(Range, RcStr),
+    Bool(Range, bool),
     FunType(Range, Rc<[Pat<Range>]>, Rc<Self>),
     FunExpr(Range, Rc<[Pat<Range>]>, Rc<Self>),
     FunCall(Range, Rc<Self>, Rc<[Self]>),

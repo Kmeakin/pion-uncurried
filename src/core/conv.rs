@@ -39,11 +39,15 @@ impl ConvCtx {
             (Value::Type, Value::Type) => true,
             (Value::Type, _) | (_, Value::Type) => false,
 
+            (Value::BoolType, Value::BoolType) => true,
+            (Value::BoolType, _) | (_, Value::BoolType) => false,
+
+            (Value::Bool(b1), Value::Bool(b2)) => b1 == b2,
+            (Value::Bool(_), _) | (_, Value::Bool(_)) => false,
+
             (Value::Stuck(head1, spine1), Value::Stuck(head2, spine2)) => {
                 head1 == head2 && self.conv_spines(spine1, spine2)
             }
-
-            #[allow(unreachable_patterns)]
             (Value::Stuck(..), _) | (_, Value::Stuck(..)) => false,
         }
     }

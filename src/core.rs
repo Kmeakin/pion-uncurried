@@ -17,6 +17,9 @@ pub mod quote;
 pub enum Expr {
     Error,
     Type,
+    BoolType,
+    Bool(bool),
+
     /// `x`
     Local(VarIndex),
     /// `fn (x1: e1, x2: e2, ...) -> en`
@@ -42,13 +45,15 @@ pub enum Pat {
 pub enum Value {
     Error,
     Type,
+    BoolType,
+    Bool(bool),
     Stuck(Head, Vec<Elim>),
     FunType(Telescope, FunClosure),
     FunValue(Telescope, FunClosure),
 }
 
 impl Value {
-    pub fn local(level: VarLevel) -> Value { Self::Stuck(Head::Local(level), Vec::new()) }
+    pub fn local(level: VarLevel) -> Self { Self::Stuck(Head::Local(level), Vec::new()) }
 }
 
 type LazyValue = LazyCell<Value, LazyEval>;

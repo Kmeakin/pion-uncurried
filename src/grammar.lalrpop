@@ -25,9 +25,11 @@ extern {
         ";" =>          Token::Semicolon,
         "," =>          Token::Comma,
 
+        "false" =>      Token::KwFalse,
         "fn" =>         Token::KwFn,
         "in" =>         Token::KwIn,
         "let" =>        Token::KwLet,
+        "true" =>       Token::KwTrue,
     }
 }
 
@@ -72,6 +74,8 @@ CallExpr: Expr<TextRange> = {
 AtomExpr: Expr<TextRange> = {
     "(" <expr: Expr> ")" => expr,
     <start: @L> <name: Name> <end: @R> => Expr::Name(TextRange::new(start, end), name),
+    <start: @L> "true" <end: @R> => Expr::Bool(TextRange::new(start, end), true),
+    <start: @L> "false" <end: @R> => Expr::Bool(TextRange::new(start, end), false),
 
     <start: @L> <error: !> <end: @R> => {
         errors.push(ParseError::from(error));
