@@ -70,10 +70,48 @@ pub enum Expr<Range> {
     Ann(Range, Rc<Self>, Rc<Self>),
 }
 
+impl Expr<TextRange> {
+    pub fn parse(src: &str) -> (Self, Vec<ParseError>) {
+        let mut errors = Vec::new();
+        let tokens = match lexer::lex(src) {
+            Err(error) => {
+                let error = ParseError::from(error);
+                let range = error.range();
+                errors.push(error);
+                let expr = Self::Error(range);
+                return (expr, errors);
+            }
+            Ok(tokens) => tokens,
+        };
+
+        let expr = grammar::ExprParser::new()
+            .parse(&mut errors, tokens)
+            .unwrap_or_else(|error| {
+                let error = ParseError::from(error);
+                let range = error.range();
+                errors.push(error);
+                Self::Error(range)
+            });
+
+        (expr, errors)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Pat<Range> {
     Error(Range),
     Wildcard(Range),
     Name(Range, RcStr),
     Ann(Range, Rc<Self>, Rc<Expr<Range>>),
+}
+
+impl<Range> Pat<Range> {
+    pub fn name(&self) -> Option<RcStr> {
+        match self {
+            Pat::Error(_) => None,
+            Pat::Wildcard(_) => None,
+            Pat::Name(_, name) => Some(name.clone()),
+            Pat::Ann(_, pat, _) => pat.name(),
+        }
+    }
 }
