@@ -105,7 +105,7 @@ impl ElabCtx {
                 );
 
                 (
-                    Expr::FunExpr(Rc::from(names), arg_cores, Rc::new(body_core)),
+                    Expr::FunExpr(names, arg_cores, Rc::new(body_core)),
                     Rc::new(Value::FunType(telescope, closure)),
                 )
             }
@@ -141,7 +141,7 @@ impl ElabCtx {
                 self.local_env.push_param(name.clone(), init_type);
                 let (body_core, body_type) = self.synth_expr(body);
                 (
-                    Expr::Let(name.clone(), Rc::new(init_core), Rc::new(body_core)),
+                    Expr::Let(name, Rc::new(init_core), Rc::new(body_core)),
                     body_type,
                 )
             }

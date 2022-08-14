@@ -35,9 +35,9 @@ impl EnvLen {
         ret
     }
 
-    pub fn extend(&mut self, other: EnvLen) { self.0 += other.0; }
+    pub fn extend(&mut self, other: Self) { self.0 += other.0; }
 
-    pub fn truncate(&mut self, other: EnvLen) { self.0 = other.0; }
+    pub fn truncate(&mut self, other: Self) { self.0 = other.0; }
 
     pub fn clear(&mut self) { self.0 = 0; }
 
@@ -47,6 +47,10 @@ impl EnvLen {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UniqueEnv<T> {
     entries: Vec<T>,
+}
+
+impl<T> Default for UniqueEnv<T> {
+    fn default() -> Self { Self::new() }
 }
 
 impl<T> UniqueEnv<T> {
@@ -89,6 +93,10 @@ impl<T> UniqueEnv<T> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SharedEnv<T> {
     entries: Rc<Vec<T>>,
+}
+
+impl<T: Clone> Default for SharedEnv<T> {
+    fn default() -> Self { Self::new() }
 }
 
 impl<T: Clone> SharedEnv<T> {
