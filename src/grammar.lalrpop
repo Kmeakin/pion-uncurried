@@ -88,7 +88,7 @@ pub Pat: Pat<TextRange> = {
 }
 
 AnnPat: Pat<TextRange> = {
-    <start: @L> <pat: AtomPat> ":" <ty: CallExpr> <end: @R> => Pat::Ann(TextRange::new(start, end), Rc::new(pat), Rc::new(ty)),
+    <start: @L> <pat: AtomPat> ":" <ty: FunExpr> <end: @R> => Pat::Ann(TextRange::new(start, end), Rc::new(pat), Rc::new(ty)),
     AtomPat => <>,
 }
 
