@@ -4,7 +4,7 @@ use contracts::debug_ensures;
 
 use super::env::EnvLen;
 use super::eval::ElimCtx;
-use super::{Elim, FunClosure, Telescope, Value};
+use super::{Elim, FunClosure, Value};
 
 pub struct ConvCtx {
     local_env: EnvLen,
@@ -24,15 +24,14 @@ impl ConvCtx {
         match (value1.as_ref(), value2.as_ref()) {
             (Value::Error, _) | (_, Value::Error) => true,
 
-            (Value::FunValue(_, closure1), Value::FunValue(_, closure2)) => {
+            (Value::FunValue(closure1), Value::FunValue(closure2)) => {
                 self.conv_fun_closures(closure1, closure2)
             }
-            (Value::FunValue(_, closure1), _) => self.conv_fun_value(closure1, value2.clone()),
-            (_, Value::FunValue(_, closure2)) => self.conv_fun_value(closure2, value1.clone()),
+            (Value::FunValue(closure1), _) => self.conv_fun_value(closure1, value2.clone()),
+            (_, Value::FunValue(closure2)) => self.conv_fun_value(closure2, value1.clone()),
 
-            (Value::FunType(telescope1, closure1), Value::FunType(telescope2, closure2)) => {
-                self.conv_telescopes(telescope1, telescope2)
-                    && self.conv_fun_closures(closure1, closure2)
+            (Value::FunType(closure1), Value::FunType(closure2)) => {
+                self.conv_fun_closures(closure1, closure2)
             }
             (Value::FunType(..), _) | (_, Value::FunType(..)) => false,
 
@@ -70,48 +69,52 @@ impl ConvCtx {
     }
 
     #[debug_ensures(self.local_env == old(self.local_env))]
-    fn conv_telescopes(&mut self, telescope1: &Telescope, telescope2: &Telescope) -> bool {
-        let initial_len = self.local_env;
-        let res = telescope1.arity() == telescope2.arity()
-            && Iterator::zip(telescope1.types.iter(), telescope2.types.iter()).all(
-                |(value1, value2)| {
-                    let res = self.conv_values(value1, value2);
-                    self.local_env.push();
-                    res
-                },
-            );
-        self.local_env.truncate(initial_len);
-        res
-    }
-
-    #[debug_ensures(self.local_env == old(self.local_env))]
     fn conv_fun_closures(&mut self, closure1: &FunClosure, closure2: &FunClosure) -> bool {
-        closure1.arity == closure2.arity && {
-            let initial_len = self.local_env;
-            let args: Vec<_> = (0..closure1.arity)
-                .map(|_| Rc::new(Value::local(self.local_env.push().to_level())))
-                .collect();
-            self.local_env.truncate(initial_len);
-            let value1 = self.elim_ctx().call_closure(closure1, args.clone());
-            let value2 = self.elim_ctx().call_closure(closure2, args);
-            self.local_env.extend(EnvLen(closure1.arity));
-            let result = self.conv_values(&value1, &value2);
-            self.local_env.truncate(initial_len);
-            result
+        let initial_len = self.local_env;
+        if closure1.arity() != closure2.arity() {
+            return false;
         }
+
+        let mut args = Vec::with_capacity(closure1.arity());
+
+        let mut closure1 = closure1.clone();
+        let mut closure2 = closure2.clone();
+
+        while let Some(((arg1, cont1), (arg2, cont2))) = Option::zip(
+            self.elim_ctx().split_fun_closure(closure1.clone()),
+            self.elim_ctx().split_fun_closure(closure2.clone()),
+        ) {
+            if !self.conv_values(&arg1, &arg2) {
+                self.local_env.truncate(initial_len);
+                return false;
+            }
+
+            let arg = Rc::new(Value::local(self.local_env.to_level()));
+            closure1 = cont1(arg.clone());
+            closure2 = cont2(arg.clone());
+            self.local_env.push();
+            args.push(arg);
+        }
+
+        let body1 = self.elim_ctx().call_closure(&closure1, args.clone());
+        let body2 = self.elim_ctx().call_closure(&closure2, args);
+        let result = self.conv_values(&body1, &body2);
+
+        self.local_env.truncate(initial_len);
+        result
     }
 
     #[debug_ensures(self.local_env == old(self.local_env))]
     fn conv_fun_value(&mut self, closure: &FunClosure, fun: Rc<Value>) -> bool {
         let initial_len = self.local_env;
-        let args: Vec<_> = (0..closure.arity)
+        let args: Vec<_> = (0..closure.arity())
             .map(|_| Rc::new(Value::local(self.local_env.push().to_level())))
             .collect();
         self.local_env.truncate(initial_len);
 
         let value1 = self.elim_ctx().call_fun(fun, args.clone());
         let value2 = self.elim_ctx().call_closure(closure, args);
-        self.local_env.extend(EnvLen(closure.arity));
+        self.local_env.extend(EnvLen(closure.arity()));
         let result = self.conv_values(&value1, &value2);
         self.local_env.truncate(initial_len);
         result

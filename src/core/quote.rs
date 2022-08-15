@@ -4,7 +4,7 @@ use contracts::debug_ensures;
 
 use super::env::{EnvLen, VarLevel};
 use super::eval::ElimCtx;
-use super::{Elim, Expr, FunClosure, Head, Telescope, Value};
+use super::{Elim, Expr, FunClosure, Head, Value};
 
 pub struct QuoteCtx {
     local_values: EnvLen,
@@ -37,22 +37,19 @@ impl QuoteCtx {
                     }
                 })
             }
-            Value::FunType(telescope, closure) => {
-                let names = telescope.names.clone();
-                let types = self.quote_telescope(telescope);
-                let ret = self.quote_closure(closure);
-                Expr::FunType(names, types, Rc::new(ret))
+            Value::FunType(closure) => {
+                let (args, ret) = self.quote_closure(closure);
+                Expr::FunType(args, Rc::new(ret))
             }
-            Value::FunValue(telescope, closure) => {
-                let names = telescope.names.clone();
-                let types = self.quote_telescope(telescope);
-                let ret = self.quote_closure(closure);
-                Expr::FunExpr(names, types, Rc::new(ret))
+            Value::FunValue(closure) => {
+                let (args, body) = self.quote_closure(closure);
+                Expr::FunExpr(args, Rc::new(body))
             }
         }
     }
 
     #[debug_ensures(self.local_values == old(self.local_values))]
+    #[cfg(FALSE)]
     fn quote_telescope(&mut self, telescope: &Telescope) -> Rc<[Expr]> {
         let initial_len = self.local_values;
         let exprs = telescope
@@ -69,10 +66,11 @@ impl QuoteCtx {
     }
 
     #[debug_ensures(self.local_values == old(self.local_values))]
+    #[cfg(FALSE)]
     fn quote_closure(&mut self, closure: &FunClosure) -> Expr {
         let initial_len = self.local_values;
 
-        let args = (0..closure.arity)
+        let args = (0..closure.arity())
             .map(|_| Rc::new(Value::local(self.local_values.push().to_level())))
             .collect();
         let value = self.elim_ctx().call_closure(closure, args);
@@ -80,5 +78,30 @@ impl QuoteCtx {
         self.local_values.truncate(initial_len);
 
         expr
+    }
+
+    #[debug_ensures(self.local_values == old(self.local_values))]
+    fn quote_closure(&mut self, closure: &FunClosure) -> (Rc<[Expr]>, Expr) {
+        let initial_len = self.local_values;
+
+        let initial_closure = closure.clone();
+        let mut closure = closure.clone();
+        let mut exprs = Vec::with_capacity(closure.arity());
+        let mut args = Vec::with_capacity(closure.arity());
+
+        while let Some((value, cont)) = self.elim_ctx().split_fun_closure(closure.clone()) {
+            let arg = Rc::new(Value::local(self.local_values.to_level()));
+            closure = cont(arg.clone());
+            exprs.push(self.quote_value(&value));
+            args.push(arg);
+            self.local_values.push();
+        }
+
+        let body = self.elim_ctx().call_closure(&initial_closure, args);
+        let body = self.quote_value(&body);
+
+        self.local_values.truncate(initial_len);
+
+        (Rc::from(exprs), body)
     }
 }
