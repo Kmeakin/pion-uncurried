@@ -47,6 +47,7 @@ impl ConvCtx {
             (Value::Stuck(head1, spine1), Value::Stuck(head2, spine2)) => {
                 head1 == head2 && self.conv_spines(spine1, spine2)
             }
+            #[allow(unreachable_patterns)]
             (Value::Stuck(..), _) | (_, Value::Stuck(..)) => false,
         }
     }

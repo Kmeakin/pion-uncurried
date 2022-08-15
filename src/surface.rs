@@ -109,10 +109,10 @@ pub enum Pat<Range> {
 impl<Range> Pat<Range> {
     pub fn name(&self) -> Option<RcStr> {
         match self {
-            Pat::Error(_) => None,
-            Pat::Wildcard(_) => None,
-            Pat::Name(_, name) => Some(name.clone()),
-            Pat::Ann(_, pat, _) => pat.name(),
+            Self::Error(_) => None,
+            Self::Wildcard(_) => None,
+            Self::Name(_, name) => Some(name.clone()),
+            Self::Ann(_, pat, _) => pat.name(),
         }
     }
 }

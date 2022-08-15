@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use contracts::debug_ensures;
 
-use super::env::{EnvLen, VarLevel};
+use super::env::EnvLen;
 use super::eval::ElimCtx;
 use super::{Elim, Expr, FunClosure, Head, Value};
 

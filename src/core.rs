@@ -1,4 +1,3 @@
-use std::cell::LazyCell;
 use std::rc::Rc;
 
 use self::env::{SharedEnv, VarIndex, VarLevel};
@@ -52,13 +51,6 @@ pub enum Value {
 
 impl Value {
     pub fn local(level: VarLevel) -> Self { Self::Stuck(Head::Local(level), Vec::new()) }
-}
-
-type LazyValue = LazyCell<Value, LazyEval>;
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LazyEval {
-    pub local_values: SharedEnv<Rc<Value>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -73,7 +73,7 @@ impl ElabCtx {
 
                 for pat in pats.iter() {
                     let name = pat.name();
-                    let (pat_core, pat_type) = self.synth_pat(pat);
+                    let (_, pat_type) = self.synth_pat(pat);
                     let pat_type_core = self.quote_ctx().quote_value(&pat_type);
                     self.local_env.push_param(name, pat_type.clone());
                     arg_type_cores.push(pat_type_core);
