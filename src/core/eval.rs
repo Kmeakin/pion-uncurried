@@ -38,7 +38,7 @@ impl<'env> EvalCtx<'env> {
                 let args = args.iter().map(|arg| self.eval_expr(arg)).collect();
                 self.elim_ctx().call_fun(fun, args)
             }
-            Expr::Let(name, init, body) => {
+            Expr::Let(_, init, body) => {
                 let init_value = self.eval_expr(init);
                 self.local_values.push(init_value);
                 let body_value = self.eval_expr(body);
@@ -61,7 +61,7 @@ impl ElimCtx {
 
     pub fn call_fun(&self, mut fun: Rc<Value>, args: Vec<Rc<Value>>) -> Rc<Value> {
         match Rc::make_mut(&mut fun) {
-            Value::FunValue(names, closure) => self.call_closure(closure, args),
+            Value::FunValue(_, closure) => self.call_closure(closure, args),
             Value::Stuck(_, spine) => {
                 spine.push(Elim::FunCall(args));
                 fun

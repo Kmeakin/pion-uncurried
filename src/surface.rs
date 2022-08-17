@@ -8,6 +8,7 @@ use crate::RcStr;
 
 pub mod errors;
 pub mod lexer;
+pub mod pretty;
 lalrpop_mod!(
     #[allow(clippy::all, clippy::nursery, unused_qualifications, dead_code)]
     grammar
