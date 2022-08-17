@@ -7,8 +7,10 @@ use super::env::LocalEnv;
 use super::errors::Error;
 use super::eval::{ElimCtx, EvalCtx};
 use super::quote::QuoteCtx;
+use super::unelab::UnelabCtx;
 use super::{Expr, FunClosure, Pat, Value};
 use crate::surface;
+use crate::surface::pretty::PrettyCtx;
 
 pub struct ElabCtx {
     pub local_env: LocalEnv,
@@ -30,6 +32,10 @@ impl ElabCtx {
     pub fn quote_ctx(&self) -> QuoteCtx { QuoteCtx::new(self.local_env.values.len()) }
 
     pub fn conv_ctx(&self) -> ConvCtx { ConvCtx::new(self.local_env.values.len()) }
+
+    pub fn unelab_ctx(&mut self) -> UnelabCtx<'_> { UnelabCtx::new(&mut self.local_env.names) }
+
+    pub fn pretty_ctx(&self) -> PrettyCtx { PrettyCtx::new() }
 }
 
 impl ElabCtx {

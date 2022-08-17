@@ -41,7 +41,8 @@ impl<'a> PrettyCtx {
         match expr {
             Expr::Error(_) => self.text("#error"),
             Expr::Name(_, name) => self.text(name.to_string()),
-            Expr::Bool(..) => self.text("Bool"),
+            Expr::Bool(_, true) => self.text("true"),
+            Expr::Bool(_, false) => self.text("false"),
             Expr::FunType(_, args, ret) => {
                 let args = args.iter().map(|pat| self.pretty_pat(pat));
                 let sep = docs!(self, self.space(), ",");

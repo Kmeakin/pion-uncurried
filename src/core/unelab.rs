@@ -1,16 +1,19 @@
 use std::rc::Rc;
 
+use contracts::debug_ensures;
+
 use super::env::UniqueEnv;
 use super::Expr;
 use crate::{surface, RcStr};
 
-pub struct UnelCtx<'env> {
+pub struct UnelabCtx<'env> {
     local_names: &'env mut UniqueEnv<Option<RcStr>>,
 }
 
-impl<'env> UnelCtx<'env> {
+impl<'env> UnelabCtx<'env> {
     pub fn new(local_names: &'env mut UniqueEnv<Option<RcStr>>) -> Self { Self { local_names } }
 
+    #[debug_ensures(self.local_names.len() == old(self.local_names.len()))]
     pub fn unelab_expr(&mut self, expr: &Expr) -> surface::Expr<()> {
         match expr {
             Expr::Error => surface::Expr::Error(()),
@@ -25,29 +28,51 @@ impl<'env> UnelCtx<'env> {
                 surface::Expr::Name((), name.clone())
             }
             Expr::FunType(names, args, ret) => {
+                let initial_len = self.local_names.len();
                 let pats = names
                     .iter()
                     .zip(args.iter())
-                    .map(|(name, ty)| self.unelab_arg(name, ty))
+                    .map(|(name, ty)| {
+                        let pat = self.unelab_arg(name, ty);
+                        self.local_names.push(name.clone());
+                        pat
+                    })
                     .collect();
                 let ret = self.unelab_expr(ret);
+                self.local_names.truncate(initial_len);
                 surface::Expr::FunType((), pats, Rc::new(ret))
             }
             Expr::FunExpr(names, args, body) => {
+                let initial_len = self.local_names.len();
                 let pats = names
                     .iter()
                     .zip(args.iter())
-                    .map(|(name, ty)| self.unelab_arg(name, ty))
+                    .map(|(name, ty)| {
+                        let pat = self.unelab_arg(name, ty);
+                        self.local_names.push(name.clone());
+                        pat
+                    })
                     .collect();
-                let ret = self.unelab_expr(body);
-                surface::Expr::FunExpr((), pats, Rc::new(ret))
+                let body = self.unelab_expr(body);
+                self.local_names.truncate(initial_len);
+                surface::Expr::FunExpr((), pats, Rc::new(body))
             }
             Expr::FunCall(fun, args) => {
                 let fun = self.unelab_expr(fun);
                 let args = args.iter().map(|arg| self.unelab_expr(arg)).collect();
                 surface::Expr::FunCall((), Rc::new(fun), args)
             }
-            Expr::Let(..) => todo!(),
+            Expr::Let(name, init, body) => {
+                let pat = match name {
+                    Some(name) => surface::Pat::Name((), name.clone()),
+                    None => surface::Pat::Wildcard(()),
+                };
+                let init = self.unelab_expr(init);
+                self.local_names.push(name.clone());
+                let body = self.unelab_expr(body);
+                self.local_names.pop();
+                surface::Expr::Let((), Rc::new(pat), Rc::new(init), Rc::new(body))
+            }
             Expr::Ann(expr, ty) => {
                 let expr = self.unelab_expr(expr);
                 let ty = self.unelab_expr(ty);
