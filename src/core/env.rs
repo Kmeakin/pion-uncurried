@@ -177,6 +177,12 @@ impl LocalEnv {
         value
     }
 
+    pub fn pop(&mut self) {
+        self.names.pop();
+        self.types.pop();
+        self.values.pop();
+    }
+
     pub fn len(&self) -> EnvLen { self.names.len() }
 
     pub fn truncate(&mut self, len: EnvLen) {

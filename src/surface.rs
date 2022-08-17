@@ -97,6 +97,19 @@ impl Expr<TextRange> {
 
         (expr, errors)
     }
+
+    pub fn range(&self) -> TextRange {
+        match self {
+            Self::Error(range)
+            | Self::Name(range, ..)
+            | Self::Bool(range, ..)
+            | Self::FunType(range, ..)
+            | Self::FunExpr(range, ..)
+            | Self::FunCall(range, ..)
+            | Self::Let(range, ..)
+            | Self::Ann(range, ..) => *range,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -114,6 +127,17 @@ impl<Range> Pat<Range> {
             Self::Wildcard(_) => None,
             Self::Name(_, name) => Some(name.clone()),
             Self::Ann(_, pat, _) => pat.name(),
+        }
+    }
+}
+
+impl Pat<TextRange> {
+    pub fn range(&self) -> TextRange {
+        match self {
+            Self::Error(range, ..)
+            | Self::Wildcard(range, ..)
+            | Self::Name(range, ..)
+            | Self::Ann(range, ..) => *range,
         }
     }
 }

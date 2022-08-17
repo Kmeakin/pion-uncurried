@@ -22,10 +22,11 @@ impl<'env> UnelabCtx<'env> {
             Expr::Bool(b) => surface::Expr::Bool((), *b),
             Expr::Local(index) => {
                 let name = match self.local_names.get_by_index(*index) {
-                    Some(Some(name)) => name,
-                    _ => unreachable!(),
+                    Some(Some(name)) => name.clone(),
+                    Some(None) => Rc::from("_"),
+                    _ => unreachable!("Unbound local variable: {index:?}"),
                 };
-                surface::Expr::Name((), name.clone())
+                surface::Expr::Name((), name)
             }
             Expr::FunType(names, args, ret) => {
                 let initial_len = self.local_names.len();

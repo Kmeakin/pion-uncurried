@@ -45,7 +45,7 @@ impl<'a> PrettyCtx {
             Expr::Bool(_, false) => self.text("false"),
             Expr::FunType(_, args, ret) => {
                 let args = args.iter().map(|pat| self.pretty_pat(pat));
-                let sep = docs!(self, self.space(), ",");
+                let sep = docs!(self, ",", self.space());
                 let args = self.intersperse(args, sep);
                 let ret = self.pretty_expr_prec(Prec::Fun, ret);
                 self.parens(
@@ -53,7 +53,6 @@ impl<'a> PrettyCtx {
                     docs!(
                         self,
                         "fn",
-                        self.space(),
                         "(",
                         args,
                         ")",
@@ -74,7 +73,6 @@ impl<'a> PrettyCtx {
                     docs!(
                         self,
                         "fn",
-                        self.space(),
                         "(",
                         args,
                         ")",
