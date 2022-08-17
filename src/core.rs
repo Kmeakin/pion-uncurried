@@ -9,6 +9,7 @@ pub mod env;
 pub mod errors;
 pub mod eval;
 pub mod quote;
+pub mod unelab;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Expr {
@@ -20,13 +21,13 @@ pub enum Expr {
     /// `x`
     Local(VarIndex),
     /// `fn (x1: e1, x2: e2, ...) -> en`
-    FunType(Rc<[Self]>, Rc<Self>),
+    FunType(Rc<[Option<RcStr>]>, Rc<[Self]>, Rc<Self>),
     /// `fn (x1: e1, x2: e2, ...) => en`
-    FunExpr(Rc<[Self]>, Rc<Self>),
+    FunExpr(Rc<[Option<RcStr>]>, Rc<[Self]>, Rc<Self>),
     /// `e1(e2, e3, ...)`
     FunCall(Rc<Self>, Rc<[Self]>),
     /// `let x = e1 in e2`
-    Let(Rc<Self>, Rc<Self>),
+    Let(Option<RcStr>, Rc<Self>, Rc<Self>),
     /// `e1: e2`
     Ann(Rc<Self>, Rc<Self>),
 }
@@ -45,8 +46,8 @@ pub enum Value {
     BoolType,
     Bool(bool),
     Stuck(Head, Vec<Elim>),
-    FunType(FunClosure),
-    FunValue(FunClosure),
+    FunType(Rc<[Option<RcStr>]>, FunClosure),
+    FunValue(Rc<[Option<RcStr>]>, FunClosure),
 }
 
 impl Value {

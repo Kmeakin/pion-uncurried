@@ -37,13 +37,13 @@ impl QuoteCtx {
                     }
                 })
             }
-            Value::FunType(closure) => {
+            Value::FunType(names, closure) => {
                 let (args, ret) = self.quote_closure(closure);
-                Expr::FunType(args, Rc::new(ret))
+                Expr::FunType(names.clone(), args, Rc::new(ret))
             }
-            Value::FunValue(closure) => {
+            Value::FunValue(names, closure) => {
                 let (args, body) = self.quote_closure(closure);
-                Expr::FunExpr(args, Rc::new(body))
+                Expr::FunExpr(names.clone(), args, Rc::new(body))
             }
         }
     }

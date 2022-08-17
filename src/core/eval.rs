@@ -25,22 +25,20 @@ impl<'env> EvalCtx<'env> {
                 Some(value) => value.clone(),
                 None => unreachable!("Unbound local variable: {idx:?}"),
             },
-            Expr::FunType(args, ret) => Rc::new(Value::FunType(FunClosure::new(
-                self.local_values.clone(),
-                args.clone(),
-                ret.clone(),
-            ))),
-            Expr::FunExpr(args, body) => Rc::new(Value::FunValue(FunClosure::new(
-                self.local_values.clone(),
-                args.clone(),
-                body.clone(),
-            ))),
+            Expr::FunType(names, args, ret) => Rc::new(Value::FunType(
+                names.clone(),
+                FunClosure::new(self.local_values.clone(), args.clone(), ret.clone()),
+            )),
+            Expr::FunExpr(names, args, body) => Rc::new(Value::FunValue(
+                names.clone(),
+                FunClosure::new(self.local_values.clone(), args.clone(), body.clone()),
+            )),
             Expr::FunCall(fun, args) => {
                 let fun = self.eval_expr(fun);
                 let args = args.iter().map(|arg| self.eval_expr(arg)).collect();
                 self.elim_ctx().call_fun(fun, args)
             }
-            Expr::Let(init, body) => {
+            Expr::Let(name, init, body) => {
                 let init_value = self.eval_expr(init);
                 self.local_values.push(init_value);
                 let body_value = self.eval_expr(body);
@@ -63,7 +61,7 @@ impl ElimCtx {
 
     pub fn call_fun(&self, mut fun: Rc<Value>, args: Vec<Rc<Value>>) -> Rc<Value> {
         match Rc::make_mut(&mut fun) {
-            Value::FunValue(closure) => self.call_closure(closure, args),
+            Value::FunValue(names, closure) => self.call_closure(closure, args),
             Value::Stuck(_, spine) => {
                 spine.push(Elim::FunCall(args));
                 fun

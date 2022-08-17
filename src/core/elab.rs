@@ -51,51 +51,61 @@ impl ElabCtx {
             }
             surface::Expr::Bool(_, b) => (Expr::Bool(*b), Rc::new(Value::BoolType)),
             surface::Expr::FunType(_, pats, ret) => {
-                let arg_cores = pats
+                let (names, arg_cores) = pats
                     .iter()
                     .map(|pat| {
                         let (_, pat_type) = self.synth_pat(pat);
                         let pat_type_core = self.quote_ctx().quote_value(&pat_type);
                         let pat_name = pat.name();
-                        self.local_env.push_param(pat_name, pat_type);
-                        pat_type_core
+                        self.local_env.push_param(pat_name.clone(), pat_type);
+                        (pat_name, pat_type_core)
                     })
-                    .collect();
+                    .unzip::<_, _, Vec<_>, Vec<_>>();
                 let ret_core = self.check_expr_is_type(ret);
                 (
-                    Expr::FunType(arg_cores, Rc::new(ret_core)),
+                    Expr::FunType(Rc::from(names), Rc::from(arg_cores), Rc::new(ret_core)),
                     Rc::new(Value::Type),
                 )
             }
             surface::Expr::FunExpr(_, pats, body) => {
                 let mut arg_type_cores = Vec::with_capacity(pats.len());
                 let mut arg_types = Vec::with_capacity(pats.len());
+                let mut arg_names = Vec::with_capacity(pats.len());
 
                 for pat in pats.iter() {
                     let name = pat.name();
                     let (_, pat_type) = self.synth_pat(pat);
                     let pat_type_core = self.quote_ctx().quote_value(&pat_type);
-                    self.local_env.push_param(name, pat_type.clone());
+                    self.local_env.push_param(name.clone(), pat_type.clone());
                     arg_type_cores.push(pat_type_core);
                     arg_types.push(pat_type);
+                    arg_names.push(name);
                 }
 
                 let (body_core, body_type) = self.synth_expr(body);
                 let body_type_core = self.quote_ctx().quote_value(&body_type);
 
                 let arg_type_cores: Rc<[_]> = Rc::from(arg_type_cores);
-                let fun_expr = Expr::FunExpr(arg_type_cores.clone(), Rc::new(body_core));
-                let fun_type = Rc::new(Value::FunType(FunClosure::new(
-                    self.local_env.values.clone(),
-                    arg_type_cores,
-                    Rc::new(body_type_core),
-                )));
+                let arg_names: Rc<[_]> = Rc::from(arg_names);
+                let fun_expr = Expr::FunExpr(
+                    arg_names.clone(),
+                    arg_type_cores.clone(),
+                    Rc::new(body_core),
+                );
+                let fun_type = Rc::new(Value::FunType(
+                    arg_names,
+                    FunClosure::new(
+                        self.local_env.values.clone(),
+                        arg_type_cores,
+                        Rc::new(body_type_core),
+                    ),
+                ));
                 (fun_expr, fun_type)
             }
             surface::Expr::FunCall(_, fun, args) => {
                 let (fun_core, fun_type) = self.synth_expr(fun);
                 let closure = match fun_type.as_ref() {
-                    Value::FunType(closure) => closure,
+                    Value::FunType(_, closure) => closure,
                     _ => todo!("tried to call non-fn"),
                 };
 
@@ -131,9 +141,12 @@ impl ElabCtx {
                 let name = pat.name();
                 let (_, pat_type) = self.synth_pat(pat);
                 let init_core = self.check_expr(init, &pat_type);
-                self.local_env.push_param(name, pat_type);
+                self.local_env.push_param(name.clone(), pat_type);
                 let (body_core, body_type) = self.synth_expr(body);
-                (Expr::Let(Rc::new(init_core), Rc::new(body_core)), body_type)
+                (
+                    Expr::Let(name, Rc::new(init_core), Rc::new(body_core)),
+                    body_type,
+                )
             }
             surface::Expr::Ann(_, expr, ty) => {
                 let type_core = self.check_expr_is_type(ty);
@@ -153,7 +166,7 @@ impl ElabCtx {
 
     pub fn check_expr(&mut self, expr: &surface::Expr<TextRange>, expected: &Rc<Value>) -> Expr {
         match (expr, expected.as_ref()) {
-            (surface::Expr::FunExpr(_, pats, body), Value::FunType(closure)) => {
+            (surface::Expr::FunExpr(_, pats, body), Value::FunType(_, closure)) => {
                 if pats.len() != closure.arity() {
                     todo!("arity mismatch")
                 }
@@ -163,6 +176,7 @@ impl ElabCtx {
 
                 let mut args_values = Vec::with_capacity(pats.len());
                 let mut arg_types = Vec::with_capacity(pats.len());
+                let mut names = Vec::with_capacity(pats.len());
                 let mut pats = pats.iter();
 
                 while let Some((pat, (expected, cont))) =
@@ -173,15 +187,18 @@ impl ElabCtx {
                     let arg_type = self.quote_ctx().quote_value(&expected);
                     arg_types.push(arg_type);
 
-                    let arg_value = self.local_env.push_param(pat_name, expected.clone());
+                    let arg_value = self
+                        .local_env
+                        .push_param(pat_name.clone(), expected.clone());
                     closure = cont(arg_value.clone());
                     args_values.push(arg_value);
+                    names.push(pat_name);
                 }
 
                 let expected_ret = self.elim_ctx().call_closure(&initial_closure, args_values);
                 let ret_core = self.check_expr(body, &expected_ret);
 
-                Expr::FunExpr(Rc::from(arg_types), Rc::new(ret_core))
+                Expr::FunExpr(Rc::from(names), Rc::from(arg_types), Rc::new(ret_core))
             }
             _ => {
                 let (core, got) = self.synth_expr(expr);

@@ -24,13 +24,13 @@ impl ConvCtx {
         match (value1.as_ref(), value2.as_ref()) {
             (Value::Error, _) | (_, Value::Error) => true,
 
-            (Value::FunValue(closure1), Value::FunValue(closure2)) => {
+            (Value::FunValue(_, closure1), Value::FunValue(_, closure2)) => {
                 self.conv_fun_closures(closure1, closure2)
             }
-            (Value::FunValue(closure1), _) => self.conv_fun_value(closure1, value2.clone()),
-            (_, Value::FunValue(closure2)) => self.conv_fun_value(closure2, value1.clone()),
+            (Value::FunValue(_, closure1), _) => self.conv_fun_value(closure1, value2.clone()),
+            (_, Value::FunValue(_, closure2)) => self.conv_fun_value(closure2, value1.clone()),
 
-            (Value::FunType(closure1), Value::FunType(closure2)) => {
+            (Value::FunType(_, closure1), Value::FunType(_, closure2)) => {
                 self.conv_fun_closures(closure1, closure2)
             }
             (Value::FunType(..), _) | (_, Value::FunType(..)) => false,
