@@ -68,9 +68,11 @@ impl ElabCtx {
         self.synth_expr_inner(expr)
     }
 
+    fn synth_error_expr(&mut self) -> (Expr, Rc<Value>) { (Expr::Error, Rc::new(Value::Error)) }
+
     fn synth_expr_inner(&mut self, expr: &surface::Expr<TextRange>) -> (Expr, Rc<Value>) {
         match expr {
-            surface::Expr::Error(_) => (Expr::Error, Rc::new(Value::Error)),
+            surface::Expr::Error(_) => self.synth_error_expr(),
             surface::Expr::Name(range, name) => {
                 if let Some((idx, ty)) = self.local_env.lookup(name) {
                     return (Expr::Local(idx), ty);
@@ -81,7 +83,11 @@ impl ElabCtx {
                     "Bool" => return (Expr::BoolType, Rc::new(Value::Type)),
                     _ => {}
                 }
-                todo!("Unbound name: {name} at {:?}", range);
+                self.errors.push(Error::UnboundName {
+                    range: *range,
+                    name: name.clone(),
+                });
+                self.synth_error_expr()
             }
             surface::Expr::Bool(_, b) => (Expr::Bool(*b), Rc::new(Value::BoolType)),
             surface::Expr::FunType(_, pats, ret) => self.with_scope(|this| {
@@ -124,15 +130,29 @@ impl ElabCtx {
                 let fun_type = Value::FunType(names, closure);
                 (fun_core, Rc::new(fun_type))
             }),
-            surface::Expr::FunCall(_, fun, args) => {
+            surface::Expr::FunCall(range, fun, args) => {
                 let (fun_core, fun_type) = self.synth_expr(fun);
                 let closure = match fun_type.as_ref() {
                     Value::FunType(_, closure) => closure,
-                    _ => todo!("tried to call non-fn"),
+                    _ => {
+                        self.errors.push(Error::CallNonFun {
+                            range: fun.range(),
+                            fun_type,
+                        });
+                        return self.synth_error_expr();
+                    }
                 };
 
-                if args.len() != closure.arity() {
-                    todo!("arity mismatch")
+                let expected_arity = closure.arity();
+                let actual_arity = args.len();
+                if actual_arity != expected_arity {
+                    self.errors.push(Error::ArityMismatch {
+                        range: *range,
+                        fun_type,
+                        expected_arity,
+                        actual_arity,
+                    });
+                    return self.synth_error_expr();
                 }
 
                 let initial_closure = closure.clone();
@@ -232,12 +252,12 @@ impl ElabCtx {
                 if self.conv_ctx().conv_values(&got, expected) {
                     core
                 } else {
-                    todo!(
-                        "Type mismatch: expected {}, got {} at {:?}",
-                        self.pretty_value(expected),
-                        self.pretty_value(&got),
-                        expr.range()
-                    )
+                    self.errors.push(Error::TypeMismatch {
+                        range: expr.range(),
+                        expected_type: expected.clone(),
+                        actual_type: got,
+                    });
+                    Expr::Error
                 }
             }
         }
@@ -267,12 +287,12 @@ impl ElabCtx {
                 if self.conv_ctx().conv_values(&got, expected) {
                     core
                 } else {
-                    todo!(
-                        "Type mismatch: expected {}, got {} at {:?}",
-                        self.pretty_value(expected),
-                        self.pretty_value(&got),
-                        pat.range()
-                    )
+                    self.errors.push(Error::TypeMismatch {
+                        range: pat.range(),
+                        expected_type: expected.clone(),
+                        actual_type: got,
+                    });
+                    Pat::Error
                 }
             }
         }
