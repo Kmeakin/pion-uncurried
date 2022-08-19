@@ -49,38 +49,6 @@ impl QuoteCtx {
     }
 
     #[debug_ensures(self.local_values == old(self.local_values))]
-    #[cfg(FALSE)]
-    fn quote_telescope(&mut self, telescope: &Telescope) -> Rc<[Expr]> {
-        let initial_len = self.local_values;
-        let exprs = telescope
-            .types
-            .iter()
-            .map(|value| {
-                let expr = self.quote_value(value);
-                self.local_values.push();
-                expr
-            })
-            .collect();
-        self.local_values.truncate(initial_len);
-        exprs
-    }
-
-    #[debug_ensures(self.local_values == old(self.local_values))]
-    #[cfg(FALSE)]
-    fn quote_closure(&mut self, closure: &FunClosure) -> Expr {
-        let initial_len = self.local_values;
-
-        let args = (0..closure.arity())
-            .map(|_| Rc::new(Value::local(self.local_values.push().to_level())))
-            .collect();
-        let value = self.elim_ctx().call_closure(closure, args);
-        let expr = self.quote_value(&value);
-        self.local_values.truncate(initial_len);
-
-        expr
-    }
-
-    #[debug_ensures(self.local_values == old(self.local_values))]
     fn quote_closure(&mut self, closure: &FunClosure) -> (Rc<[Expr]>, Expr) {
         let initial_len = self.local_values;
 

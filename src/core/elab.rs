@@ -58,6 +58,10 @@ impl ElabCtx {
 impl ElabCtx {
     #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
     pub fn synth_expr(&mut self, expr: &surface::Expr<TextRange>) -> (Expr, Rc<Value>) {
+        self.synth_expr_inner(expr)
+    }
+
+    fn synth_expr_inner(&mut self, expr: &surface::Expr<TextRange>) -> (Expr, Rc<Value>) {
         match expr {
             surface::Expr::Error(_) => (Expr::Error, Rc::new(Value::Error)),
             surface::Expr::Name(range, name) => {
@@ -194,7 +198,12 @@ impl ElabCtx {
         self.check_expr(expr, &Rc::new(Value::Type))
     }
 
+    #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
     pub fn check_expr(&mut self, expr: &surface::Expr<TextRange>, expected: &Rc<Value>) -> Expr {
+        self.check_expr_inner(expr, expected)
+    }
+
+    fn check_expr_inner(&mut self, expr: &surface::Expr<TextRange>, expected: &Rc<Value>) -> Expr {
         match (expr, expected.as_ref()) {
             (surface::Expr::FunExpr(_, pats, body), Value::FunType(_, closure)) => {
                 if pats.len() != closure.arity() {
