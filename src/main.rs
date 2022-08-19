@@ -1,4 +1,4 @@
-use pion::core::elab::{self, ElabCtx};
+use pion::core::elab::ElabCtx;
 use pion::surface;
 use rustyline::error::ReadlineError;
 use rustyline::Editor;
