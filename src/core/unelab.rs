@@ -2,8 +2,8 @@ use std::rc::Rc;
 
 use contracts::debug_ensures;
 
-use super::env::UniqueEnv;
-use super::Expr;
+use super::env::{UniqueEnv, VarLevel};
+use super::{EntryInfo, Expr};
 use crate::{surface, RcStr};
 
 pub struct UnelabCtx<'env> {
@@ -27,6 +27,34 @@ impl<'env> UnelabCtx<'env> {
                     _ => unreachable!("Unbound local variable: {index:?}"),
                 };
                 surface::Expr::Name((), name)
+            }
+            Expr::Meta(_) => surface::Expr::Placeholder(()),
+            Expr::MetaInsertion(level, infos) => {
+                let mut head = self.unelab_expr(&Expr::Meta(*level));
+                let mut args = Vec::new();
+                for (info, var) in infos.iter().zip(0..) {
+                    match info {
+                        EntryInfo::Def => {}
+                        EntryInfo::Param(depth) => {
+                            let var = self
+                                .local_names
+                                .len()
+                                .level_to_index(VarLevel(var))
+                                .unwrap();
+                            let arg = self.unelab_expr(&Expr::Local(var));
+                            args.push(arg);
+                            if *depth == 0 {
+                                head = surface::Expr::FunCall(
+                                    (),
+                                    Rc::new(head),
+                                    Rc::from(args.clone()),
+                                );
+                                args.clear();
+                            }
+                        }
+                    }
+                }
+                head
             }
             Expr::FunType(names, args, ret) => {
                 let initial_len = self.local_names.len();

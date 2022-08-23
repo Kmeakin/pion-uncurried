@@ -63,6 +63,7 @@ pub struct LetDecl<Range> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Expr<Range> {
     Error(Range),
+    Placeholder(Range),
     Name(Range, RcStr),
     Bool(Range, bool),
     FunType(Range, Rc<[Pat<Range>]>, Rc<Self>),
@@ -100,7 +101,8 @@ impl Expr<TextRange> {
 
     pub fn range(&self) -> TextRange {
         match self {
-            Self::Error(range)
+            Self::Error(range, ..)
+            | Self::Placeholder(range, ..)
             | Self::Name(range, ..)
             | Self::Bool(range, ..)
             | Self::FunType(range, ..)

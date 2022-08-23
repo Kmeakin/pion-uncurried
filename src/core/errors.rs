@@ -2,11 +2,12 @@ use std::rc::Rc;
 
 use text_size::TextRange;
 
-use super::Value;
+use super::unify::UnifyError;
+use super::{MetaSource, Value};
 use crate::RcStr;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Error {
+pub enum ElabError {
     UnboundName {
         range: TextRange,
         name: RcStr,
@@ -25,5 +26,9 @@ pub enum Error {
         range: TextRange,
         expected_type: Rc<Value>,
         actual_type: Rc<Value>,
+        error: UnifyError,
+    },
+    UnsolvedMeta {
+        source: MetaSource,
     },
 }

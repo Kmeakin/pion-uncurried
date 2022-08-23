@@ -2,17 +2,26 @@ use std::rc::Rc;
 
 use contracts::debug_ensures;
 
-use super::env::SharedEnv;
+use super::env::{SharedEnv, UniqueEnv};
 use super::*;
 
 pub struct EvalCtx<'env> {
     local_values: &'env mut SharedEnv<Rc<Value>>,
+    meta_values: &'env UniqueEnv<Option<Rc<Value>>>,
 }
 
 impl<'env> EvalCtx<'env> {
-    pub fn new(local_values: &'env mut SharedEnv<Rc<Value>>) -> Self { Self { local_values } }
+    pub fn new(
+        local_values: &'env mut SharedEnv<Rc<Value>>,
+        meta_values: &'env UniqueEnv<Option<Rc<Value>>>,
+    ) -> Self {
+        Self {
+            local_values,
+            meta_values,
+        }
+    }
 
-    fn elim_ctx(&self) -> ElimCtx { ElimCtx::new() }
+    fn elim_ctx(&self) -> ElimCtx { ElimCtx::new(self.meta_values) }
 
     #[debug_ensures(self.local_values.len() == old(self.local_values.len()))]
     pub fn eval_expr(&mut self, expr: &Expr) -> Rc<Value> {
@@ -25,6 +34,32 @@ impl<'env> EvalCtx<'env> {
                 Some(value) => value.clone(),
                 None => unreachable!("Unbound local variable: {idx:?}"),
             },
+            Expr::Meta(level) => match self.meta_values.get_by_level(*level) {
+                Some(Some(value)) => value.clone(),
+                Some(None) => Rc::new(Value::meta(*level)),
+                None => unreachable!("Unbound meta variable: {level:?}"),
+            },
+            Expr::MetaInsertion(level, infos) => {
+                let mut head = self.eval_expr(&Expr::Meta(*level));
+                let mut args = Vec::new();
+
+                for (info, value) in infos.iter().zip(self.local_values.iter()) {
+                    head = match info {
+                        EntryInfo::Def => head,
+                        EntryInfo::Param(0) => {
+                            args.push(value.clone());
+                            let ret = self.elim_ctx().call_fun(head, args.clone());
+                            args.clear();
+                            ret
+                        }
+                        EntryInfo::Param(_) => {
+                            args.push(value.clone());
+                            head
+                        }
+                    };
+                }
+                head
+            }
             Expr::FunType(names, args, ret) => Rc::new(Value::FunType(
                 names.clone(),
                 FunClosure::new(self.local_values.clone(), args.clone(), ret.clone()),
@@ -50,13 +85,15 @@ impl<'env> EvalCtx<'env> {
     }
 }
 
-pub struct ElimCtx {}
+pub struct ElimCtx<'env> {
+    meta_values: &'env UniqueEnv<Option<Rc<Value>>>,
+}
 
-impl ElimCtx {
-    pub fn new() -> Self { Self {} }
+impl<'env> ElimCtx<'env> {
+    pub fn new(meta_values: &'env UniqueEnv<Option<Rc<Value>>>) -> Self { Self { meta_values } }
 
-    fn eval_ctx<'env>(&self, local_values: &'env mut SharedEnv<Rc<Value>>) -> EvalCtx<'env> {
-        EvalCtx::new(local_values)
+    pub fn eval_ctx(&self, local_values: &'env mut SharedEnv<Rc<Value>>) -> EvalCtx<'env> {
+        EvalCtx::new(local_values, self.meta_values)
     }
 
     pub fn call_fun(&self, mut fun: Rc<Value>, args: Vec<Rc<Value>>) -> Rc<Value> {
@@ -91,5 +128,23 @@ impl ElimCtx {
             closure.args = args;
             closure
         }))
+    }
+
+    pub fn force_value(&self, value: &Rc<Value>) -> Rc<Value> {
+        let mut forced_value = value.clone();
+        while let Value::Stuck(Head::Meta(level), spine) = forced_value.as_ref() {
+            match self.meta_values.get_by_level(*level) {
+                Some(Some(value)) => forced_value = self.apply_spine(value.clone(), spine),
+                Some(None) => break,
+                None => unreachable!("Unbound meta variable: {level:?}"),
+            }
+        }
+        forced_value
+    }
+
+    fn apply_spine(&self, head: Rc<Value>, spine: &[Elim]) -> Rc<Value> {
+        spine.iter().fold(head, |head, elim| match elim {
+            Elim::FunCall(args) => self.call_fun(head, args.clone()),
+        })
     }
 }

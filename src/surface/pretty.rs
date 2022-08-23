@@ -40,6 +40,7 @@ impl<'a> PrettyCtx {
     pub fn pretty_expr_prec<Range>(&'a self, prec: Prec, expr: &Expr<Range>) -> DocBuilder<'a> {
         match expr {
             Expr::Error(_) => self.text("#error"),
+            Expr::Placeholder(_) => self.text("_"),
             Expr::Name(_, name) => self.text(name.to_string()),
             Expr::Bool(_, true) => self.text("true"),
             Expr::Bool(_, false) => self.text("false"),

@@ -1,5 +1,7 @@
 use std::rc::Rc;
 
+use text_size::TextRange;
+
 use self::env::{SharedEnv, VarIndex, VarLevel};
 use crate::RcStr;
 
@@ -10,6 +12,7 @@ pub mod errors;
 pub mod eval;
 pub mod quote;
 pub mod unelab;
+mod unify;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Expr {
@@ -20,6 +23,9 @@ pub enum Expr {
 
     /// `x`
     Local(VarIndex),
+    Meta(VarLevel),
+    MetaInsertion(VarLevel, SharedEnv<EntryInfo>),
+
     /// `fn (x1: e1, x2: e2, ...) -> en`
     FunType(Rc<[Option<RcStr>]>, Rc<[Self]>, Rc<Self>),
     /// `fn (x1: e1, x2: e2, ...) => en`
@@ -30,6 +36,20 @@ pub enum Expr {
     Let(Option<RcStr>, Rc<Self>, Rc<Self>),
     /// `e1: e2`
     Ann(Rc<Self>, Rc<Self>),
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum EntryInfo {
+    Def,
+    Param(usize),
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum MetaSource {
+    PlaceholderType(TextRange),
+    PlaceholderExpr(TextRange),
+    PatType(TextRange),
+    Error,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -52,11 +72,13 @@ pub enum Value {
 
 impl Value {
     pub fn local(level: VarLevel) -> Self { Self::Stuck(Head::Local(level), Vec::new()) }
+    pub fn meta(level: VarLevel) -> Self { Self::Stuck(Head::Meta(level), Vec::new()) }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Head {
     Local(VarLevel),
+    Meta(VarLevel),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

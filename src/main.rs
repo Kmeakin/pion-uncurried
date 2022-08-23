@@ -40,6 +40,12 @@ fn main() {
         let mut elab_ctx = ElabCtx::new();
         let (expr_core, expr_type) = elab_ctx.synth_expr(&expr);
 
+        let errors: Vec<_> = elab_ctx.drain_errors().collect();
+        if !errors.is_empty() {
+            dbg!(errors);
+            continue;
+        }
+
         let type_core = elab_ctx.quote_ctx().quote_value(&expr_type);
         let expr_surface = elab_ctx.unelab_ctx().unelab_expr(&expr_core);
         let type_surface = elab_ctx.unelab_ctx().unelab_expr(&type_core);

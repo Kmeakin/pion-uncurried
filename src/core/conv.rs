@@ -2,18 +2,24 @@ use std::rc::Rc;
 
 use contracts::debug_ensures;
 
-use super::env::EnvLen;
+use super::env::{EnvLen, UniqueEnv};
 use super::eval::ElimCtx;
 use super::{Elim, FunClosure, Value};
 
-pub struct ConvCtx {
+pub struct ConvCtx<'env> {
     local_env: EnvLen,
+    meta_values: &'env UniqueEnv<Option<Rc<Value>>>,
 }
 
-impl ConvCtx {
-    pub fn new(local_env: EnvLen) -> Self { Self { local_env } }
+impl<'env> ConvCtx<'env> {
+    pub fn new(local_env: EnvLen, meta_values: &'env UniqueEnv<Option<Rc<Value>>>) -> Self {
+        Self {
+            local_env,
+            meta_values,
+        }
+    }
 
-    fn elim_ctx(&self) -> ElimCtx { ElimCtx::new() }
+    fn elim_ctx(&self) -> ElimCtx { ElimCtx::new(self.meta_values) }
 
     #[debug_ensures(self.local_env == old(self.local_env))]
     pub fn conv_values(&mut self, value1: &Rc<Value>, value2: &Rc<Value>) -> bool {
@@ -47,8 +53,6 @@ impl ConvCtx {
             (Value::Stuck(head1, spine1), Value::Stuck(head2, spine2)) => {
                 head1 == head2 && self.conv_spines(spine1, spine2)
             }
-            #[allow(unreachable_patterns)]
-            (Value::Stuck(..), _) | (_, Value::Stuck(..)) => false,
         }
     }
 
@@ -71,11 +75,11 @@ impl ConvCtx {
 
     #[debug_ensures(self.local_env == old(self.local_env))]
     fn conv_fun_closures(&mut self, closure1: &FunClosure, closure2: &FunClosure) -> bool {
-        let initial_len = self.local_env;
         if closure1.arity() != closure2.arity() {
             return false;
         }
 
+        let initial_len = self.local_env;
         let mut args = Vec::with_capacity(closure1.arity());
 
         let mut closure1 = closure1.clone();

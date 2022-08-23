@@ -2,20 +2,26 @@ use std::rc::Rc;
 
 use contracts::debug_ensures;
 
-use super::env::EnvLen;
+use super::env::{EnvLen, UniqueEnv};
 use super::eval::ElimCtx;
 use super::{Elim, Expr, FunClosure, Head, Value};
 
-pub struct QuoteCtx {
+pub struct QuoteCtx<'env> {
     local_values: EnvLen,
+    meta_values: &'env UniqueEnv<Option<Rc<Value>>>,
 }
 
-impl QuoteCtx {
-    pub fn new(local_values: EnvLen) -> Self { Self { local_values } }
+impl<'env> QuoteCtx<'env> {
+    pub fn new(local_values: EnvLen, meta_values: &'env UniqueEnv<Option<Rc<Value>>>) -> Self {
+        Self {
+            local_values,
+            meta_values,
+        }
+    }
 
-    fn elim_ctx(&self) -> ElimCtx { ElimCtx::new() }
+    fn elim_ctx(&self) -> ElimCtx { ElimCtx::new(self.meta_values) }
 
-    #[debug_ensures(self.local_values == old(self.local_values))]
+    // #[debug_ensures(self.local_values == old(self.local_values))]
     pub fn quote_value(&mut self, value: &Rc<Value>) -> Expr {
         match value.as_ref() {
             Value::Error => Expr::Error,
@@ -25,9 +31,10 @@ impl QuoteCtx {
             Value::Stuck(head, spine) => {
                 let head_core = match head {
                     Head::Local(level) => match self.local_values.level_to_index(*level) {
-                        None => unreachable!(),
+                        None => unreachable!("Unbound local variable: {level:?}"),
                         Some(index) => Expr::Local(index),
                     },
+                    Head::Meta(level) => Expr::Meta(*level),
                 };
 
                 spine.iter().fold(head_core, |head_core, elim| match elim {

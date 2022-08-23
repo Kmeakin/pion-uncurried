@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use contracts::debug_invariant;
 
-use super::Value;
+use super::{EntryInfo, MetaSource, Value};
 use crate::RcStr;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -11,7 +11,7 @@ pub struct VarIndex(pub usize);
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct VarLevel(pub usize);
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Default)]
 pub struct EnvLen(pub usize);
 
 impl EnvLen {
@@ -66,20 +66,7 @@ impl<T> UniqueEnv<T> {
 
     pub fn truncate(&mut self, other: EnvLen) { self.entries.truncate(other.0); }
 
-    pub fn iter_by_level(&self) -> impl DoubleEndedIterator<Item = (VarLevel, &T)> {
-        self.entries
-            .iter()
-            .enumerate()
-            .map(|(level, entry)| (VarLevel(level), entry))
-    }
-
-    pub fn iter_by_index(&self) -> impl DoubleEndedIterator<Item = (VarIndex, &T)> {
-        self.entries
-            .iter()
-            .rev()
-            .enumerate()
-            .map(|(level, entry)| (VarIndex(level), entry))
-    }
+    pub fn iter(&self) -> impl DoubleEndedIterator<Item = &T> { self.entries.iter() }
 
     pub fn len(&self) -> EnvLen { EnvLen(self.entries.len()) }
 
@@ -88,6 +75,21 @@ impl<T> UniqueEnv<T> {
     }
 
     pub fn get_by_level(&self, level: VarLevel) -> Option<&T> { self.entries.get(level.0) }
+
+    pub fn clear(&mut self) { self.entries.clear(); }
+
+    pub fn resize(&mut self, new_len: EnvLen, value: T)
+    where
+        T: Clone,
+    {
+        self.entries.resize(new_len.0, value)
+    }
+
+    pub fn resize_with(&mut self, new_len: EnvLen, f: impl FnMut() -> T) {
+        self.entries.resize_with(new_len.0, f)
+    }
+
+    pub fn set_by_level(&mut self, level: VarLevel, elem: T) { self.entries[level.0] = elem; }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -112,20 +114,7 @@ impl<T: Clone> SharedEnv<T> {
 
     pub fn truncate(&mut self, other: EnvLen) { Rc::make_mut(&mut self.entries).truncate(other.0); }
 
-    pub fn iter_by_level(&self) -> impl DoubleEndedIterator<Item = (VarLevel, &T)> {
-        self.entries
-            .iter()
-            .enumerate()
-            .map(|(level, entry)| (VarLevel(level), entry))
-    }
-
-    pub fn iter_by_index(&self) -> impl DoubleEndedIterator<Item = (VarIndex, &T)> {
-        self.entries
-            .iter()
-            .rev()
-            .enumerate()
-            .map(|(level, entry)| (VarIndex(level), entry))
-    }
+    pub fn iter(&self) -> impl DoubleEndedIterator<Item = &T> { self.entries.iter() }
 
     pub fn len(&self) -> EnvLen { EnvLen(self.entries.len()) }
 
@@ -146,33 +135,52 @@ impl<T: Clone> Extend<T> for SharedEnv<T> {
 pub struct LocalEnv {
     pub names: UniqueEnv<Option<RcStr>>,
     pub types: UniqueEnv<Rc<Value>>,
+    pub infos: SharedEnv<EntryInfo>,
     pub values: SharedEnv<Rc<Value>>,
 }
 
 #[debug_invariant(self.names.len() == self.types.len())]
-#[debug_invariant(self.types.len() == self.values.len())]
+#[debug_invariant(self.types.len() == self.infos.len())]
+#[debug_invariant(self.infos.len() == self.values.len())]
 impl LocalEnv {
     pub fn new() -> Self {
         Self {
             names: UniqueEnv::new(),
             types: UniqueEnv::new(),
+            infos: SharedEnv::new(),
             values: SharedEnv::new(),
         }
     }
 
     pub fn lookup(&self, name: &str) -> Option<(VarIndex, Rc<Value>)> {
-        let (idx, _) = self.names.iter_by_index().find(|(_, n)| match n {
-            Some(n) => n.as_ref() == name,
-            None => false,
-        })?;
+        let (idx, _) = self
+            .names
+            .entries
+            .iter()
+            .rev()
+            .enumerate()
+            .map(|(level, entry)| (VarIndex(level), entry))
+            .find(|(_, n)| match n {
+                Some(n) => n.as_ref() == name,
+                None => false,
+            })?;
         let ty = self.types.get_by_index(idx)?;
         Some((idx, ty.clone()))
     }
 
-    pub fn push_param(&mut self, name: Option<RcStr>, ty: Rc<Value>) -> Rc<Value> {
+    pub fn push_param(&mut self, name: Option<RcStr>, ty: Rc<Value>, idx: usize) -> Rc<Value> {
         let value = Rc::new(Value::local(self.values.len().to_level()));
         self.names.push(name);
         self.types.push(ty);
+        self.infos.push(EntryInfo::Param(idx));
+        self.values.push(value.clone());
+        value
+    }
+
+    pub fn push_def(&mut self, name: Option<RcStr>, value: Rc<Value>, ty: Rc<Value>) -> Rc<Value> {
+        self.names.push(name);
+        self.types.push(ty);
+        self.infos.push(EntryInfo::Def);
         self.values.push(value.clone());
         value
     }
@@ -180,6 +188,7 @@ impl LocalEnv {
     pub fn pop(&mut self) {
         self.names.pop();
         self.types.pop();
+        self.infos.pop();
         self.values.pop();
     }
 
@@ -188,6 +197,34 @@ impl LocalEnv {
     pub fn truncate(&mut self, len: EnvLen) {
         self.names.truncate(len);
         self.types.truncate(len);
+        self.infos.truncate(len);
         self.values.truncate(len);
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MetaEnv {
+    pub sources: UniqueEnv<MetaSource>,
+    pub types: UniqueEnv<Rc<Value>>,
+    pub values: UniqueEnv<Option<Rc<Value>>>,
+}
+
+#[debug_invariant(self.sources.len() == self.types.len())]
+#[debug_invariant(self.types.len() == self.values.len())]
+impl MetaEnv {
+    pub fn new() -> Self {
+        Self {
+            sources: UniqueEnv::new(),
+            types: UniqueEnv::new(),
+            values: UniqueEnv::new(),
+        }
+    }
+
+    pub fn push(&mut self, source: MetaSource, ty: Rc<Value>) -> VarLevel {
+        let var = self.values.len().to_level();
+        self.sources.push(source);
+        self.types.push(ty);
+        self.values.push(None);
+        var
     }
 }
