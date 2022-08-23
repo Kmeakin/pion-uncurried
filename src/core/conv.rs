@@ -29,6 +29,9 @@ impl<'env> ConvCtx<'env> {
 
         match (value1.as_ref(), value2.as_ref()) {
             (Value::Error, _) | (_, Value::Error) => true,
+            (Value::Type, Value::Type) => true,
+            (Value::BoolType, Value::BoolType) => true,
+            (Value::Bool(b1), Value::Bool(b2)) => b1 == b2,
 
             (Value::FunValue(_, closure1), Value::FunValue(_, closure2)) => {
                 self.conv_fun_closures(closure1, closure2)
@@ -41,18 +44,11 @@ impl<'env> ConvCtx<'env> {
             }
             (Value::FunType(..), _) | (_, Value::FunType(..)) => false,
 
-            (Value::Type, Value::Type) => true,
-            (Value::Type, _) | (_, Value::Type) => false,
-
-            (Value::BoolType, Value::BoolType) => true,
-            (Value::BoolType, _) | (_, Value::BoolType) => false,
-
-            (Value::Bool(b1), Value::Bool(b2)) => b1 == b2,
-            (Value::Bool(_), _) | (_, Value::Bool(_)) => false,
-
             (Value::Stuck(head1, spine1), Value::Stuck(head2, spine2)) => {
                 head1 == head2 && self.conv_spines(spine1, spine2)
             }
+
+            _ => false,
         }
     }
 

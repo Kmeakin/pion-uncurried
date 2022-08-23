@@ -43,6 +43,17 @@ impl<'env> UnifyCtx<'env> {
         match (value1.as_ref(), value2.as_ref()) {
             (Value::Error, _) | (_, Value::Error) => Ok(()),
 
+            (Value::Type, Value::Type) => Ok(()),
+            (Value::BoolType, Value::BoolType) => Ok(()),
+            (Value::Bool(b1), Value::Bool(b2)) if b1 == b2 => Ok(()),
+
+            (Value::Stuck(Head::Meta(var1), spine1), _) => self.solve(*var1, spine1, &value2),
+            (_, Value::Stuck(Head::Meta(var2), spine2)) => self.solve(*var2, spine2, &value1),
+
+            (Value::Stuck(head1, spine1), Value::Stuck(head2, spine2)) if head1 == head2 => {
+                self.unify_spines(spine1, spine2)
+            }
+
             (Value::FunValue(_, closure1), Value::FunValue(_, closure2)) => {
                 self.unify_fun_closures(closure1, closure2)
             }
@@ -52,24 +63,8 @@ impl<'env> UnifyCtx<'env> {
             (Value::FunType(_, closure1), Value::FunType(_, closure2)) => {
                 self.unify_fun_closures(closure1, closure2)
             }
-            (Value::FunType(..), _) | (_, Value::FunType(..)) => Err(UnifyError::Mismatch),
 
-            (Value::Type, Value::Type) => Ok(()),
-            (Value::Type, _) | (_, Value::Type) => Err(UnifyError::Mismatch),
-
-            (Value::BoolType, Value::BoolType) => Ok(()),
-            (Value::BoolType, _) | (_, Value::BoolType) => Err(UnifyError::Mismatch),
-
-            (Value::Bool(b1), Value::Bool(b2)) if b1 == b2 => Ok(()),
-            (Value::Bool(_), _) | (_, Value::Bool(_)) => Err(UnifyError::Mismatch),
-
-            (Value::Stuck(Head::Meta(var1), spine1), _) => self.solve(*var1, spine1, &value2),
-            (_, Value::Stuck(Head::Meta(var2), spine2)) => self.solve(*var2, spine2, &value1),
-
-            (Value::Stuck(head1, spine1), Value::Stuck(head2, spine2)) if head1 == head2 => {
-                self.unify_spines(spine1, spine2)
-            }
-            (Value::Stuck(..), _) => Err(UnifyError::Mismatch),
+            _ => Err(UnifyError::Mismatch),
         }
     }
 
@@ -296,15 +291,15 @@ impl<'env> UnifyCtx<'env> {
         while let Some((value, cont)) = self.elim_ctx().split_fun_closure(closure.clone()) {
             let arg = self.renaming.next_local_var();
             closure = cont(arg.clone());
-            match self.rename_value(meta_var, &value) {
-                Ok(expr) => exprs.push(expr),
+            let expr = match self.rename_value(meta_var, &value) {
+                Ok(expr) => expr,
                 Err(err) => {
                     self.renaming
                         .truncate(initial_source_len, initial_target_len);
                     return Err(err);
                 }
-            }
-            exprs.push(self.rename_value(meta_var, &value)?);
+            };
+            exprs.push(expr);
             args.push(arg);
             self.renaming.push_local();
         }

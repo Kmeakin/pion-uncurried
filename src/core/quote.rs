@@ -21,9 +21,9 @@ impl<'env> QuoteCtx<'env> {
 
     fn elim_ctx(&self) -> ElimCtx { ElimCtx::new(self.meta_values) }
 
-    // #[debug_ensures(self.local_values == old(self.local_values))]
+    #[debug_ensures(self.local_values == old(self.local_values))]
     pub fn quote_value(&mut self, value: &Rc<Value>) -> Expr {
-        match value.as_ref() {
+        match self.elim_ctx().force_value(value).as_ref() {
             Value::Error => Expr::Error,
             Value::Type => Expr::Type,
             Value::BoolType => Expr::BoolType,
