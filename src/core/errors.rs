@@ -1,9 +1,7 @@
-use std::rc::Rc;
-
 use text_size::TextRange;
 
 use super::unify::UnifyError;
-use super::{MetaSource, Value};
+use super::MetaSource;
 use crate::RcStr;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -14,18 +12,18 @@ pub enum ElabError {
     },
     CallNonFun {
         range: TextRange,
-        fun_type: Rc<Value>,
+        fun_type: RcStr,
     },
     ArityMismatch {
         range: TextRange,
-        fun_type: Rc<Value>,
+        fun_type: RcStr,
         expected_arity: usize,
         actual_arity: usize,
     },
     TypeMismatch {
         range: TextRange,
-        expected_type: Rc<Value>,
-        actual_type: Rc<Value>,
+        expected_type: RcStr,
+        actual_type: RcStr,
         error: UnifyError,
     },
     UnsolvedMeta {

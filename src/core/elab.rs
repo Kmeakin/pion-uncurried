@@ -187,6 +187,7 @@ impl ElabCtx {
                 let closure = match fun_type.as_ref() {
                     Value::FunType(_, closure) => closure,
                     _ => {
+                        let fun_type = self.pretty_value(&fun_type).into();
                         self.errors.push(ElabError::CallNonFun {
                             range: fun.range(),
                             fun_type,
@@ -198,6 +199,7 @@ impl ElabCtx {
                 let expected_arity = closure.arity();
                 let actual_arity = args.len();
                 if actual_arity != expected_arity {
+                    let fun_type = self.pretty_value(&fun_type).into();
                     self.errors.push(ElabError::ArityMismatch {
                         range: *range,
                         fun_type,
@@ -310,10 +312,12 @@ impl ElabCtx {
                 match self.unify_ctx().unify_values(&got, &expected) {
                     Ok(()) => core,
                     Err(error) => {
+                        let expected_type = self.pretty_value(&expected).into();
+                        let actual_type = self.pretty_value(&got).into();
                         self.errors.push(ElabError::TypeMismatch {
                             range: expr.range(),
-                            expected_type: expected.clone(),
-                            actual_type: got,
+                            expected_type,
+                            actual_type,
                             error,
                         });
                         Expr::Error
@@ -349,19 +353,22 @@ impl ElabCtx {
     }
 
     pub fn check_pat(&mut self, pat: &surface::Pat<TextRange>, expected: &Rc<Value>) -> Pat {
+        let expected = self.elim_ctx().force_value(expected);
         match pat {
             surface::Pat::Error(_) => Pat::Error,
             surface::Pat::Wildcard(_) => Pat::Wildcard,
             surface::Pat::Name(_, name) => Pat::Name(name.clone()),
             _ => {
                 let (core, got) = self.synth_pat(pat);
-                match self.unify_ctx().unify_values(&got, expected) {
+                match self.unify_ctx().unify_values(&got, &expected) {
                     Ok(_) => core,
                     Err(error) => {
+                        let expected_type = self.pretty_value(&expected).into();
+                        let actual_type = self.pretty_value(&got).into();
                         self.errors.push(ElabError::TypeMismatch {
                             range: pat.range(),
-                            expected_type: expected.clone(),
-                            actual_type: got,
+                            expected_type,
+                            actual_type,
                             error,
                         });
                         Pat::Error
