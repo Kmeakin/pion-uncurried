@@ -56,8 +56,9 @@ pub enum Decl<Range> {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LetDecl<Range> {
-    pub pat: Pat<Range>,
-    pub expr: Expr<Range>,
+    pub name: (Range, Option<RcStr>),
+    pub ty: Option<Rc<Expr<Range>>>,
+    pub expr: Rc<Expr<Range>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

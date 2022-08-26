@@ -15,6 +15,24 @@ pub mod unelab;
 mod unify;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Module {
+    pub decls: Rc<[Decl]>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Decl {
+    Error,
+    Let(LetDecl),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LetDecl {
+    pub name: Option<RcStr>,
+    pub ty: Rc<Expr>,
+    pub expr: Rc<Expr>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Expr {
     Error,
     Type,
@@ -44,8 +62,9 @@ pub enum EntryInfo {
     Param(usize),
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MetaSource {
+    LetDecl(FileId, TextRange, Option<RcStr>),
     PlaceholderType(FileId, TextRange),
     PlaceholderExpr(FileId, TextRange),
     PatType(FileId, TextRange),

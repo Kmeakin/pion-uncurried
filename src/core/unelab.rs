@@ -3,7 +3,7 @@ use std::rc::Rc;
 use contracts::debug_ensures;
 
 use super::env::{UniqueEnv, VarLevel};
-use super::{EntryInfo, Expr};
+use super::{Decl, EntryInfo, Expr, LetDecl, Module};
 use crate::{surface, RcStr};
 
 pub struct UnelabCtx<'env> {
@@ -12,6 +12,31 @@ pub struct UnelabCtx<'env> {
 
 impl<'env> UnelabCtx<'env> {
     pub fn new(local_names: &'env mut UniqueEnv<Option<RcStr>>) -> Self { Self { local_names } }
+
+    #[debug_ensures(self.local_names.len() == old(self.local_names.len()))]
+    pub fn unelab_module(&mut self, module: &Module) -> surface::Module<()> {
+        let Module { decls } = module;
+        let decls = decls.iter().map(|decl| self.unelab_decl(decl)).collect();
+        surface::Module { decls }
+    }
+
+    fn unelab_decl(&mut self, decl: &Decl) -> surface::Decl<()> {
+        match decl {
+            Decl::Error => surface::Decl::Error(()),
+            Decl::Let(decl) => surface::Decl::Let((), self.unelab_let_decl(decl)),
+        }
+    }
+
+    fn unelab_let_decl(&mut self, decl: &LetDecl) -> surface::LetDecl<()> {
+        let LetDecl { name, ty, expr } = decl;
+        let ty = self.unelab_expr(ty);
+        let expr = self.unelab_expr(expr);
+        surface::LetDecl {
+            name: ((), name.clone()),
+            ty: Some(Rc::new(ty)),
+            expr: Rc::new(expr),
+        }
+    }
 
     #[debug_ensures(self.local_names.len() == old(self.local_names.len()))]
     pub fn unelab_expr(&mut self, expr: &Expr) -> surface::Expr<()> {

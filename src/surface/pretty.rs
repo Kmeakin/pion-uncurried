@@ -33,6 +33,47 @@ impl<'a> PrettyCtx {
         }
     }
 
+    pub fn pretty_module<Range>(&'a self, module: &super::Module<Range>) -> DocBuilder<'a> {
+        let decls = module.decls.iter().map(|decl| self.pretty_decl(decl));
+        let sep = docs!(self, self.line(), self.line());
+        self.intersperse(decls, sep)
+    }
+
+    fn pretty_decl<Range>(&'a self, decl: &super::Decl<Range>) -> DocBuilder<'a> {
+        match decl {
+            super::Decl::Error(_) => self.text("#error"),
+            super::Decl::Let(_, decl) => self.pretty_let_decl(decl),
+        }
+    }
+
+    fn pretty_let_decl<Range>(&'a self, decl: &super::LetDecl<Range>) -> DocBuilder<'a> {
+        let super::LetDecl { name, ty, expr } = decl;
+        let name = match &name.1 {
+            Some(name) => self.text(name.to_string()),
+            None => self.text("_"),
+        };
+        let ty = match ty {
+            None => None,
+            Some(ty) => {
+                let ty = self.pretty_expr(ty);
+                Some(docs!(self, ":", self.space(), ty, self.space()))
+            }
+        };
+        let expr = self.pretty_expr(expr);
+        docs!(
+            self,
+            "let",
+            self.space(),
+            name,
+            self.space(),
+            ty,
+            "=",
+            self.space(),
+            expr,
+            ";"
+        )
+    }
+
     pub fn pretty_expr<Range>(&'a self, expr: &Expr<Range>) -> DocBuilder<'a> {
         self.pretty_expr_prec(Prec::MAX, expr)
     }

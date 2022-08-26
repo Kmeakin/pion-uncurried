@@ -3,6 +3,7 @@
 
 use std::rc::Rc;
 
+pub mod cli;
 pub mod core;
 pub mod surface;
 

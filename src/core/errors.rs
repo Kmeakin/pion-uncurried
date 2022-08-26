@@ -108,6 +108,7 @@ Help: expected `{expected_type}`
                     }
                     MetaSource::PatType(file, range) => (file, range, "type of pattern"),
                     MetaSource::PlaceholderType(..) | MetaSource::Error => unreachable!(),
+                    MetaSource::LetDecl(..) => todo!(),
                 };
                 Diagnostic::error()
                     .with_message(format!("Unable to infer {name}"))

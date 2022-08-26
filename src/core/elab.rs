@@ -10,7 +10,7 @@ use super::eval::{ElimCtx, EvalCtx};
 use super::quote::QuoteCtx;
 use super::unelab::UnelabCtx;
 use super::unify::{PartialRenaming, UnifyCtx};
-use super::{Expr, FunClosure, MetaSource, Pat, Value};
+use super::{Decl, Expr, FunClosure, LetDecl, MetaSource, Module, Pat, Value};
 use crate::surface::pretty::PrettyCtx;
 use crate::{surface, FileId};
 
@@ -91,6 +91,44 @@ impl ElabCtx {
 }
 
 impl ElabCtx {
+    #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
+    pub fn elab_module(&mut self, module: &surface::Module<TextRange>) -> Module {
+        let surface::Module { decls } = module;
+        let decls = decls.iter().map(|decl| self.elab_decl(decl)).collect();
+        Module { decls }
+    }
+
+    fn elab_decl(&mut self, decl: &surface::Decl<TextRange>) -> Decl {
+        match decl {
+            surface::Decl::Error(_) => Decl::Error,
+            surface::Decl::Let(_, decl) => Decl::Let(self.elab_let_decl(decl)),
+        }
+    }
+
+    fn elab_let_decl(&mut self, decl: &surface::LetDecl<TextRange>) -> LetDecl {
+        let surface::LetDecl { expr, name, ty } = decl;
+        let (range, name) = name;
+
+        let type_core = match ty {
+            Some(ty) => self.check_expr_is_type(ty),
+            None => {
+                let source = MetaSource::LetDecl(self.file, *range, name.clone());
+                self.push_meta_expr(source, Rc::new(Value::Type))
+            }
+        };
+        let type_value = &self.eval_ctx().eval_expr(&type_core);
+        let expr_core = self.check_expr(expr, type_value);
+
+        let type_value = &self.elim_ctx().force_value(type_value);
+        let type_core = self.quote_ctx().quote_value(type_value);
+
+        LetDecl {
+            name: name.clone(),
+            ty: Rc::new(type_core),
+            expr: Rc::new(expr_core),
+        }
+    }
+
     #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
     pub fn synth_expr(&mut self, expr: &surface::Expr<TextRange>) -> (Expr, Rc<Value>) {
         self.synth_expr_inner(expr)
@@ -390,7 +428,9 @@ impl MetaEnv {
                 (Some(_), _) => None,
                 (None, MetaSource::PlaceholderType(..)) => None,
                 (None, MetaSource::Error) => None,
-                (None, source) => Some(ElabError::UnsolvedMeta { source: *source }),
+                (None, source) => Some(ElabError::UnsolvedMeta {
+                    source: source.clone(),
+                }),
             })
     }
 }
