@@ -7,11 +7,20 @@ use super::{Decl, EntryInfo, Expr, LetDecl, Module};
 use crate::{surface, RcStr};
 
 pub struct UnelabCtx<'env> {
+    item_names: &'env mut UniqueEnv<RcStr>,
     local_names: &'env mut UniqueEnv<Option<RcStr>>,
 }
 
 impl<'env> UnelabCtx<'env> {
-    pub fn new(local_names: &'env mut UniqueEnv<Option<RcStr>>) -> Self { Self { local_names } }
+    pub fn new(
+        item_names: &'env mut UniqueEnv<RcStr>,
+        local_names: &'env mut UniqueEnv<Option<RcStr>>,
+    ) -> Self {
+        Self {
+            item_names,
+            local_names,
+        }
+    }
 
     #[debug_ensures(self.local_names.len() == old(self.local_names.len()))]
     pub fn unelab_module(&mut self, module: &Module) -> surface::Module<()> {
@@ -50,6 +59,13 @@ impl<'env> UnelabCtx<'env> {
                     Some(Some(name)) => name.clone(),
                     Some(None) => Rc::from("_"),
                     _ => unreachable!("Unbound local variable: {index:?}"),
+                };
+                surface::Expr::Name((), name)
+            }
+            Expr::Item(level) => {
+                let name = match self.item_names.get_by_level(*level) {
+                    Some(name) => name.clone(),
+                    None => unreachable!("Unbound item variable: {level:?}"),
                 };
                 surface::Expr::Name((), name)
             }

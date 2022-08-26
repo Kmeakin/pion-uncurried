@@ -9,6 +9,7 @@ use super::{Elim, Expr, FunClosure, Head, Value};
 pub struct UnifyCtx<'env> {
     renaming: &'env mut PartialRenaming,
     local_env: EnvLen,
+    item_values: &'env UniqueEnv<Rc<Value>>,
     meta_values: &'env mut UniqueEnv<Option<Rc<Value>>>,
 }
 
@@ -16,16 +17,18 @@ impl<'env> UnifyCtx<'env> {
     pub fn new(
         renaming: &'env mut PartialRenaming,
         local_env: EnvLen,
+        item_values: &'env UniqueEnv<Rc<Value>>,
         meta_values: &'env mut UniqueEnv<Option<Rc<Value>>>,
     ) -> Self {
         Self {
             renaming,
             local_env,
+            item_values,
             meta_values,
         }
     }
 
-    fn elim_ctx(&self) -> ElimCtx<'_> { ElimCtx::new(self.meta_values) }
+    fn elim_ctx(&self) -> ElimCtx<'_> { ElimCtx::new(self.item_values, self.meta_values) }
 
     #[debug_ensures(self.local_env == old(self.local_env))]
     pub fn unify_values(

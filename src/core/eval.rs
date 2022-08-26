@@ -7,21 +7,24 @@ use super::*;
 
 pub struct EvalCtx<'env> {
     local_values: &'env mut SharedEnv<Rc<Value>>,
+    item_values: &'env UniqueEnv<Rc<Value>>,
     meta_values: &'env UniqueEnv<Option<Rc<Value>>>,
 }
 
 impl<'env> EvalCtx<'env> {
     pub fn new(
         local_values: &'env mut SharedEnv<Rc<Value>>,
+        item_values: &'env UniqueEnv<Rc<Value>>,
         meta_values: &'env UniqueEnv<Option<Rc<Value>>>,
     ) -> Self {
         Self {
             local_values,
+            item_values,
             meta_values,
         }
     }
 
-    fn elim_ctx(&self) -> ElimCtx { ElimCtx::new(self.meta_values) }
+    fn elim_ctx(&self) -> ElimCtx { ElimCtx::new(self.item_values, self.meta_values) }
 
     #[debug_ensures(self.local_values.len() == old(self.local_values.len()))]
     pub fn eval_expr(&mut self, expr: &Expr) -> Rc<Value> {
@@ -33,6 +36,10 @@ impl<'env> EvalCtx<'env> {
             Expr::Local(idx) => match self.local_values.get_by_index(*idx) {
                 Some(value) => value.clone(),
                 None => unreachable!("Unbound local variable: {idx:?}"),
+            },
+            Expr::Item(level) => match self.item_values.get_by_level(*level) {
+                Some(value) => value.clone(),
+                None => unreachable!("Unbound item variable: {level:?}"),
             },
             Expr::Meta(level) => match self.meta_values.get_by_level(*level) {
                 Some(Some(value)) => value.clone(),
@@ -86,14 +93,23 @@ impl<'env> EvalCtx<'env> {
 }
 
 pub struct ElimCtx<'env> {
+    item_values: &'env UniqueEnv<Rc<Value>>,
     meta_values: &'env UniqueEnv<Option<Rc<Value>>>,
 }
 
 impl<'env> ElimCtx<'env> {
-    pub fn new(meta_values: &'env UniqueEnv<Option<Rc<Value>>>) -> Self { Self { meta_values } }
+    pub fn new(
+        item_values: &'env UniqueEnv<Rc<Value>>,
+        meta_values: &'env UniqueEnv<Option<Rc<Value>>>,
+    ) -> Self {
+        Self {
+            item_values,
+            meta_values,
+        }
+    }
 
     pub fn eval_ctx(&self, local_values: &'env mut SharedEnv<Rc<Value>>) -> EvalCtx<'env> {
-        EvalCtx::new(local_values, self.meta_values)
+        EvalCtx::new(local_values, self.item_values, self.meta_values)
     }
 
     pub fn call_fun(&self, mut fun: Rc<Value>, args: Vec<Rc<Value>>) -> Rc<Value> {

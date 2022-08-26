@@ -8,18 +8,24 @@ use super::{Elim, Expr, FunClosure, Head, Value};
 
 pub struct QuoteCtx<'env> {
     local_values: EnvLen,
+    item_values: &'env UniqueEnv<Rc<Value>>,
     meta_values: &'env UniqueEnv<Option<Rc<Value>>>,
 }
 
 impl<'env> QuoteCtx<'env> {
-    pub fn new(local_values: EnvLen, meta_values: &'env UniqueEnv<Option<Rc<Value>>>) -> Self {
+    pub fn new(
+        local_values: EnvLen,
+        item_values: &'env UniqueEnv<Rc<Value>>,
+        meta_values: &'env UniqueEnv<Option<Rc<Value>>>,
+    ) -> Self {
         Self {
             local_values,
+            item_values,
             meta_values,
         }
     }
 
-    fn elim_ctx(&self) -> ElimCtx { ElimCtx::new(self.meta_values) }
+    fn elim_ctx(&self) -> ElimCtx { ElimCtx::new(self.item_values, self.meta_values) }
 
     #[debug_ensures(self.local_values == old(self.local_values))]
     pub fn quote_value(&mut self, value: &Rc<Value>) -> Expr {

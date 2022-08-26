@@ -41,6 +41,7 @@ pub enum Expr {
 
     /// `x`
     Local(VarIndex),
+    Item(VarLevel),
     Meta(VarLevel),
     MetaInsertion(VarLevel, SharedEnv<EntryInfo>),
 

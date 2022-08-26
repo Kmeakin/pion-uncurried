@@ -4,7 +4,7 @@ use contracts::debug_ensures;
 use text_size::TextRange;
 
 use super::conv::ConvCtx;
-use super::env::{LocalEnv, MetaEnv};
+use super::env::{ItemEnv, LocalEnv, MetaEnv};
 use super::errors::ElabError;
 use super::eval::{ElimCtx, EvalCtx};
 use super::quote::QuoteCtx;
@@ -18,6 +18,7 @@ pub struct ElabCtx {
     pub file: FileId,
     pub local_env: LocalEnv,
     pub meta_env: MetaEnv,
+    pub item_env: ItemEnv,
     pub renaming: PartialRenaming,
     pub errors: Vec<ElabError>,
 }
@@ -28,6 +29,7 @@ impl ElabCtx {
             file,
             local_env: LocalEnv::new(),
             meta_env: MetaEnv::new(),
+            item_env: ItemEnv::new(),
             renaming: PartialRenaming::new(),
             errors: Vec::new(),
         }
@@ -38,20 +40,34 @@ impl ElabCtx {
     }
 
     pub fn eval_ctx(&mut self) -> EvalCtx {
-        EvalCtx::new(&mut self.local_env.values, &self.meta_env.values)
+        EvalCtx::new(
+            &mut self.local_env.values,
+            &self.item_env.values,
+            &self.meta_env.values,
+        )
     }
 
-    pub fn elim_ctx(&self) -> ElimCtx { ElimCtx::new(&self.meta_env.values) }
+    pub fn elim_ctx(&self) -> ElimCtx { ElimCtx::new(&self.item_env.values, &self.meta_env.values) }
 
     pub fn quote_ctx(&self) -> QuoteCtx {
-        QuoteCtx::new(self.local_env.values.len(), &self.meta_env.values)
+        QuoteCtx::new(
+            self.local_env.values.len(),
+            &self.item_env.values,
+            &self.meta_env.values,
+        )
     }
 
     pub fn conv_ctx(&self) -> ConvCtx {
-        ConvCtx::new(self.local_env.values.len(), &self.meta_env.values)
+        ConvCtx::new(
+            self.local_env.values.len(),
+            &self.item_env.values,
+            &self.meta_env.values,
+        )
     }
 
-    pub fn unelab_ctx(&mut self) -> UnelabCtx<'_> { UnelabCtx::new(&mut self.local_env.names) }
+    pub fn unelab_ctx(&mut self) -> UnelabCtx<'_> {
+        UnelabCtx::new(&mut self.item_env.level_to_name, &mut self.local_env.names)
+    }
 
     pub fn pretty_ctx(&self) -> PrettyCtx { PrettyCtx::new() }
 
@@ -85,6 +101,7 @@ impl ElabCtx {
         UnifyCtx::new(
             &mut self.renaming,
             self.local_env.values.len(),
+            &self.item_env.values,
             &mut self.meta_env.values,
         )
     }
@@ -118,9 +135,15 @@ impl ElabCtx {
         };
         let type_value = &self.eval_ctx().eval_expr(&type_core);
         let expr_core = self.check_expr(expr, type_value);
+        let expr_value = self.eval_ctx().eval_expr(&expr_core);
 
         let type_value = &self.elim_ctx().force_value(type_value);
         let type_core = self.quote_ctx().quote_value(type_value);
+
+        if let Some(name) = name {
+            self.item_env
+                .push(name.clone(), type_value.clone(), expr_value);
+        }
 
         LetDecl {
             name: name.clone(),
@@ -152,6 +175,10 @@ impl ElabCtx {
             surface::Expr::Name(range, name) => {
                 if let Some((idx, ty)) = self.local_env.lookup(name) {
                     return (Expr::Local(idx), ty);
+                }
+
+                if let Some((level, ty)) = self.item_env.lookup(name) {
+                    return (Expr::Item(level), ty);
                 }
 
                 match name.as_ref() {

@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::rc::Rc;
 
 use contracts::debug_invariant;
@@ -226,5 +227,41 @@ impl MetaEnv {
         self.types.push(ty);
         self.values.push(None);
         var
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ItemEnv {
+    pub name_to_level: HashMap<RcStr, VarLevel>,
+    pub level_to_name: UniqueEnv<RcStr>,
+    pub types: UniqueEnv<Rc<Value>>,
+    pub values: UniqueEnv<Rc<Value>>,
+}
+
+#[debug_invariant(self.name_to_level.len() == self.level_to_name.len().0)]
+#[debug_invariant(self.level_to_name.len() == self.types.len())]
+#[debug_invariant(self.types.len() == self.values.len())]
+impl ItemEnv {
+    pub fn new() -> Self {
+        Self {
+            name_to_level: HashMap::new(),
+            level_to_name: UniqueEnv::new(),
+            types: UniqueEnv::new(),
+            values: UniqueEnv::new(),
+        }
+    }
+
+    pub fn lookup(&self, name: &str) -> Option<(VarLevel, Rc<Value>)> {
+        let level = self.name_to_level.get(name)?;
+        let ty = self.types.get_by_level(*level)?;
+        Some((*level, ty.clone()))
+    }
+
+    pub fn push(&mut self, name: RcStr, ty: Rc<Value>, value: Rc<Value>) {
+        let level = VarLevel(self.name_to_level.len());
+        self.name_to_level.insert(name.clone(), level);
+        self.level_to_name.push(name);
+        self.types.push(ty);
+        self.values.push(value);
     }
 }

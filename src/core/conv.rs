@@ -8,18 +8,24 @@ use super::{Elim, FunClosure, Value};
 
 pub struct ConvCtx<'env> {
     local_env: EnvLen,
+    item_values: &'env UniqueEnv<Rc<Value>>,
     meta_values: &'env UniqueEnv<Option<Rc<Value>>>,
 }
 
 impl<'env> ConvCtx<'env> {
-    pub fn new(local_env: EnvLen, meta_values: &'env UniqueEnv<Option<Rc<Value>>>) -> Self {
+    pub fn new(
+        local_env: EnvLen,
+        item_values: &'env UniqueEnv<Rc<Value>>,
+        meta_values: &'env UniqueEnv<Option<Rc<Value>>>,
+    ) -> Self {
         Self {
             local_env,
+            item_values,
             meta_values,
         }
     }
 
-    fn elim_ctx(&self) -> ElimCtx { ElimCtx::new(self.meta_values) }
+    fn elim_ctx(&self) -> ElimCtx { ElimCtx::new(self.item_values, self.meta_values) }
 
     #[debug_ensures(self.local_env == old(self.local_env))]
     pub fn conv_values(&mut self, value1: &Rc<Value>, value2: &Rc<Value>) -> bool {
