@@ -70,6 +70,7 @@ pub enum Expr<Range> {
     FunType(Range, Rc<[Pat<Range>]>, Rc<Self>),
     FunExpr(Range, Rc<[Pat<Range>]>, Rc<Self>),
     FunCall(Range, Rc<Self>, Rc<[Self]>),
+    Match(Range, Rc<Self>, Rc<[(Pat<Range>, Self)]>),
     Let(Range, Rc<Pat<Range>>, Rc<Self>, Rc<Self>),
     Ann(Range, Rc<Self>, Rc<Self>),
 }
@@ -109,6 +110,7 @@ impl Expr<TextRange> {
             | Self::FunType(range, ..)
             | Self::FunExpr(range, ..)
             | Self::FunCall(range, ..)
+            | Self::Match(range, ..)
             | Self::Let(range, ..)
             | Self::Ann(range, ..) => *range,
         }

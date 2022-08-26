@@ -154,6 +154,30 @@ impl<'a> PrettyCtx {
                     ),
                 )
             }
+            Expr::Match(_, scrut, arms) => {
+                let scrut = self.pretty_expr(scrut);
+                let arms = arms.iter().map(|(pat, expr)| {
+                    let pat = self.pretty_pat(pat);
+                    let expr = self.pretty_expr(expr);
+                    docs!(self, pat, self.space(), "=>", self.space(), expr)
+                });
+                let sep = docs!(self, ",", self.line());
+                let arms = self.intersperse(arms, sep);
+                self.parens(
+                    prec > Prec::Atom,
+                    docs!(
+                        self,
+                        "match",
+                        self.space(),
+                        scrut,
+                        self.space(),
+                        "{",
+                        self.line(),
+                        arms,
+                        "}"
+                    ),
+                )
+            }
             Expr::Ann(_, expr, ty) => {
                 let expr = self.pretty_expr_prec(Prec::Call, expr);
                 let ty = self.pretty_expr_prec(Prec::Fun, ty);

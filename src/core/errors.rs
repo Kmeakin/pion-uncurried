@@ -91,6 +91,9 @@ Help: expected `{expected_type}`
                     SpineError::NonRigidSpine => Diagnostic::error()
                         .with_message("Unification error: meta variable found in problem spine")
                         .with_labels(vec![Label::primary(*file, *range)]),
+                    SpineError::Match => Diagnostic::error()
+                        .with_message("Unification error: match-expression found in problem spine")
+                        .with_labels(vec![Label::primary(*file, *range)]),
                 },
                 UnifyError::Rename(error) => match error {
                     RenameError::EscapingLocalVar(_) => Diagnostic::error()
@@ -107,8 +110,9 @@ Help: expected `{expected_type}`
                         (file, range, "placeholder expression")
                     }
                     MetaSource::PatType(file, range) => (file, range, "type of pattern"),
+                    MetaSource::LetDeclType(file, range) => (file, range, "type of let decl"),
+                    MetaSource::MatchType(file, range) => (file, range, "type of match expression"),
                     MetaSource::PlaceholderType(..) | MetaSource::Error => unreachable!(),
-                    MetaSource::LetDecl(..) => todo!(),
                 };
                 Diagnostic::error()
                     .with_message(format!("Unable to infer {name}"))

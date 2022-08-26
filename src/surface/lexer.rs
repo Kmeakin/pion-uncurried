@@ -17,6 +17,8 @@ pub enum Token<'src> {
 
     #[token("(")]                                   LParen,
     #[token(")")]                                   RParen,
+    #[token("{")]                                   LCurly,
+    #[token("}")]                                   RCurly,
 
     #[token("->")] #[token("→")]                    SingleArrow,
     #[token("=>")] #[token("⇒")]                   DoubleArrow,
@@ -29,6 +31,7 @@ pub enum Token<'src> {
     #[token("fn")]                                  KwFn,
     #[token("in")]                                  KwIn,
     #[token("let")]                                 KwLet,
+    #[token("match")]                               KwMatch,
     #[token("true")]                                KwTrue,
 }
 
@@ -86,6 +89,8 @@ impl<'src> Token<'src> {
             Self::Name(_) => "name",
             Self::LParen => "`(`",
             Self::RParen => "`)`",
+            Self::LCurly => "`{`",
+            Self::RCurly => "`}`",
             Self::SingleArrow => "`->`",
             Self::DoubleArrow => "`=>`",
             Self::Eq => "`=`",
@@ -96,6 +101,7 @@ impl<'src> Token<'src> {
             Self::KwFn => "`fn`",
             Self::KwIn => "`in`",
             Self::KwLet => "`let`",
+            Self::KwMatch => "`match`",
             Self::KwTrue => "`true`",
         }
     }

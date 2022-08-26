@@ -48,21 +48,11 @@ impl<'env> EvalCtx<'env> {
             },
             Expr::MetaInsertion(level, infos) => {
                 let mut head = self.eval_expr(&Expr::Meta(*level));
-                let mut args = Vec::new();
 
                 for (info, value) in infos.iter().zip(self.local_values.iter()) {
                     head = match info {
                         EntryInfo::Def => head,
-                        EntryInfo::Param(0) => {
-                            args.push(value.clone());
-                            let ret = self.elim_ctx().call_fun(head, args.clone());
-                            args.clear();
-                            ret
-                        }
-                        EntryInfo::Param(_) => {
-                            args.push(value.clone());
-                            head
-                        }
+                        EntryInfo::Param => self.elim_ctx().call_fun(head, vec![value.clone()]),
                     };
                 }
                 head
@@ -79,6 +69,11 @@ impl<'env> EvalCtx<'env> {
                 let fun = self.eval_expr(fun);
                 let args = args.iter().map(|arg| self.eval_expr(arg)).collect();
                 self.elim_ctx().call_fun(fun, args)
+            }
+            Expr::Match(scrut, arms) => {
+                let scrut = self.eval_expr(scrut);
+                let arms = MatchArms::new(self.local_values.clone(), arms.clone());
+                self.elim_ctx().do_match(scrut, arms)
             }
             Expr::Let(_, init, body) => {
                 let init_value = self.eval_expr(init);
@@ -123,6 +118,29 @@ impl<'env> ElimCtx<'env> {
         }
     }
 
+    pub fn do_match(&self, mut scrut: Rc<Value>, arms: MatchArms) -> Rc<Value> {
+        if let Value::Stuck(_, spine) = Rc::make_mut(&mut scrut) {
+            spine.push(Elim::Match(arms));
+            return scrut;
+        }
+
+        let MatchArms {
+            mut local_values,
+            arms,
+        } = arms;
+        for (pat, expr) in arms.iter() {
+            match (pat, scrut) {
+                (Pat::Error, _) => return Rc::new(Value::Error),
+                (Pat::Wildcard | Pat::Name(_), scrut) => {
+                    local_values.push(scrut);
+                    return self.eval_ctx(&mut local_values).eval_expr(expr);
+                }
+            }
+        }
+
+        unreachable!("non-exhaustive match: {scrut:?}")
+    }
+
     pub fn call_closure(&self, closure: &FunClosure, args: Vec<Rc<Value>>) -> Rc<Value> {
         assert_eq!(closure.arity(), args.len());
         let mut local_values = closure.local_values.clone();
@@ -146,6 +164,20 @@ impl<'env> ElimCtx<'env> {
         }))
     }
 
+    pub fn split_arms(&self, mut arms: MatchArms) -> Option<(Pat, Rc<Value>, MatchArms)> {
+        match arms.arms.split_first() {
+            None => None,
+            Some((first, rest)) => {
+                let first = first.clone();
+                arms.arms = Rc::from(rest);
+
+                let mut ctx = self.eval_ctx(&mut arms.local_values);
+                let (pat, expr) = first;
+                Some((pat.clone(), ctx.eval_expr(&expr), arms))
+            }
+        }
+    }
+
     pub fn force_value(&self, value: &Rc<Value>) -> Rc<Value> {
         let mut forced_value = value.clone();
         while let Value::Stuck(Head::Meta(level), spine) = forced_value.as_ref() {
@@ -161,6 +193,7 @@ impl<'env> ElimCtx<'env> {
     fn apply_spine(&self, head: Rc<Value>, spine: &[Elim]) -> Rc<Value> {
         spine.iter().fold(head, |head, elim| match elim {
             Elim::FunCall(args) => self.call_fun(head, args.clone()),
+            Elim::Match(arms) => self.do_match(head, arms.clone()),
         })
     }
 }

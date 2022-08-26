@@ -17,6 +17,8 @@ extern {
 
         "(" =>          Token::LParen,
         ")" =>          Token::RParen,
+        "{" =>          Token::LCurly,
+        "}" =>          Token::RCurly,
 
         "->" =>         Token::SingleArrow,
         "=>" =>         Token::DoubleArrow,
@@ -29,6 +31,7 @@ extern {
         "fn" =>         Token::KwFn,
         "in" =>         Token::KwIn,
         "let" =>        Token::KwLet,
+        "match" =>      Token::KwMatch,
         "true" =>       Token::KwTrue,
     }
 }
@@ -77,6 +80,7 @@ AtomExpr: Expr<TextRange> = {
     <start: @L> "_" <end: @R> => Expr::Placeholder(TextRange::new(start, end)),
     <start: @L> "true" <end: @R> => Expr::Bool(TextRange::new(start, end), true),
     <start: @L> "false" <end: @R> => Expr::Bool(TextRange::new(start, end), false),
+    <start: @L> "match" <scrutinee: Expr> "{" <arms: List<(<Pat> "=>" <Expr>), ",">> "}" <end: @R> => Expr::Match(TextRange::new(start, end), Rc::new(scrutinee), arms),
 
     <start: @L> <error: !> <end: @R> => {
         errors.push(ParseError::from(error));

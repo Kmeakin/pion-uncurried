@@ -4,7 +4,7 @@ use contracts::debug_ensures;
 
 use super::env::{EnvLen, UniqueEnv};
 use super::eval::ElimCtx;
-use super::{Elim, FunClosure, Value};
+use super::{Elim, FunClosure, MatchArms, Pat, Value};
 
 pub struct ConvCtx<'env> {
     local_env: EnvLen,
@@ -64,6 +64,8 @@ impl<'env> ConvCtx<'env> {
             && Iterator::zip(spine1.iter(), spine2.iter()).all(|(elim1, elim2)| {
                 match (elim1, elim2) {
                     (Elim::FunCall(args1), Elim::FunCall(args2)) => self.conv_args(args1, args2),
+                    (Elim::Match(arms1), Elim::Match(arms2)) => self.conv_arms(arms1, arms2),
+                    _ => false,
                 }
             })
     }
@@ -73,6 +75,36 @@ impl<'env> ConvCtx<'env> {
         args1.len() == args2.len()
             && Iterator::zip(args1.iter(), args2.iter())
                 .all(|(arg1, arg2)| self.conv_values(arg1, arg2))
+    }
+
+    #[debug_ensures(self.local_env == old(self.local_env))]
+    fn conv_arms(&mut self, arms1: &MatchArms, arms2: &MatchArms) -> bool {
+        let mut arms1 = arms1.clone();
+        let mut arms2 = arms2.clone();
+
+        loop {
+            match (
+                self.elim_ctx().split_arms(arms1),
+                self.elim_ctx().split_arms(arms2),
+            ) {
+                (Some((pat1, value1, next_arms1)), Some((pat2, value2, next_arms2)))
+                    if self.conv_pats(&pat1, &pat2) && self.conv_values(&value1, &value2) =>
+                {
+                    arms1 = next_arms1;
+                    arms2 = next_arms2;
+                }
+                (None, None) => return true,
+                _ => return false,
+            }
+        }
+    }
+
+    fn conv_pats(&mut self, pat1: &Pat, pat2: &Pat) -> bool {
+        match (pat1, pat2) {
+            (Pat::Error, _) | (_, Pat::Error) => true,
+            (Pat::Wildcard, _) | (_, Pat::Wildcard) => true,
+            (Pat::Name(_), Pat::Name(_)) => true,
+        }
     }
 
     #[debug_ensures(self.local_env == old(self.local_env))]

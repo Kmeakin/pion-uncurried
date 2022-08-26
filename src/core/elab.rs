@@ -129,7 +129,7 @@ impl ElabCtx {
         let type_core = match ty {
             Some(ty) => self.check_expr_is_type(ty),
             None => {
-                let source = MetaSource::LetDecl(self.file, *range, name.clone());
+                let source = MetaSource::LetDeclType(self.file, *range);
                 self.push_meta_expr(source, Rc::new(Value::Type))
             }
         };
@@ -196,15 +196,13 @@ impl ElabCtx {
             surface::Expr::Bool(_, b) => (Expr::Bool(*b), Rc::new(Value::BoolType)),
             surface::Expr::FunType(_, pats, ret) => {
                 let initial_len = self.local_env.len();
-                let mut idx = pats.len();
                 let (names, args): (Vec<_>, Vec<_>) = pats
                     .iter()
                     .map(|pat| {
                         let name = pat.name();
                         let (_, pat_type) = self.synth_pat(pat);
                         let type_core = self.quote_ctx().quote_value(&pat_type);
-                        idx -= 1;
-                        self.local_env.push_param(name.clone(), pat_type, idx);
+                        self.local_env.push_param(name.clone(), pat_type);
                         (name, type_core)
                     })
                     .unzip();
@@ -217,15 +215,13 @@ impl ElabCtx {
             }
             surface::Expr::FunExpr(_, pats, body) => {
                 let initial_len = self.local_env.len();
-                let mut idx = pats.len();
                 let (names, args): (Vec<_>, Vec<_>) = pats
                     .iter()
                     .map(|pat| {
                         let name = pat.name();
                         let (_, pat_type) = self.synth_pat(pat);
                         let type_core = self.quote_ctx().quote_value(&pat_type);
-                        idx -= 1;
-                        self.local_env.push_param(name.clone(), pat_type, idx);
+                        self.local_env.push_param(name.clone(), pat_type);
                         (name, type_core)
                     })
                     .unzip();
@@ -308,6 +304,25 @@ impl ElabCtx {
                     body_type,
                 )
             }
+            surface::Expr::Match(range, scrut, arms) => {
+                let (scrut_core, scrut_type) = self.synth_expr(scrut);
+                let match_type = self.push_meta_value(
+                    MetaSource::MatchType(self.file, *range),
+                    Rc::new(Value::Type),
+                );
+                let arms = arms
+                    .iter()
+                    .map(|(pat, expr)| {
+                        let name = pat.name();
+                        let pat_core = self.check_pat(pat, &scrut_type);
+                        self.local_env.push_param(name, scrut_type.clone());
+                        let expr_core = self.check_expr(expr, &match_type);
+                        self.local_env.pop();
+                        (pat_core, expr_core)
+                    })
+                    .collect();
+                (Expr::Match(Rc::new(scrut_core), arms), match_type)
+            }
             surface::Expr::Ann(_, expr, ty) => {
                 let type_core = self.check_expr_is_type(ty);
                 let type_value = self.eval_ctx().eval_expr(&type_core);
@@ -345,7 +360,6 @@ impl ElabCtx {
                 let mut args_values = Vec::with_capacity(pats.len());
                 let mut arg_types = Vec::with_capacity(pats.len());
 
-                let mut idx = pats.len();
                 let mut pats = pats.iter();
                 while let Some((pat, (expected, cont))) =
                     Option::zip(pats.next(), self.elim_ctx().split_fun_closure(closure))
@@ -353,10 +367,7 @@ impl ElabCtx {
                     let name = pat.name();
                     let _ = self.check_pat(pat, &expected);
                     let arg_type = self.quote_ctx().quote_value(&expected);
-                    idx -= 1;
-                    let arg_value = self
-                        .local_env
-                        .push_param(name.clone(), expected.clone(), idx);
+                    let arg_value = self.local_env.push_param(name.clone(), expected.clone());
 
                     closure = cont(arg_value.clone());
                     args_values.push(arg_value);
@@ -402,11 +413,13 @@ impl ElabCtx {
             surface::Pat::Wildcard(range) => {
                 let ty = self
                     .push_meta_value(MetaSource::PatType(self.file, *range), Rc::new(Value::Type));
+                // self.local_env.push_param(None, ty.clone());
                 (Pat::Wildcard, ty)
             }
             surface::Pat::Name(range, name) => {
                 let ty = self
                     .push_meta_value(MetaSource::PatType(self.file, *range), Rc::new(Value::Type));
+                // self.local_env.push_param(Some(name.clone()), ty.clone());
                 (Pat::Name(name.clone()), ty)
             }
             surface::Pat::Ann(_, pat, ty) => {
@@ -422,8 +435,14 @@ impl ElabCtx {
         let expected = self.elim_ctx().force_value(expected);
         match pat {
             surface::Pat::Error(_) => Pat::Error,
-            surface::Pat::Wildcard(_) => Pat::Wildcard,
-            surface::Pat::Name(_, name) => Pat::Name(name.clone()),
+            surface::Pat::Wildcard(_) => {
+                // self.local_env.push_param(None, expected);
+                Pat::Wildcard
+            }
+            surface::Pat::Name(_, name) => {
+                // self.local_env.push_param(Some(name.clone()), expected);
+                Pat::Name(name.clone())
+            }
             _ => {
                 let (core, got) = self.synth_pat(pat);
                 match self.unify_ctx().unify_values(&got, &expected) {
@@ -455,9 +474,7 @@ impl MetaEnv {
                 (Some(_), _) => None,
                 (None, MetaSource::PlaceholderType(..)) => None,
                 (None, MetaSource::Error) => None,
-                (None, source) => Some(ElabError::UnsolvedMeta {
-                    source: source.clone(),
-                }),
+                (None, source) => Some(ElabError::UnsolvedMeta { source: *source }),
             })
     }
 }

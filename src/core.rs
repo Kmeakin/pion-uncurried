@@ -51,6 +51,8 @@ pub enum Expr {
     FunExpr(Rc<[Option<RcStr>]>, Rc<[Self]>, Rc<Self>),
     /// `e1(e2, e3, ...)`
     FunCall(Rc<Self>, Rc<[Self]>),
+    /// `match e1 {p2 => e2, ..., pn => en}`
+    Match(Rc<Self>, Rc<[(Pat, Self)]>),
     /// `let x = e1 in e2`
     Let(Option<RcStr>, Rc<Self>, Rc<Self>),
     /// `e1: e2`
@@ -60,14 +62,15 @@ pub enum Expr {
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum EntryInfo {
     Def,
-    Param(usize),
+    Param,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum MetaSource {
-    LetDecl(FileId, TextRange, Option<RcStr>),
+    LetDeclType(FileId, TextRange),
     PlaceholderType(FileId, TextRange),
     PlaceholderExpr(FileId, TextRange),
+    MatchType(FileId, TextRange),
     PatType(FileId, TextRange),
     Error,
 }
@@ -104,6 +107,19 @@ pub enum Head {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Elim {
     FunCall(Vec<Rc<Value>>),
+    Match(MatchArms),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MatchArms {
+    pub local_values: SharedEnv<Rc<Value>>,
+    pub arms: Rc<[(Pat, Expr)]>,
+}
+
+impl MatchArms {
+    pub fn new(local_values: SharedEnv<Rc<Value>>, arms: Rc<[(Pat, Expr)]>) -> Self {
+        Self { local_values, arms }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

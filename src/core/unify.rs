@@ -143,6 +143,7 @@ impl<'env> UnifyCtx<'env> {
         for (elim1, elim2) in spine1.iter().zip(spine2.iter()) {
             match (elim1, elim2) {
                 (Elim::FunCall(args1), Elim::FunCall(args2)) => self.unify_args(args1, args2)?,
+                _ => return Err(UnifyError::Mismatch),
             }
         }
         Ok(())
@@ -211,6 +212,7 @@ impl<'env> UnifyCtx<'env> {
                         }
                     }
                 }
+                Elim::Match(_) => return Err(SpineError::Match),
             }
         }
         Ok(())
@@ -253,6 +255,17 @@ impl<'env> UnifyCtx<'env> {
                                 .collect::<Result<_, _>>()?;
                             Expr::FunCall(Rc::new(head?), args)
                         }
+                        Elim::Match(arms) => {
+                            let mut arms = arms.clone();
+                            let mut core_arms = Vec::with_capacity(arms.arms.len());
+                            while let Some((pat, value, next_arms)) =
+                                self.elim_ctx().split_arms(arms.clone())
+                            {
+                                core_arms.push((pat, self.rename_value(meta_var, &value)?));
+                                arms = next_arms;
+                            }
+                            Expr::Match(Rc::new(head?), Rc::from(core_arms))
+                        }
                     })
                 })
             }
@@ -275,6 +288,7 @@ impl<'env> UnifyCtx<'env> {
                 let types = Rc::from(vec![Expr::Error; arity]); // TODO: what should the introduced type be?
                 Expr::FunExpr(names, types, Rc::new(expr))
             }
+            Elim::Match(_) => unreachable!("should have been caught by `init_renaming`"),
         })
     }
 
@@ -370,6 +384,7 @@ impl PartialRenaming {
     }
 
     /// Pop a local binding off the renaming.
+    #[allow(dead_code)]
     fn pop_local(&mut self) {
         self.source.pop();
         self.target.pop();
@@ -455,6 +470,8 @@ pub enum SpineError {
     NonLinearSpine(VarLevel),
     /// A meta variable was found in the problem spine.
     NonRigidSpine,
+    /// A `match` was found in the problem spine.
+    Match,
 }
 
 /// An error that occurred when renaming the solution.

@@ -3,7 +3,7 @@ use std::rc::Rc;
 use contracts::debug_ensures;
 
 use super::env::{UniqueEnv, VarLevel};
-use super::{Decl, EntryInfo, Expr, LetDecl, Module};
+use super::{Decl, EntryInfo, Expr, LetDecl, Module, Pat};
 use crate::{surface, RcStr};
 
 pub struct UnelabCtx<'env> {
@@ -72,26 +72,14 @@ impl<'env> UnelabCtx<'env> {
             Expr::Meta(_) => surface::Expr::Placeholder(()),
             Expr::MetaInsertion(level, infos) => {
                 let mut head = self.unelab_expr(&Expr::Meta(*level));
-                let mut args = Vec::new();
                 for (info, var) in infos.iter().zip(0..) {
                     match info {
                         EntryInfo::Def => {}
-                        EntryInfo::Param(depth) => {
-                            let var = self
-                                .local_names
-                                .len()
-                                .level_to_index(VarLevel(var))
-                                .unwrap();
+                        EntryInfo::Param => {
+                            let var =
+                                (self.local_names.len().level_to_index(VarLevel(var))).unwrap();
                             let arg = self.unelab_expr(&Expr::Local(var));
-                            args.push(arg);
-                            if *depth == 0 {
-                                head = surface::Expr::FunCall(
-                                    (),
-                                    Rc::new(head),
-                                    Rc::from(args.clone()),
-                                );
-                                args.clear();
-                            }
+                            head = surface::Expr::FunCall((), Rc::new(head), Rc::from(vec![arg]))
                         }
                     }
                 }
@@ -132,6 +120,20 @@ impl<'env> UnelabCtx<'env> {
                 let args = args.iter().map(|arg| self.unelab_expr(arg)).collect();
                 surface::Expr::FunCall((), Rc::new(fun), args)
             }
+            Expr::Match(scrut, arms) => {
+                let scrut = self.unelab_expr(scrut);
+                let arms = arms
+                    .iter()
+                    .map(|(pat, expr)| {
+                        let initial_len = self.local_names.len();
+                        let pat = self.unelab_pat(pat);
+                        let expr = self.unelab_expr(expr);
+                        self.local_names.truncate(initial_len);
+                        (pat, expr)
+                    })
+                    .collect();
+                surface::Expr::Match((), Rc::new(scrut), arms)
+            }
             Expr::Let(name, init, body) => {
                 let pat = match name {
                     Some(name) => surface::Pat::Name((), name.clone()),
@@ -158,5 +160,20 @@ impl<'env> UnelabCtx<'env> {
         };
         let ty = self.unelab_expr(ty);
         surface::Pat::Ann((), Rc::new(pat), Rc::new(ty))
+    }
+
+    fn unelab_pat(&mut self, pat: &Pat) -> surface::Pat<()> {
+        match pat {
+            Pat::Error => surface::Pat::Error(()),
+            Pat::Wildcard => {
+                self.local_names.push(None);
+                surface::Pat::Wildcard(())
+            }
+            Pat::Name(name) => {
+                let name = name.clone();
+                self.local_names.push(Some(name.clone()));
+                surface::Pat::Name((), name)
+            }
+        }
     }
 }

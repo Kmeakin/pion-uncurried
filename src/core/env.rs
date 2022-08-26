@@ -169,11 +169,11 @@ impl LocalEnv {
         Some((idx, ty.clone()))
     }
 
-    pub fn push_param(&mut self, name: Option<RcStr>, ty: Rc<Value>, idx: usize) -> Rc<Value> {
+    pub fn push_param(&mut self, name: Option<RcStr>, ty: Rc<Value>) -> Rc<Value> {
         let value = Rc::new(Value::local(self.values.len().to_level()));
         self.names.push(name);
         self.types.push(ty);
-        self.infos.push(EntryInfo::Param(idx));
+        self.infos.push(EntryInfo::Param);
         self.values.push(value.clone());
         value
     }
