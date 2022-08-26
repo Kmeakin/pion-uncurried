@@ -74,6 +74,7 @@ CallExpr: Expr<TextRange> = {
 AtomExpr: Expr<TextRange> = {
     "(" <expr: Expr> ")" => expr,
     <start: @L> <name: Name> <end: @R> => Expr::Name(TextRange::new(start, end), name),
+    <start: @L> "_" <end: @R> => Expr::Placeholder(TextRange::new(start, end)),
     <start: @L> "true" <end: @R> => Expr::Bool(TextRange::new(start, end), true),
     <start: @L> "false" <end: @R> => Expr::Bool(TextRange::new(start, end), false),
 
