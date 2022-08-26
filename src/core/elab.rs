@@ -11,10 +11,11 @@ use super::quote::QuoteCtx;
 use super::unelab::UnelabCtx;
 use super::unify::{PartialRenaming, UnifyCtx};
 use super::{Expr, FunClosure, MetaSource, Pat, Value};
-use crate::surface;
 use crate::surface::pretty::PrettyCtx;
+use crate::{surface, FileId};
 
 pub struct ElabCtx {
+    pub file: FileId,
     pub local_env: LocalEnv,
     pub meta_env: MetaEnv,
     pub renaming: PartialRenaming,
@@ -22,8 +23,9 @@ pub struct ElabCtx {
 }
 
 impl ElabCtx {
-    pub fn new() -> Self {
+    pub fn new(file: FileId) -> Self {
         Self {
+            file,
             local_env: LocalEnv::new(),
             meta_env: MetaEnv::new(),
             renaming: PartialRenaming::new(),
@@ -103,8 +105,8 @@ impl ElabCtx {
         match expr {
             surface::Expr::Error(_) => self.synth_error_expr(),
             surface::Expr::Placeholder(range) => {
-                let type_source = MetaSource::PlaceholderType(*range);
-                let expr_source = MetaSource::PlaceholderExpr(*range);
+                let type_source = MetaSource::PlaceholderType(self.file, *range);
+                let expr_source = MetaSource::PlaceholderExpr(self.file, *range);
                 let ty = self.push_meta_value(type_source, Rc::new(Value::Type));
                 let expr = self.push_meta_expr(expr_source, ty.clone());
                 (expr, ty)
@@ -120,6 +122,7 @@ impl ElabCtx {
                     _ => {}
                 }
                 self.errors.push(ElabError::UnboundName {
+                    file: self.file,
                     range: *range,
                     name: name.clone(),
                 });
@@ -174,7 +177,7 @@ impl ElabCtx {
                 let fun_type = Value::FunType(names, closure);
                 (fun_core, Rc::new(fun_type))
             }
-            surface::Expr::FunCall(range, fun, args) => {
+            surface::Expr::FunCall(_, fun, args) => {
                 let (fun_core, fun_type) = self.synth_expr(fun);
                 let fun_type = self.elim_ctx().force_value(&fun_type);
                 let closure = match fun_type.as_ref() {
@@ -182,6 +185,7 @@ impl ElabCtx {
                     _ => {
                         let fun_type = self.pretty_value(&fun_type).into();
                         self.errors.push(ElabError::CallNonFun {
+                            file: self.file,
                             range: fun.range(),
                             fun_type,
                         });
@@ -194,7 +198,8 @@ impl ElabCtx {
                 if actual_arity != expected_arity {
                     let fun_type = self.pretty_value(&fun_type).into();
                     self.errors.push(ElabError::ArityMismatch {
-                        range: *range,
+                        file: self.file,
+                        range: fun.range(),
                         fun_type,
                         expected_arity,
                         actual_arity,
@@ -308,6 +313,7 @@ impl ElabCtx {
                         let expected_type = self.pretty_value(&expected).into();
                         let actual_type = self.pretty_value(&got).into();
                         self.errors.push(ElabError::TypeMismatch {
+                            file: self.file,
                             range: expr.range(),
                             expected_type,
                             actual_type,
@@ -329,11 +335,13 @@ impl ElabCtx {
         match pat {
             surface::Pat::Error(_) => self.synth_error_pat(),
             surface::Pat::Wildcard(range) => {
-                let ty = self.push_meta_value(MetaSource::PatType(*range), Rc::new(Value::Type));
+                let ty = self
+                    .push_meta_value(MetaSource::PatType(self.file, *range), Rc::new(Value::Type));
                 (Pat::Wildcard, ty)
             }
             surface::Pat::Name(range, name) => {
-                let ty = self.push_meta_value(MetaSource::PatType(*range), Rc::new(Value::Type));
+                let ty = self
+                    .push_meta_value(MetaSource::PatType(self.file, *range), Rc::new(Value::Type));
                 (Pat::Name(name.clone()), ty)
             }
             surface::Pat::Ann(_, pat, ty) => {
@@ -359,6 +367,7 @@ impl ElabCtx {
                         let expected_type = self.pretty_value(&expected).into();
                         let actual_type = self.pretty_value(&got).into();
                         self.errors.push(ElabError::TypeMismatch {
+                            file: self.file,
                             range: pat.range(),
                             expected_type,
                             actual_type,
@@ -379,7 +388,7 @@ impl MetaEnv {
             .zip(self.sources.iter())
             .filter_map(move |it| match it {
                 (Some(_), _) => None,
-                (None, MetaSource::PlaceholderType(_)) => None,
+                (None, MetaSource::PlaceholderType(..)) => None,
                 (None, MetaSource::Error) => None,
                 (None, source) => Some(ElabError::UnsolvedMeta { source: *source }),
             })

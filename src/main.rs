@@ -1,3 +1,4 @@
+use codespan_reporting::term::termcolor::ColorChoice;
 use pion::core::elab::ElabCtx;
 use pion::surface;
 use rustyline::error::ReadlineError;
@@ -7,6 +8,9 @@ const HISTORY_FILE: &str = "pion_history";
 
 fn main() {
     let mut editor = Editor::<()>::new().expect("Could not create editor");
+    let mut writer = codespan_reporting::term::termcolor::StandardStream::stderr(ColorChoice::Auto);
+    let mut files = codespan_reporting::files::SimpleFiles::new();
+    let config = codespan_reporting::term::Config::default();
 
     loop {
         match editor.load_history(HISTORY_FILE) {
@@ -33,16 +37,27 @@ fn main() {
         }
 
         let (expr, errors) = surface::Expr::parse(&line);
+        let file = files.add("<repl>", line);
+
         if !errors.is_empty() {
-            panic!("parse errors encountered: {errors:?}")
+            for error in errors {
+                let diag = error.to_diagnostic(file);
+                codespan_reporting::term::emit(&mut writer, &config, &files, &diag)
+                    .expect("Could not emit diagnostic");
+            }
+            continue;
         }
 
-        let mut elab_ctx = ElabCtx::new();
+        let mut elab_ctx = ElabCtx::new(file);
         let (expr_core, expr_type) = elab_ctx.synth_expr(&expr);
 
         let errors: Vec<_> = elab_ctx.drain_errors().collect();
         if !errors.is_empty() {
-            dbg!(errors);
+            for error in errors {
+                let diag = error.to_diagnostic();
+                codespan_reporting::term::emit(&mut writer, &config, &files, &diag)
+                    .expect("Could not emit diagnostic");
+            }
             continue;
         }
 

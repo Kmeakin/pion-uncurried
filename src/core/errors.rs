@@ -32,7 +32,6 @@ pub enum ElabError {
         error: UnifyError,
     },
     UnsolvedMeta {
-        file: FileId,
         source: MetaSource,
     },
 }
@@ -60,10 +59,10 @@ impl ElabError {
                 expected_arity,
                 actual_arity,
             } => Diagnostic::error()
-                .with_message(
+                .with_message(format!(
                     "Function expects {expected_arity} arguments but {actual_arity} arguments \
-                     were supplied",
-                )
+                     were supplied"
+                ))
                 .with_labels(vec![Label::primary(*file, *range)])
                 .with_notes(vec![format!(
                     "Help: type of this expression is `{fun_type}`"
@@ -79,7 +78,9 @@ impl ElabError {
                     .with_message("type mismatch")
                     .with_labels(vec![Label::primary(*file, *range)])
                     .with_notes(vec![format!(
-                        "Help: expected `{expected_type}`\t\ngot `{actual_type}`"
+                        "\
+Help: expected `{expected_type}`
+      got      `{actual_type}`"
                     )]),
                 UnifyError::Spine(error) => match error {
                     SpineError::NonLinearSpine(_) => Diagnostic::error()
@@ -100,16 +101,17 @@ impl ElabError {
                         .with_labels(vec![Label::primary(*file, *range)]),
                 },
             },
-            Self::UnsolvedMeta { file, source } => {
-                let (range, name) = match source {
-                    MetaSource::PlaceholderExpr(range) => (range, "placeholder expression"),
-                    MetaSource::PatType(range) => (range, "type of pattern"),
-                    MetaSource::PlaceholderType(_) | MetaSource::Error => unreachable!(),
+            Self::UnsolvedMeta { source } => {
+                let (file, range, name) = match source {
+                    MetaSource::PlaceholderExpr(file, range) => {
+                        (file, range, "placeholder expression")
+                    }
+                    MetaSource::PatType(file, range) => (file, range, "type of pattern"),
+                    MetaSource::PlaceholderType(..) | MetaSource::Error => unreachable!(),
                 };
-                let label = Label::primary(*file, *range);
                 Diagnostic::error()
                     .with_message(format!("Unable to infer {name}"))
-                    .with_labels(vec![])
+                    .with_labels(vec![Label::primary(*file, *range)])
             }
         }
     }

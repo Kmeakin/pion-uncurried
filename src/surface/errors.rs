@@ -1,6 +1,8 @@
+use codespan_reporting::diagnostic::{Diagnostic, Label};
 use text_size::{TextRange, TextSize};
 
 use super::lexer;
+use crate::FileId;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct TooLong(pub usize);
@@ -71,4 +73,44 @@ impl<'src> From<LalrpopError<'src>> for ParseError {
 
 impl<'src> From<LalrpopRecovery<'src>> for ParseError {
     fn from(other: LalrpopRecovery<'src>) -> Self { Self::from(other.error) }
+}
+
+impl ParseError {
+    pub fn to_diagnostic(&self, file: FileId) -> Diagnostic<FileId> {
+        match self {
+            ParseError::TooLong(TooLong(len)) => Diagnostic::error()
+                .with_message(format!("Parse error: input is too long"))
+                .with_notes(vec![format!(
+                    "Help: input must be less than {} bytes long, but it is {} bytes",
+                    u32::MAX,
+                    len
+                )]),
+            ParseError::Lexer(error) => match error {
+                LexError::UnknownChar(range) => Diagnostic::error()
+                    .with_message("Parse error: unknown character")
+                    .with_labels(vec![Label::primary(file, *range)]),
+            },
+            ParseError::InvalidToken(range) => Diagnostic::error()
+                .with_message("Parse error: invalid token")
+                .with_labels(vec![Label::primary(file, *range)]),
+            ParseError::UnrecognizedEOF(range, expected) => Diagnostic::error()
+                .with_message("Parse error: unexpected end of input")
+                .with_labels(vec![Label::primary(file, *range)])
+                .with_notes(vec![format!(
+                    "Help: expected one of {}",
+                    expected.join(", ")
+                )]),
+            ParseError::UnrecognizedToken(range, unexpected, expected) => Diagnostic::error()
+                .with_message(format!("Parse error: unexpected token (`{unexpected}`)"))
+                .with_labels(vec![Label::primary(file, *range)])
+                .with_notes(vec![format!(
+                    "Help: got {}, expected one of {}",
+                    unexpected,
+                    expected.join(", ")
+                )]),
+            ParseError::ExtraToken(range, unexpected) => Diagnostic::error()
+                .with_message(format!("parse error: unexpected token (`{unexpected}`)"))
+                .with_labels(vec![Label::primary(file, *range)]),
+        }
+    }
 }

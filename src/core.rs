@@ -3,7 +3,7 @@ use std::rc::Rc;
 use text_size::TextRange;
 
 use self::env::{SharedEnv, VarIndex, VarLevel};
-use crate::RcStr;
+use crate::{FileId, RcStr};
 
 pub mod conv;
 pub mod elab;
@@ -46,9 +46,9 @@ pub enum EntryInfo {
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum MetaSource {
-    PlaceholderType(TextRange),
-    PlaceholderExpr(TextRange),
-    PatType(TextRange),
+    PlaceholderType(FileId, TextRange),
+    PlaceholderExpr(FileId, TextRange),
+    PatType(FileId, TextRange),
     Error,
 }
 
