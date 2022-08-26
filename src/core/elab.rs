@@ -69,13 +69,6 @@ impl ElabCtx {
         self.pretty_core_expr(&core)
     }
 
-    fn with_scope<T>(&mut self, mut f: impl FnMut(&mut Self) -> T) -> T {
-        let initial_len = self.local_env.len();
-        let ret = f(self);
-        self.local_env.truncate(initial_len);
-        ret
-    }
-
     fn push_meta_expr(&mut self, source: MetaSource, ty: Rc<Value>) -> Expr {
         let var = self.meta_env.push(source, ty);
         Expr::MetaInsertion(var, self.local_env.infos.clone())

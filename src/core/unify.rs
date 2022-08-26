@@ -204,7 +204,7 @@ impl<'env> UnifyCtx<'env> {
                             Value::Stuck(Head::Local(source_var), _) => {
                                 return Err(SpineError::NonLinearSpine(*source_var))
                             }
-                            _ => return Err(SpineError::NonRigidFunApp),
+                            _ => return Err(SpineError::NonRigidSpine),
                         }
                     }
                 }
@@ -230,7 +230,7 @@ impl<'env> UnifyCtx<'env> {
             Value::Stuck(head, spine) => {
                 let head = match head {
                     Head::Local(source_var) => match self.renaming.get_as_local(*source_var) {
-                        None => return Err(RenameError::EscapingRigidVar(*source_var)),
+                        None => return Err(RenameError::EscapingLocalVar(*source_var)),
                         Some(target_var) => Expr::Local(target_var),
                     },
                     Head::Meta(var) => {
@@ -450,8 +450,8 @@ pub enum SpineError {
     /// all computation in the return type, and the pattern solution is
     /// guaranteed to be well-typed.
     NonLinearSpine(VarLevel),
-    /// A flexible variable was found in the problem spine.
-    NonRigidFunApp,
+    /// A meta variable was found in the problem spine.
+    NonRigidSpine,
 }
 
 /// An error that occurred when renaming the solution.
@@ -469,7 +469,7 @@ pub enum RenameError {
     /// There is no solution for this flexible variable because `?α` is the
     /// topmost-level scope, so it can only abstract over `x` and `y`, but
     /// these don't occur in `z -> z`.
-    EscapingRigidVar(VarLevel),
+    EscapingLocalVar(VarLevel),
     /// The flexible variable occurs in the value being compared against.
     /// This is sometimes referred to as an 'occurs check' failure.
     ///

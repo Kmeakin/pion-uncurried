@@ -7,3 +7,4 @@ pub mod core;
 pub mod surface;
 
 pub type RcStr = Rc<str>;
+pub type FileId = usize;
