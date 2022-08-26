@@ -173,7 +173,7 @@ impl<'env> ElimCtx<'env> {
 
                 let mut ctx = self.eval_ctx(&mut arms.local_values);
                 let (pat, expr) = first;
-                Some((pat.clone(), ctx.eval_expr(&expr), arms))
+                Some((pat, ctx.eval_expr(&expr), arms))
             }
         }
     }
