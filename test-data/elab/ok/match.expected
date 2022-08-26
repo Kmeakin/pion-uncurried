@@ -1,0 +1,2 @@
+let _ : Bool = match false {
+x => true};

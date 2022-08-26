@@ -294,11 +294,15 @@ impl ElabCtx {
             surface::Expr::Let(_, pat, init, body) => {
                 let name = pat.name();
                 let (_, pat_type) = self.synth_pat(pat);
+
+                // TODO: make `pat` not bound in `init`
                 let init_core = self.check_expr(init, &pat_type);
                 let init_value = self.eval_ctx().eval_expr(&init_core);
+
                 self.local_env.push_def(name.clone(), init_value, pat_type);
                 let (body_core, body_type) = self.synth_expr(body);
                 self.local_env.pop();
+
                 (
                     Expr::Let(name, Rc::new(init_core), Rc::new(body_core)),
                     body_type,
@@ -365,9 +369,11 @@ impl ElabCtx {
                     Option::zip(pats.next(), self.elim_ctx().split_fun_closure(closure))
                 {
                     let name = pat.name();
-                    let _ = self.check_pat(pat, &expected);
                     let arg_type = self.quote_ctx().quote_value(&expected);
-                    let arg_value = self.local_env.push_param(name.clone(), expected.clone());
+
+                    self.check_pat(pat, &expected);
+                    self.local_env.push_param(name.clone(), expected.clone());
+                    let arg_value = Rc::new(Value::local(self.local_env.len().to_level()));
 
                     closure = cont(arg_value.clone());
                     args_values.push(arg_value);
