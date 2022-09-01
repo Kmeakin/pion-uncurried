@@ -174,6 +174,7 @@ impl<'env> UnelabCtx<'env> {
                 self.local_names.push(Some(name.clone()));
                 surface::Pat::Name((), name)
             }
+            Pat::Bool(b) => surface::Pat::Bool((), *b),
         }
     }
 }

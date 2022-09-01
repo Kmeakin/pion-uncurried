@@ -100,6 +100,8 @@ AnnPat: Pat<TextRange> = {
 AtomPat: Pat<TextRange> = {
     "(" <pat: Pat> ")" => pat,
     <start: @L> "_" <end: @R> => Pat::Wildcard(TextRange::new(start, end)),
+    <start: @L> "true" <end: @R> => Pat::Bool(TextRange::new(start, end), true),
+    <start: @L> "false" <end: @R> => Pat::Bool(TextRange::new(start, end), false),
     <start: @L> <name: Name> <end: @R> => Pat::Name(TextRange::new(start, end), name),
 
     <start: @L> <error: !> <end: @R> => {

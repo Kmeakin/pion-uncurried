@@ -6,4 +6,4 @@ let apply : fn(A : Type, B : Type, f : fn(_ : A) -> B, x : A) -> B = fn(A : Type
 
 let compose : fn(A : Type, B : Type, C : Type, f : fn(_ : A) -> B, g : fn(_ : B) -> C) -> fn(x : A) -> C = fn(A : Type, B : Type, C : Type, f : fn(_ : A) -> B, g : fn(_ : B) -> C) => fn(x : A) => g(f(x));
 
-let _ : Bool = id(Bool, false);
+let _ : Bool = false;

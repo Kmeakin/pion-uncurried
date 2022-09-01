@@ -80,6 +80,7 @@ pub enum Pat {
     Error,
     Wildcard,
     Name(RcStr),
+    Bool(bool),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

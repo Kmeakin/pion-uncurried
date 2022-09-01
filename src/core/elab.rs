@@ -142,6 +142,7 @@ impl ElabCtx {
         let type_value = &self.eval_ctx().eval_expr(&type_core);
         let expr_core = self.check_expr(expr, type_value);
         let expr_value = self.eval_ctx().eval_expr(&expr_core);
+        let expr_core = self.quote_ctx().quote_value(&expr_value);
 
         let type_value = &self.elim_ctx().force_value(type_value);
         let type_core = self.quote_ctx().quote_value(type_value);
@@ -446,6 +447,12 @@ impl ElabCtx {
                     .push_meta_value(MetaSource::PatType(self.file, *range), Rc::new(Value::Type));
                 self.local_env.push_param(Some(name.clone()), ty.clone());
                 (Pat::Name(name.clone()), ty)
+            }
+            surface::Pat::Bool(_, b) => {
+                if refutability == Refutability::Irrefutible {
+                    todo!("refutable pattern")
+                }
+                (Pat::Bool(*b), Rc::new(Value::BoolType))
             }
             surface::Pat::Ann(_, pat, ty) => {
                 let type_core = self.check_expr_is_type(ty);

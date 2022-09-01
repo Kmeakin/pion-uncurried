@@ -122,6 +122,7 @@ pub enum Pat<Range> {
     Error(Range),
     Wildcard(Range),
     Name(Range, RcStr),
+    Bool(Range, bool),
     Ann(Range, Rc<Self>, Rc<Expr<Range>>),
 }
 
@@ -131,6 +132,7 @@ impl<Range> Pat<Range> {
             Self::Error(_) => None,
             Self::Wildcard(_) => None,
             Self::Name(_, name) => Some(name.clone()),
+            Self::Bool(..) => None,
             Self::Ann(_, pat, _) => pat.name(),
         }
     }
@@ -142,6 +144,7 @@ impl Pat<TextRange> {
             Self::Error(range, ..)
             | Self::Wildcard(range, ..)
             | Self::Name(range, ..)
+            | Self::Bool(range, ..)
             | Self::Ann(range, ..) => *range,
         }
     }

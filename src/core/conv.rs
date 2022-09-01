@@ -104,6 +104,8 @@ impl<'env> ConvCtx<'env> {
             (Pat::Error, _) | (_, Pat::Error) => true,
             (Pat::Wildcard, _) | (_, Pat::Wildcard) => true,
             (Pat::Name(_), Pat::Name(_)) => true,
+            (Pat::Bool(b1), Pat::Bool(b2)) => b1 == b2,
+            _ => false,
         }
     }
 

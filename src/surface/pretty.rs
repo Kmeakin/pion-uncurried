@@ -198,6 +198,8 @@ impl<'a> PrettyCtx {
             Pat::Error(_) => self.text("#error"),
             Pat::Wildcard(_) => self.text("_"),
             Pat::Name(_, name) => self.text(name.to_string()),
+            Pat::Bool(_, true) => self.text("true"),
+            Pat::Bool(_, false) => self.text("false"),
             Pat::Ann(_, pat, ty) => {
                 let pat = self.pretty_pat_prec(Prec::Ann, pat);
                 let ty = self.pretty_expr_prec(Prec::Fun, ty);
