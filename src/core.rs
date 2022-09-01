@@ -11,7 +11,6 @@ pub mod env;
 pub mod errors;
 pub mod eval;
 pub mod quote;
-mod rules;
 pub mod unelab;
 mod unify;
 
