@@ -390,8 +390,8 @@ impl ElabCtx {
                     let name = pat.name();
                     let arg_type = self.quote_ctx().quote_value(&expected);
 
-                    self.check_pat(Refutability::Irrefutible, pat, &expected);
                     let arg_value = Rc::new(Value::local(self.local_env.len().to_level()));
+                    self.check_pat(Refutability::Irrefutible, pat, &expected);
 
                     closure = cont(arg_value.clone());
                     args_values.push(arg_value);
