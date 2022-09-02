@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use contracts::debug_invariant;
 
-use super::{EntryInfo, MetaSource, Value};
+use super::{EntryInfo, MetaSource, Value, VarName};
 use crate::RcStr;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -134,7 +134,7 @@ impl<T: Clone> Extend<T> for SharedEnv<T> {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LocalEnv {
-    pub names: UniqueEnv<Option<RcStr>>,
+    pub names: UniqueEnv<VarName>,
     pub types: UniqueEnv<Rc<Value>>,
     pub infos: SharedEnv<EntryInfo>,
     pub values: SharedEnv<Rc<Value>>,
@@ -162,14 +162,14 @@ impl LocalEnv {
             .enumerate()
             .map(|(level, entry)| (VarIndex(level), entry))
             .find(|(_, n)| match n {
-                Some(n) => n.as_ref() == name,
-                None => false,
+                VarName::User(n) => n.as_ref() == name,
+                VarName::Generated => false,
             })?;
         let ty = self.types.get_by_index(idx)?;
         Some((idx, ty.clone()))
     }
 
-    pub fn push_param(&mut self, name: Option<RcStr>, ty: Rc<Value>) -> Rc<Value> {
+    pub fn push_param(&mut self, name: VarName, ty: Rc<Value>) -> Rc<Value> {
         let value = Rc::new(Value::local(self.values.len().to_level()));
         self.names.push(name);
         self.types.push(ty);
@@ -178,7 +178,7 @@ impl LocalEnv {
         value
     }
 
-    pub fn push_def(&mut self, name: Option<RcStr>, value: Rc<Value>, ty: Rc<Value>) -> Rc<Value> {
+    pub fn push_def(&mut self, name: VarName, value: Rc<Value>, ty: Rc<Value>) -> Rc<Value> {
         self.names.push(name);
         self.types.push(ty);
         self.infos.push(EntryInfo::Def);

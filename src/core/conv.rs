@@ -102,7 +102,6 @@ impl<'env> ConvCtx<'env> {
     fn conv_pats(&mut self, pat1: &Pat, pat2: &Pat) -> bool {
         match (pat1, pat2) {
             (Pat::Error, _) | (_, Pat::Error) => true,
-            (Pat::Wildcard, _) | (_, Pat::Wildcard) => true,
             (Pat::Name(_), Pat::Name(_)) => true,
             (Pat::Bool(b1), Pat::Bool(b2)) => b1 == b2,
             _ => false,

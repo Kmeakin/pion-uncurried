@@ -10,7 +10,7 @@ use super::eval::{ElimCtx, EvalCtx};
 use super::quote::QuoteCtx;
 use super::unelab::UnelabCtx;
 use super::unify::{PartialRenaming, UnifyCtx};
-use super::{Decl, Expr, FunClosure, LetDecl, MetaSource, Module, Pat, Value};
+use super::{Decl, Expr, FunClosure, LetDecl, MetaSource, Module, Pat, Value, VarName};
 use crate::surface::pretty::PrettyCtx;
 use crate::{surface, FileId};
 
@@ -207,7 +207,7 @@ impl ElabCtx {
                 let (names, args): (Vec<_>, Vec<_>) = pats
                     .iter()
                     .map(|pat| {
-                        let name = pat.name();
+                        let name = pat.name().into();
 
                         let gamma1 = self.local_env.clone();
                         let (_, pat_type) = self.synth_pat(Refutability::Irrefutible, pat);
@@ -231,7 +231,7 @@ impl ElabCtx {
                 let (names, args): (Vec<_>, Vec<_>) = pats
                     .iter()
                     .map(|pat| {
-                        let name = pat.name();
+                        let name = pat.name().into();
 
                         let gamma1 = self.local_env.clone();
                         let (_, pat_type) = self.synth_pat(Refutability::Irrefutible, pat);
@@ -310,7 +310,7 @@ impl ElabCtx {
                 )
             }
             surface::Expr::Let(_, pat, init, body) => {
-                let name = pat.name();
+                let name = pat.name().into();
 
                 let gamma1 = self.local_env.clone();
                 let (_, pat_type) = self.synth_pat(Refutability::Irrefutible, pat);
@@ -387,7 +387,7 @@ impl ElabCtx {
                 while let Some((pat, (expected, cont))) =
                     Option::zip(pats.next(), self.elim_ctx().split_fun_closure(closure))
                 {
-                    let name = pat.name();
+                    let name = pat.name().into();
                     let arg_type = self.quote_ctx().quote_value(&expected);
 
                     let arg_value = Rc::new(Value::local(self.local_env.len().to_level()));
@@ -434,20 +434,20 @@ impl ElabCtx {
         match pat {
             surface::Pat::Error(_) => {
                 let ty = self.push_meta_value(MetaSource::Error, Rc::new(Value::Type));
-                self.local_env.push_param(None, ty.clone());
                 (Pat::Error, ty)
             }
             surface::Pat::Wildcard(range) => {
                 let ty = self
                     .push_meta_value(MetaSource::PatType(self.file, *range), Rc::new(Value::Type));
-                self.local_env.push_param(None, ty.clone());
-                (Pat::Wildcard, ty)
+                self.local_env.push_param(VarName::Generated, ty.clone());
+                (Pat::Name(VarName::Generated), ty)
             }
             surface::Pat::Name(range, name) => {
                 let ty = self
                     .push_meta_value(MetaSource::PatType(self.file, *range), Rc::new(Value::Type));
-                self.local_env.push_param(Some(name.clone()), ty.clone());
-                (Pat::Name(name.clone()), ty)
+                self.local_env
+                    .push_param(VarName::User(name.clone()), ty.clone());
+                (Pat::Name(VarName::User(name.clone())), ty)
             }
             surface::Pat::Bool(_, b) => {
                 if refutability == Refutability::Irrefutible {
@@ -472,17 +472,15 @@ impl ElabCtx {
     ) -> Pat {
         let expected = self.elim_ctx().force_value(expected);
         match pat {
-            surface::Pat::Error(_) => {
-                self.local_env.push_param(None, expected);
-                Pat::Error
-            }
+            surface::Pat::Error(_) => Pat::Error,
             surface::Pat::Wildcard(_) => {
-                self.local_env.push_param(None, expected);
-                Pat::Wildcard
+                self.local_env.push_param(VarName::Generated, expected);
+                Pat::Name(VarName::Generated)
             }
             surface::Pat::Name(_, name) => {
-                self.local_env.push_param(Some(name.clone()), expected);
-                Pat::Name(name.clone())
+                self.local_env
+                    .push_param(VarName::User(name.clone()), expected);
+                Pat::Name(VarName::User(name.clone()))
             }
             _ => {
                 let (core, got) = self.synth_pat(refutability, pat);

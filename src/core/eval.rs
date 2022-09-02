@@ -131,7 +131,7 @@ impl<'env> ElimCtx<'env> {
         for (pat, expr) in arms.iter() {
             match (pat, scrut.clone()) {
                 (Pat::Error, _) => return Rc::new(Value::Error),
-                (Pat::Wildcard | Pat::Name(_), scrut) => {
+                (Pat::Name(_), scrut) => {
                     local_values.push(scrut);
                     return self.eval_ctx(&mut local_values).eval_expr(expr);
                 }

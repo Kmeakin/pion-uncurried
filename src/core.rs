@@ -46,17 +46,32 @@ pub enum Expr {
     MetaInsertion(VarLevel, SharedEnv<EntryInfo>),
 
     /// `fn (x1: e1, x2: e2, ...) -> en`
-    FunType(Rc<[Option<RcStr>]>, Rc<[Self]>, Rc<Self>),
+    FunType(Rc<[VarName]>, Rc<[Self]>, Rc<Self>),
     /// `fn (x1: e1, x2: e2, ...) => en`
-    FunExpr(Rc<[Option<RcStr>]>, Rc<[Self]>, Rc<Self>),
+    FunExpr(Rc<[VarName]>, Rc<[Self]>, Rc<Self>),
     /// `e1(e2, e3, ...)`
     FunCall(Rc<Self>, Rc<[Self]>),
     /// `match e1 {p2 => e2, ..., pn => en}`
     Match(Rc<Self>, Rc<[(Pat, Self)]>),
     /// `let x = e1 in e2`
-    Let(Option<RcStr>, Rc<Self>, Rc<Self>),
+    Let(VarName, Rc<Self>, Rc<Self>),
     /// `e1: e2`
     Ann(Rc<Self>, Rc<Self>),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum VarName {
+    User(RcStr),
+    Generated,
+}
+
+impl From<Option<RcStr>> for VarName {
+    fn from(other: Option<RcStr>) -> Self {
+        match other {
+            Some(name) => Self::User(name),
+            None => Self::Generated,
+        }
+    }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -78,8 +93,7 @@ pub enum MetaSource {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Pat {
     Error,
-    Wildcard,
-    Name(RcStr),
+    Name(VarName),
     Bool(bool),
 }
 
@@ -90,8 +104,8 @@ pub enum Value {
     BoolType,
     Bool(bool),
     Stuck(Head, Vec<Elim>),
-    FunType(Rc<[Option<RcStr>]>, FunClosure),
-    FunValue(Rc<[Option<RcStr>]>, FunClosure),
+    FunType(Rc<[VarName]>, FunClosure),
+    FunValue(Rc<[VarName]>, FunClosure),
 }
 
 impl Value {

@@ -4,7 +4,7 @@ use contracts::debug_ensures;
 
 use super::env::{EnvLen, SharedEnv, UniqueEnv, VarIndex, VarLevel};
 use super::eval::ElimCtx;
-use super::{Elim, Expr, FunClosure, Head, Value};
+use super::{Elim, Expr, FunClosure, Head, Value, VarName};
 
 pub struct UnifyCtx<'env> {
     renaming: &'env mut PartialRenaming,
@@ -284,7 +284,7 @@ impl<'env> UnifyCtx<'env> {
         spine.iter().fold(expr, |expr, elim| match elim {
             Elim::FunCall(args) => {
                 let arity = args.len();
-                let names = Rc::from(vec![None; arity]);
+                let names = Rc::from(vec![VarName::Generated; arity]);
                 let types = Rc::from(vec![Expr::Error; arity]); // TODO: what should the introduced type be?
                 Expr::FunExpr(names, types, Rc::new(expr))
             }

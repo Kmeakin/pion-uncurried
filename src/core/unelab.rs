@@ -3,18 +3,18 @@ use std::rc::Rc;
 use contracts::debug_ensures;
 
 use super::env::{UniqueEnv, VarLevel};
-use super::{Decl, EntryInfo, Expr, LetDecl, Module, Pat};
+use super::{Decl, EntryInfo, Expr, LetDecl, Module, Pat, VarName};
 use crate::{surface, RcStr};
 
 pub struct UnelabCtx<'env> {
     item_names: &'env mut UniqueEnv<RcStr>,
-    local_names: &'env mut UniqueEnv<Option<RcStr>>,
+    local_names: &'env mut UniqueEnv<VarName>,
 }
 
 impl<'env> UnelabCtx<'env> {
     pub fn new(
         item_names: &'env mut UniqueEnv<RcStr>,
-        local_names: &'env mut UniqueEnv<Option<RcStr>>,
+        local_names: &'env mut UniqueEnv<VarName>,
     ) -> Self {
         Self {
             item_names,
@@ -56,8 +56,8 @@ impl<'env> UnelabCtx<'env> {
             Expr::Bool(b) => surface::Expr::Bool((), *b),
             Expr::Local(index) => {
                 let name = match self.local_names.get_by_index(*index) {
-                    Some(Some(name)) => name.clone(),
-                    Some(None) => Rc::from("(TODO: unnamed local variable)"),
+                    Some(VarName::User(name)) => name.clone(),
+                    Some(VarName::Generated) => todo!("gensym"),
                     _ => unreachable!("Unbound local variable: {index:?}"),
                 };
                 surface::Expr::Name((), name)
@@ -136,8 +136,8 @@ impl<'env> UnelabCtx<'env> {
             }
             Expr::Let(name, init, body) => {
                 let pat = match name {
-                    Some(name) => surface::Pat::Name((), name.clone()),
-                    None => surface::Pat::Wildcard(()),
+                    VarName::User(name) => surface::Pat::Name((), name.clone()),
+                    VarName::Generated => todo!("gensym"),
                 };
                 let init = self.unelab_expr(init);
                 self.local_names.push(name.clone());
@@ -153,10 +153,10 @@ impl<'env> UnelabCtx<'env> {
         }
     }
 
-    fn unelab_arg(&mut self, name: &Option<RcStr>, ty: &Expr) -> surface::Pat<()> {
+    fn unelab_arg(&mut self, name: &VarName, ty: &Expr) -> surface::Pat<()> {
         let pat = match name {
-            Some(name) => surface::Pat::Name((), name.clone()),
-            None => surface::Pat::Wildcard(()),
+            VarName::User(name) => surface::Pat::Name((), name.clone()),
+            VarName::Generated => todo!("gensym"),
         };
         let ty = self.unelab_expr(ty);
         surface::Pat::Ann((), Rc::new(pat), Rc::new(ty))
@@ -165,14 +165,13 @@ impl<'env> UnelabCtx<'env> {
     fn unelab_pat(&mut self, pat: &Pat) -> surface::Pat<()> {
         match pat {
             Pat::Error => surface::Pat::Error(()),
-            Pat::Wildcard => {
-                self.local_names.push(None);
-                surface::Pat::Wildcard(())
-            }
             Pat::Name(name) => {
                 let name = name.clone();
-                self.local_names.push(Some(name.clone()));
-                surface::Pat::Name((), name)
+                self.local_names.push(name.clone());
+                match name {
+                    VarName::User(name) => surface::Pat::Name((), name),
+                    VarName::Generated => todo!("gensym"),
+                }
             }
             Pat::Bool(b) => surface::Pat::Bool((), *b),
         }
