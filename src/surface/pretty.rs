@@ -20,6 +20,8 @@ impl Prec {
     pub const MIN: Self = Self::Atom;
 }
 
+const INDENT: isize = 4;
+
 pub type DocBuilder<'a> = pretty::DocBuilder<'a, PrettyCtx, ()>;
 
 impl<'a> PrettyCtx {
@@ -48,23 +50,16 @@ impl<'a> PrettyCtx {
 
     fn pretty_let_decl<Range>(&'a self, decl: &super::LetDecl<Range>) -> DocBuilder<'a> {
         let super::LetDecl { name, ty, expr } = decl;
-        let name = match &name.1 {
-            Some(name) => self.text(name.to_string()),
-            None => self.text("_"),
-        };
-        let ty = match ty {
-            None => None,
-            Some(ty) => {
-                let ty = self.pretty_expr(ty);
-                Some(docs!(self, ":", self.space(), ty, self.space()))
-            }
-        };
+        let name = name.1.as_ref().map_or("_", |name| name.as_ref());
+        let ty = ty
+            .as_ref()
+            .map(|ty| docs!(self, ":", self.space(), self.pretty_expr(ty), self.space()));
         let expr = self.pretty_expr(expr);
         docs!(
             self,
             "let",
             self.space(),
-            name,
+            self.text(name.to_owned()),
             self.space(),
             ty,
             "=",
@@ -156,27 +151,33 @@ impl<'a> PrettyCtx {
             }
             Expr::Match(_, scrut, arms) => {
                 let scrut = self.pretty_expr(scrut);
+                let is_empty = arms.len() == 0;
                 let arms = arms.iter().map(|(pat, expr)| {
                     let pat = self.pretty_pat(pat);
                     let expr = self.pretty_expr(expr);
-                    docs!(self, pat, self.space(), "=>", self.space(), expr)
-                });
-                let sep = docs!(self, ",", self.line());
-                let arms = self.intersperse(arms, sep);
-                self.parens(
-                    prec > Prec::Atom,
                     docs!(
                         self,
-                        "match",
+                        self.hardline(),
+                        pat,
                         self.space(),
-                        scrut,
+                        "=>",
                         self.space(),
-                        "{",
-                        self.line(),
-                        arms,
-                        "}"
-                    ),
+                        expr,
+                        ",",
+                    )
+                });
+                docs!(
+                    self,
+                    "match",
+                    self.space(),
+                    scrut,
+                    self.space(),
+                    "{",
+                    self.concat(arms).nest(INDENT),
+                    (!is_empty).then_some(self.hardline()),
+                    docs!(self, "}")
                 )
+                .group()
             }
             Expr::Ann(_, expr, ty) => {
                 let expr = self.pretty_expr_prec(Prec::Call, expr);

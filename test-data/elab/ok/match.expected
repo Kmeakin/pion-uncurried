@@ -1,6 +1,7 @@
 let not : fn(b : Bool) -> Bool = fn(b : Bool) => match b {
-true => false,
-false => true};
+    true => false,
+    false => true,
+};
 
 let not_true : Bool = false;
 

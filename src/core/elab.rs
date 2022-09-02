@@ -142,6 +142,7 @@ impl ElabCtx {
         let type_value = &self.eval_ctx().eval_expr(&type_core);
         let expr_core = self.check_expr(expr, type_value);
         let expr_value = self.eval_ctx().eval_expr(&expr_core);
+        let expr_value = self.elim_ctx().force_value(&expr_value);
         let expr_core = self.quote_ctx().quote_value(&expr_value);
 
         let type_value = &self.elim_ctx().force_value(type_value);

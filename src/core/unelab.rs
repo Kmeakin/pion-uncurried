@@ -57,7 +57,7 @@ impl<'env> UnelabCtx<'env> {
             Expr::Local(index) => {
                 let name = match self.local_names.get_by_index(*index) {
                     Some(Some(name)) => name.clone(),
-                    Some(None) => Rc::from("_"),
+                    Some(None) => Rc::from("(TODO: unnamed local variable)"),
                     _ => unreachable!("Unbound local variable: {index:?}"),
                 };
                 surface::Expr::Name((), name)
