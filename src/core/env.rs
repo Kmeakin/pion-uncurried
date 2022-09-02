@@ -9,6 +9,11 @@ use crate::RcStr;
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct VarIndex(pub usize);
 
+impl VarIndex {
+    pub fn succ(&self) -> Self { Self(self.0 + 1) }
+    pub fn succ_by(&self, n: usize) -> Self { Self(self.0 + n) }
+}
+
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct VarLevel(pub usize);
 

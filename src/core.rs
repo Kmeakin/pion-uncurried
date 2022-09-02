@@ -59,6 +59,39 @@ pub enum Expr {
     Ann(Rc<Self>, Rc<Self>),
 }
 
+impl Expr {
+    pub fn binds_local(&self, mut var: VarIndex) -> bool {
+        match self {
+            Self::Local(v) => *v == var,
+            Self::Error
+            | Self::Type
+            | Self::BoolType
+            | Self::Bool(_)
+            | Self::Item(_)
+            | Self::Meta(_)
+            | Self::MetaInsertion(..) => false,
+            Self::FunType(_, args, body) | Self::FunExpr(_, args, body) => {
+                args.iter().any(|arg| {
+                    let res = arg.binds_local(var);
+                    var = var.succ();
+                    res
+                }) || body.binds_local(var.succ())
+            }
+            Self::FunCall(fun, args) => {
+                fun.binds_local(var) || args.iter().any(|arg| arg.binds_local(var))
+            }
+            Self::Match(scrut, arms) => {
+                scrut.binds_local(var)
+                    || arms
+                        .iter()
+                        .any(|(pat, expr)| expr.binds_local(var.succ_by(pat.num_names())))
+            }
+            Self::Let(_, init, body) => init.binds_local(var) || body.binds_local(var.succ()),
+            Self::Ann(expr, ty) => expr.binds_local(var) || ty.binds_local(var),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum VarName {
     User(RcStr),
@@ -95,6 +128,15 @@ pub enum Pat {
     Error,
     Name(VarName),
     Bool(bool),
+}
+
+impl Pat {
+    pub fn num_names(&self) -> usize {
+        match self {
+            Self::Error | Self::Bool(_) => 0,
+            Self::Name(_) => 1,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
