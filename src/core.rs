@@ -95,16 +95,11 @@ impl Expr {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum VarName {
     User(RcStr),
-    Generated,
+    Fresh,
 }
 
 impl From<Option<RcStr>> for VarName {
-    fn from(other: Option<RcStr>) -> Self {
-        match other {
-            Some(name) => Self::User(name),
-            None => Self::Generated,
-        }
-    }
+    fn from(other: Option<RcStr>) -> Self { other.map_or(Self::Fresh, Self::User) }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]

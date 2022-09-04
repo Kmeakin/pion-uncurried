@@ -57,7 +57,7 @@ impl<'env> UnelabCtx<'env> {
             Expr::Local(index) => {
                 let name = match self.local_names.get_by_index(*index) {
                     Some(VarName::User(name)) => name.clone(),
-                    Some(VarName::Generated) => todo!("gensym"),
+                    Some(VarName::Fresh) => todo!("gensym"),
                     _ => unreachable!("Unbound local variable: {index:?}"),
                 };
                 surface::Expr::Name((), name)
@@ -137,7 +137,7 @@ impl<'env> UnelabCtx<'env> {
             Expr::Let(name, init, body) => {
                 let pat = match name {
                     VarName::User(name) => surface::Pat::Name((), name.clone()),
-                    VarName::Generated => todo!("gensym"),
+                    VarName::Fresh => todo!("gensym"),
                 };
                 let init = self.unelab_expr(init);
                 self.local_names.push(name.clone());
@@ -156,7 +156,7 @@ impl<'env> UnelabCtx<'env> {
     fn unelab_arg(&mut self, name: &VarName, ty: &Expr) -> surface::Pat<()> {
         let pat = match name {
             VarName::User(name) => surface::Pat::Name((), name.clone()),
-            VarName::Generated => todo!("gensym"),
+            VarName::Fresh => todo!("gensym"),
         };
         let ty = self.unelab_expr(ty);
         surface::Pat::Ann((), Rc::new(pat), Rc::new(ty))
@@ -170,7 +170,7 @@ impl<'env> UnelabCtx<'env> {
                 self.local_names.push(name.clone());
                 match name {
                     VarName::User(name) => surface::Pat::Name((), name),
-                    VarName::Generated => todo!("gensym"),
+                    VarName::Fresh => todo!("gensym"),
                 }
             }
             Pat::Bool(b) => surface::Pat::Bool((), *b),

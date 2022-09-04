@@ -284,7 +284,7 @@ impl<'env> UnifyCtx<'env> {
         spine.iter().fold(expr, |expr, elim| match elim {
             Elim::FunCall(args) => {
                 let arity = args.len();
-                let names = Rc::from(vec![VarName::Generated; arity]);
+                let names = Rc::from(vec![VarName::Fresh; arity]);
                 let types = Rc::from(vec![Expr::Error; arity]); // TODO: what should the introduced type be?
                 Expr::FunExpr(names, types, Rc::new(expr))
             }

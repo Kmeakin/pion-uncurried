@@ -168,7 +168,7 @@ impl LocalEnv {
             .map(|(level, entry)| (VarIndex(level), entry))
             .find(|(_, n)| match n {
                 VarName::User(n) => n.as_ref() == name,
-                VarName::Generated => false,
+                VarName::Fresh => false,
             })?;
         let ty = self.types.get_by_index(idx)?;
         Some((idx, ty.clone()))

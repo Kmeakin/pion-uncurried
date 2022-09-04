@@ -439,8 +439,8 @@ impl ElabCtx {
             surface::Pat::Wildcard(range) => {
                 let ty = self
                     .push_meta_value(MetaSource::PatType(self.file, *range), Rc::new(Value::Type));
-                self.local_env.push_param(VarName::Generated, ty.clone());
-                (Pat::Name(VarName::Generated), ty)
+                self.local_env.push_param(VarName::Fresh, ty.clone());
+                (Pat::Name(VarName::Fresh), ty)
             }
             surface::Pat::Name(range, name) => {
                 let ty = self
@@ -474,8 +474,8 @@ impl ElabCtx {
         match pat {
             surface::Pat::Error(_) => Pat::Error,
             surface::Pat::Wildcard(_) => {
-                self.local_env.push_param(VarName::Generated, expected);
-                Pat::Name(VarName::Generated)
+                self.local_env.push_param(VarName::Fresh, expected);
+                Pat::Name(VarName::Fresh)
             }
             surface::Pat::Name(_, name) => {
                 self.local_env
