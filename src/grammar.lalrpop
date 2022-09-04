@@ -14,6 +14,7 @@ extern {
     enum Token<'src> {
         "_" =>          Token::Underscore,
         "Name" =>       Token::Name(<&'src str>),
+        "Hole" =>       Token::Hole(<&'src str>),
 
         "(" =>          Token::LParen,
         ")" =>          Token::RParen,
@@ -77,7 +78,7 @@ CallExpr: Expr<TextRange> = {
 AtomExpr: Expr<TextRange> = {
     "(" <expr: Expr> ")" => expr,
     <start: @L> <name: Name> <end: @R> => Expr::Name(TextRange::new(start, end), name),
-    <start: @L> "_" <end: @R> => Expr::Placeholder(TextRange::new(start, end)),
+    <start: @L> <hole: Hole> <end: @R> => Expr::Hole(TextRange::new(start, end), hole),
     <start: @L> "true" <end: @R> => Expr::Bool(TextRange::new(start, end), true),
     <start: @L> "false" <end: @R> => Expr::Bool(TextRange::new(start, end), false),
     <start: @L> "match" <scrutinee: Expr> "{" <arms: List<(<Pat> "=>" <Expr>), ",">> "}" <end: @R> => Expr::Match(TextRange::new(start, end), Rc::new(scrutinee), arms),
@@ -85,6 +86,12 @@ AtomExpr: Expr<TextRange> = {
     <start: @L> <error: !> <end: @R> => {
         errors.push(ParseError::from(error));
         Expr::Error(TextRange::new(start, end))
+    }
+}
+
+Hole: Hole = {
+    <name: "Hole"> => {
+        if name == "?_" { Hole::Underscore } else { Hole::Name(Rc::from(name)) }
     }
 }
 

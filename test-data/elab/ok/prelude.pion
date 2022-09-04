@@ -9,4 +9,4 @@ let compose
     => fn(x: A)
     => g(f(x));
 
-let f = id(_, false);
+let f = id(?_, false);

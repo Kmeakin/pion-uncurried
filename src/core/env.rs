@@ -140,14 +140,14 @@ impl<T: Clone> Extend<T> for SharedEnv<T> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LocalEnv {
     pub names: UniqueEnv<VarName>,
-    pub types: UniqueEnv<Rc<Value>>,
     pub infos: SharedEnv<EntryInfo>,
+    pub types: UniqueEnv<Rc<Value>>,
     pub values: SharedEnv<Rc<Value>>,
 }
 
-#[debug_invariant(self.names.len() == self.types.len())]
-#[debug_invariant(self.types.len() == self.infos.len())]
-#[debug_invariant(self.infos.len() == self.values.len())]
+#[debug_invariant(self.names.len() == self.infos.len())]
+#[debug_invariant(self.infos.len() == self.types.len())]
+#[debug_invariant(self.types.len() == self.values.len())]
 impl LocalEnv {
     pub fn new() -> Self {
         Self {
@@ -210,24 +210,28 @@ impl LocalEnv {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MetaEnv {
+    pub names: UniqueEnv<VarName>,
     pub sources: UniqueEnv<MetaSource>,
     pub types: UniqueEnv<Rc<Value>>,
     pub values: UniqueEnv<Option<Rc<Value>>>,
 }
 
+#[debug_invariant(self.names.len() == self.sources.len())]
 #[debug_invariant(self.sources.len() == self.types.len())]
 #[debug_invariant(self.types.len() == self.values.len())]
 impl MetaEnv {
     pub fn new() -> Self {
         Self {
+            names: UniqueEnv::new(),
             sources: UniqueEnv::new(),
             types: UniqueEnv::new(),
             values: UniqueEnv::new(),
         }
     }
 
-    pub fn push(&mut self, source: MetaSource, ty: Rc<Value>) -> VarLevel {
+    pub fn push(&mut self, name: VarName, source: MetaSource, ty: Rc<Value>) -> VarLevel {
         let var = self.values.len().to_level();
+        self.names.push(name);
         self.sources.push(source);
         self.types.push(ty);
         self.values.push(None);

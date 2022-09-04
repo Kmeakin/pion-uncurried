@@ -14,6 +14,7 @@ pub enum Token<'src> {
 
     #[token("_")]                                   Underscore,
     #[regex(r"[a-zA-Z_][a-zA-Z0-9_-]*")]            Name(&'src str),
+    #[regex(r"\?[a-zA-Z_][a-zA-Z0-9_-]*")]          Hole(&'src str),
 
     #[token("(")]                                   LParen,
     #[token(")")]                                   RParen,
@@ -87,6 +88,7 @@ impl<'src> Token<'src> {
             Self::BlockComment => "block comment",
             Self::Underscore => "`_`",
             Self::Name(_) => "name",
+            Self::Hole(_) => "hole",
             Self::LParen => "`(`",
             Self::RParen => "`)`",
             Self::LCurly => "`{`",

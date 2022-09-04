@@ -7,17 +7,20 @@ use super::{Decl, EntryInfo, Expr, LetDecl, Module, Pat, VarName};
 use crate::{surface, RcStr};
 
 pub struct UnelabCtx<'env> {
-    item_names: &'env mut UniqueEnv<RcStr>,
+    item_names: &'env UniqueEnv<RcStr>,
+    meta_names: &'env UniqueEnv<VarName>,
     local_names: &'env mut UniqueEnv<VarName>,
 }
 
 impl<'env> UnelabCtx<'env> {
     pub fn new(
-        item_names: &'env mut UniqueEnv<RcStr>,
+        item_names: &'env UniqueEnv<RcStr>,
+        meta_names: &'env UniqueEnv<VarName>,
         local_names: &'env mut UniqueEnv<VarName>,
     ) -> Self {
         Self {
             item_names,
+            meta_names,
             local_names,
         }
     }
@@ -72,7 +75,17 @@ impl<'env> UnelabCtx<'env> {
                 };
                 surface::Expr::Name((), name)
             }
-            Expr::Meta(_) => surface::Expr::Placeholder(()),
+            Expr::Meta(level) => {
+                let name = match self.meta_names.get_by_level(*level) {
+                    Some(VarName::User(name)) => name.clone(),
+                    Some(VarName::Underscore) => {
+                        unreachable!("Underscore cannot not be referenced by a local variable")
+                    }
+                    Some(VarName::Fresh) => todo!("gensym"),
+                    None => unreachable!("Unbound meta variable: {level:?}"),
+                };
+                surface::Expr::Hole((), surface::Hole::Name(name))
+            }
             Expr::MetaInsertion(level, infos) => {
                 let mut head = self.unelab_expr(&Expr::Meta(*level));
                 for (info, var) in infos.iter().zip(0..) {
@@ -167,6 +180,14 @@ impl<'env> UnelabCtx<'env> {
         }
     }
 
+    fn unelab_var_pat(&mut self, name: &VarName) -> surface::Pat<()> {
+        match name {
+            VarName::User(name) => surface::Pat::Name((), name.clone()),
+            VarName::Underscore => surface::Pat::Wildcard(()),
+            VarName::Fresh => todo!("gensym"),
+        }
+    }
+
     fn unelab_match_pat(&mut self, pat: &Pat) -> surface::Pat<()> {
         match pat {
             Pat::Error => surface::Pat::Error(()),
@@ -175,14 +196,6 @@ impl<'env> UnelabCtx<'env> {
                 self.local_names.push(name.clone());
                 self.unelab_var_pat(name)
             }
-        }
-    }
-
-    fn unelab_var_pat(&mut self, name: &VarName) -> surface::Pat<()> {
-        match name {
-            VarName::User(name) => surface::Pat::Name((), name.clone()),
-            VarName::Underscore => surface::Pat::Wildcard(()),
-            VarName::Fresh => todo!("gensym"),
         }
     }
 }
