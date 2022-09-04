@@ -4,13 +4,14 @@ use contracts::debug_ensures;
 
 use super::env::{EnvLen, SharedEnv, UniqueEnv, VarIndex, VarLevel};
 use super::eval::ElimCtx;
-use super::{Elim, Expr, FunClosure, Head, Value, VarName};
+use super::{Elim, Expr, FunClosure, Head, NameSource, Value, VarName};
 
 pub struct UnifyCtx<'env> {
     renaming: &'env mut PartialRenaming,
     local_env: EnvLen,
     item_values: &'env UniqueEnv<Rc<Value>>,
     meta_values: &'env mut UniqueEnv<Option<Rc<Value>>>,
+    name_source: &'env mut NameSource,
 }
 
 impl<'env> UnifyCtx<'env> {
@@ -19,12 +20,14 @@ impl<'env> UnifyCtx<'env> {
         local_env: EnvLen,
         item_values: &'env UniqueEnv<Rc<Value>>,
         meta_values: &'env mut UniqueEnv<Option<Rc<Value>>>,
+        name_source: &'env mut NameSource,
     ) -> Self {
         Self {
             renaming,
             local_env,
             item_values,
             meta_values,
+            name_source,
         }
     }
 
@@ -280,11 +283,13 @@ impl<'env> UnifyCtx<'env> {
         }
     }
 
-    fn fun_intros(&self, spine: &[Elim], expr: Expr) -> Expr {
+    fn fun_intros(&mut self, spine: &[Elim], expr: Expr) -> Expr {
         spine.iter().fold(expr, |expr, elim| match elim {
             Elim::FunCall(args) => {
                 let arity = args.len();
-                let names = Rc::from(vec![VarName::Fresh; arity]);
+                let names = std::iter::repeat_with(|| self.name_source.next())
+                    .take(arity)
+                    .collect();
                 let types = Rc::from(vec![Expr::Error; arity]); // TODO: what should the introduced type be?
                 Expr::FunExpr(names, types, Rc::new(expr))
             }

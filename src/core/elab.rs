@@ -10,7 +10,7 @@ use super::eval::{ElimCtx, EvalCtx};
 use super::quote::QuoteCtx;
 use super::unelab::UnelabCtx;
 use super::unify::{PartialRenaming, UnifyCtx};
-use super::{Decl, Expr, FunClosure, LetDecl, MetaSource, Module, Pat, Value, VarName};
+use super::{Decl, Expr, FunClosure, LetDecl, MetaSource, Module, NameSource, Pat, Value, VarName};
 use crate::surface::pretty::PrettyCtx;
 use crate::surface::Hole;
 use crate::{surface, FileId};
@@ -22,6 +22,7 @@ pub struct ElabCtx {
     pub item_env: ItemEnv,
     pub renaming: PartialRenaming,
     pub errors: Vec<ElabError>,
+    name_source: NameSource,
 }
 
 impl ElabCtx {
@@ -33,6 +34,7 @@ impl ElabCtx {
             item_env: ItemEnv::new(),
             renaming: PartialRenaming::new(),
             errors: Vec::new(),
+            name_source: NameSource::new(0),
         }
     }
 
@@ -108,6 +110,7 @@ impl ElabCtx {
             self.local_env.values.len(),
             &self.item_env.values,
             &mut self.meta_env.values,
+            &mut self.name_source,
         )
     }
 }
@@ -141,7 +144,8 @@ impl ElabCtx {
             Some(ty) => self.check_expr_is_type(ty),
             None => {
                 let source = MetaSource::LetDeclType(self.file, *range);
-                self.push_meta_expr(VarName::Fresh, source, Rc::new(Value::Type))
+                let name = self.name_source.next();
+                self.push_meta_expr(name, source, Rc::new(Value::Type))
             }
         };
         let type_value = &self.eval_ctx().eval_expr(&type_core);
@@ -171,7 +175,8 @@ impl ElabCtx {
     }
 
     fn synth_error_expr(&mut self) -> (Expr, Rc<Value>) {
-        let ty = self.push_meta_value(VarName::Fresh, MetaSource::Error, Rc::new(Value::Type));
+        let name = self.name_source.next();
+        let ty = self.push_meta_value(name, MetaSource::Error, Rc::new(Value::Type));
         (Expr::Error, ty)
     }
 
@@ -180,12 +185,13 @@ impl ElabCtx {
             surface::Expr::Error(_) => self.synth_error_expr(),
             surface::Expr::Hole(range, hole) => {
                 let name = match hole {
-                    Hole::Underscore => VarName::Fresh,
+                    Hole::Underscore => self.name_source.next(),
                     Hole::Name(name) => VarName::User(name.clone()),
                 };
-                let type_source = MetaSource::PlaceholderType(self.file, *range);
-                let expr_source = MetaSource::PlaceholderExpr(self.file, *range);
-                let ty = self.push_meta_value(VarName::Fresh, type_source, Rc::new(Value::Type));
+                let type_source = MetaSource::HoleType(self.file, *range);
+                let expr_source = MetaSource::HoleExpr(self.file, *range);
+                let fresh_name = self.name_source.next();
+                let ty = self.push_meta_value(fresh_name, type_source, Rc::new(Value::Type));
                 let expr = self.push_meta_expr(name, expr_source, ty.clone());
                 (expr, ty)
             }
@@ -328,8 +334,9 @@ impl ElabCtx {
             }
             surface::Expr::Match(range, scrut, arms) => {
                 let (scrut_core, scrut_type) = self.synth_expr(scrut);
+                let name = self.name_source.next();
                 let match_type = self.push_meta_value(
-                    VarName::Fresh,
+                    name,
                     MetaSource::MatchType(self.file, *range),
                     Rc::new(Value::Type),
                 );
@@ -437,11 +444,14 @@ impl ElabCtx {
                 let type_core = self.check_expr_is_type(ty);
                 self.eval_ctx().eval_expr(&type_core)
             }
-            None => self.push_meta_value(
-                VarName::Fresh,
-                MetaSource::PatType(self.file, *range),
-                Rc::new(Value::Type),
-            ),
+            None => {
+                let name = self.name_source.next();
+                self.push_meta_value(
+                    name,
+                    MetaSource::PatType(self.file, *range),
+                    Rc::new(Value::Type),
+                )
+            }
         };
         (name, ty)
     }
@@ -466,13 +476,14 @@ impl ElabCtx {
     pub fn synth_match_pat(&mut self, pat: &surface::Pat<TextRange>) -> (Pat, Rc<Value>) {
         match pat {
             surface::Pat::Error(_) => {
-                let ty =
-                    self.push_meta_value(VarName::Fresh, MetaSource::Error, Rc::new(Value::Type));
+                let name = self.name_source.next();
+                let ty = self.push_meta_value(name, MetaSource::Error, Rc::new(Value::Type));
                 (Pat::Error, ty)
             }
             surface::Pat::Wildcard(range) => {
+                let name = self.name_source.next();
                 let ty = self.push_meta_value(
-                    VarName::Fresh,
+                    name,
                     MetaSource::PatType(self.file, *range),
                     Rc::new(Value::Type),
                 );
@@ -480,8 +491,9 @@ impl ElabCtx {
                 (Pat::Name(VarName::Underscore), ty)
             }
             surface::Pat::Name(range, name) => {
+                let fresh_name = self.name_source.next();
                 let ty = self.push_meta_value(
-                    VarName::Fresh,
+                    fresh_name,
                     MetaSource::PatType(self.file, *range),
                     Rc::new(Value::Type),
                 );
@@ -541,7 +553,7 @@ impl MetaEnv {
             .zip(self.sources.iter())
             .filter_map(move |it| match it {
                 (Some(_), _) => None,
-                (None, MetaSource::PlaceholderType(..)) => None,
+                (None, MetaSource::HoleType(..)) => None,
                 (None, MetaSource::Error) => None,
                 (None, source) => Some(ElabError::UnsolvedMeta { source: *source }),
             })

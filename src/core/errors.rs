@@ -106,13 +106,11 @@ Help: expected `{expected_type}`
             },
             Self::UnsolvedMeta { source } => {
                 let (file, range, name) = match source {
-                    MetaSource::PlaceholderExpr(file, range) => {
-                        (file, range, "placeholder expression")
-                    }
+                    MetaSource::HoleExpr(file, range) => (file, range, "value of hole"),
                     MetaSource::PatType(file, range) => (file, range, "type of pattern"),
                     MetaSource::LetDeclType(file, range) => (file, range, "type of let decl"),
                     MetaSource::MatchType(file, range) => (file, range, "type of match expression"),
-                    MetaSource::PlaceholderType(..) | MetaSource::Error => unreachable!(),
+                    MetaSource::HoleType(..) | MetaSource::Error => unreachable!(),
                 };
                 Diagnostic::error()
                     .with_message(format!("Unable to infer {name}"))

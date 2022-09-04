@@ -60,7 +60,7 @@ impl<'env> UnelabCtx<'env> {
             Expr::Local(index) => {
                 let name = match self.local_names.get_by_index(*index) {
                     Some(VarName::User(name)) => name.clone(),
-                    Some(VarName::Fresh) => todo!("gensym"),
+                    Some(VarName::Fresh(count)) => self.gen_name(*count),
                     Some(VarName::Underscore) => {
                         unreachable!("Underscore cannot not be referenced by a local variable")
                     }
@@ -78,10 +78,10 @@ impl<'env> UnelabCtx<'env> {
             Expr::Meta(level) => {
                 let name = match self.meta_names.get_by_level(*level) {
                     Some(VarName::User(name)) => name.clone(),
+                    Some(VarName::Fresh(count)) => self.gen_name(*count),
                     Some(VarName::Underscore) => {
                         unreachable!("Underscore cannot not be referenced by a local variable")
                     }
-                    Some(VarName::Fresh) => todo!("gensym"),
                     None => unreachable!("Unbound meta variable: {level:?}"),
                 };
                 surface::Expr::Hole((), surface::Hole::Name(name))
@@ -171,7 +171,7 @@ impl<'env> UnelabCtx<'env> {
         let name = match name {
             VarName::User(name) => Some(name.clone()),
             VarName::Underscore => None,
-            VarName::Fresh => todo!("gensym"),
+            VarName::Fresh(count) => Some(self.gen_name(*count)),
         };
         let ty = self.unelab_expr(ty);
         surface::SimplePat {
@@ -183,8 +183,8 @@ impl<'env> UnelabCtx<'env> {
     fn unelab_var_pat(&mut self, name: &VarName) -> surface::Pat<()> {
         match name {
             VarName::User(name) => surface::Pat::Name((), name.clone()),
+            VarName::Fresh(count) => surface::Pat::Name((), self.gen_name(*count)),
             VarName::Underscore => surface::Pat::Wildcard(()),
-            VarName::Fresh => todo!("gensym"),
         }
     }
 
@@ -197,5 +197,10 @@ impl<'env> UnelabCtx<'env> {
                 self.unelab_var_pat(name)
             }
         }
+    }
+
+    fn gen_name(&mut self, count: u32) -> RcStr {
+        // FIXME: something nicer?
+        Rc::from(format!("${count}"))
     }
 }

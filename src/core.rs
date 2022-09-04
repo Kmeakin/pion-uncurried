@@ -98,18 +98,26 @@ impl Expr {
 pub enum VarName {
     User(RcStr),
     Underscore,
-    Fresh,
+    Fresh(u32),
 }
 
-impl<Range> From<&surface::Pat<Range>> for VarName {
-    fn from(other: &surface::Pat<Range>) -> Self {
-        match other {
-            surface::Pat::Wildcard(_) => Self::Underscore,
-            surface::Pat::Name(_, name) => Self::User(name.clone()),
-            surface::Pat::Ann(_, pat, _) => Self::from(pat.as_ref()),
-            _ => Self::Fresh,
-        }
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Default)]
+pub struct NameSource(u32);
+
+impl NameSource {
+    pub fn new(counter: u32) -> Self { Self(counter) }
+
+    pub fn next(&mut self) -> VarName {
+        let next = VarName::Fresh(self.0);
+        self.0 += 1;
+        next
     }
+
+    pub fn current(&self) -> VarName { VarName::Fresh(self.0) }
+
+    pub fn truncate(&mut self, new_count: u32) { self.0 = new_count; }
+
+    pub fn reset(&mut self) { self.0 = 0; }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -121,8 +129,8 @@ pub enum EntryInfo {
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum MetaSource {
     LetDeclType(FileId, TextRange),
-    PlaceholderType(FileId, TextRange),
-    PlaceholderExpr(FileId, TextRange),
+    HoleType(FileId, TextRange),
+    HoleExpr(FileId, TextRange),
     MatchType(FileId, TextRange),
     PatType(FileId, TextRange),
     Error,
