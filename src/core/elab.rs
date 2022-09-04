@@ -411,6 +411,27 @@ impl ElabCtx {
 
                 Expr::FunExpr(Rc::from(names), Rc::from(arg_types), Rc::new(ret_core))
             }
+            (surface::Expr::Let(_, pat, init, body), _) => {
+                let (name, pat_type) = self.synth_simple_pat(pat);
+                let type_core = self.quote_ctx().quote_value(&pat_type);
+                let init_core = self.check_expr(init, &pat_type);
+                let init_value = self.eval_ctx().eval_expr(&init_core);
+
+                self.local_env.push_def(name.clone(), init_value, pat_type);
+                let body_core = self.check_expr(body, &expected);
+                self.local_env.pop();
+
+                Expr::Let(
+                    name,
+                    Rc::new(type_core),
+                    Rc::new(init_core),
+                    Rc::new(body_core),
+                )
+            }
+
+            // return early, rather than creating a fresh metavar and unifying it with the expected
+            // type
+            (surface::Expr::Error(_), _) => Expr::Error,
             _ => {
                 let (core, got) = self.synth_expr(expr);
                 match self.unify_ctx().unify_values(&got, &expected) {
