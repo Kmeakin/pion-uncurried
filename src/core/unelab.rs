@@ -48,6 +48,7 @@ impl<'env> UnelabCtx<'env> {
     }
 
     #[debug_ensures(self.local_names.len() == old(self.local_names.len()))]
+    #[allow(clippy::option_if_let_else)]
     pub fn unelab_expr(&mut self, expr: &Expr) -> surface::Expr<()> {
         match expr {
             Expr::Error => surface::Expr::Error(()),
