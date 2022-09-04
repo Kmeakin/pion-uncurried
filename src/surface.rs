@@ -119,7 +119,7 @@ impl Expr<TextRange> {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SimplePat<Range> {
-    pub name: Option<RcStr>,
+    pub name: (Range, Option<RcStr>),
     pub ty: Option<Rc<Expr<Range>>>,
 }
 

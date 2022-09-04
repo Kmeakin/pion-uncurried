@@ -111,10 +111,8 @@ AtomPat: Pat<TextRange> = {
 }
 
 SimplePat: SimplePat<TextRange> = {
-    "_" => SimplePat {name: None, ty: None},
-    "_" ":" <ty: FunExpr> => SimplePat {name: None, ty: Some(Rc::new(ty))},
-    <name: Name> => SimplePat {name: Some(name), ty: None},
-    <name: Name> ":" <ty: FunExpr> => SimplePat {name: Some(name), ty: Some(Rc::new(ty))},
+    <name: NameOrUnderscore> => SimplePat {name, ty: None},
+    <name: NameOrUnderscore> ":" <ty: FunExpr> => SimplePat {name, ty: Some(Rc::new(ty))},
 }
 
 Name: RcStr = {

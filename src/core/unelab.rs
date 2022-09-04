@@ -162,7 +162,7 @@ impl<'env> UnelabCtx<'env> {
         };
         let ty = self.unelab_expr(ty);
         surface::SimplePat {
-            name,
+            name: ((), name),
             ty: Some(Rc::new(ty)),
         }
     }

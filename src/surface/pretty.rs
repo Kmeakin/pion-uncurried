@@ -193,6 +193,7 @@ impl<'a> PrettyCtx {
 
     fn pretty_simple_pat<Range>(&self, pat: &SimplePat<Range>) -> DocBuilder {
         let SimplePat { name, ty } = pat;
+        let (_, name) = name;
         let name = match name {
             Some(name) => self.text(name.to_string()),
             None => self.text("_"),

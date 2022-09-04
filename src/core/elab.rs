@@ -202,22 +202,14 @@ impl ElabCtx {
                 self.synth_error_expr()
             }
             surface::Expr::Bool(_, b) => (Expr::Bool(*b), Rc::new(Value::BoolType)),
-            surface::Expr::FunType(_, pats, ret) => todo!(),
-            #[cfg(FALSE)]
             surface::Expr::FunType(_, pats, ret) => {
                 let initial_len = self.local_env.len();
                 let (names, args): (Vec<_>, Vec<_>) = pats
                     .iter()
                     .map(|pat| {
-                        let name = pat.into();
-
-                        let gamma1 = self.local_env.clone();
-                        let (_, pat_type) = self.synth_pat(Refutability::Irrefutible, pat);
-                        let gamma2 = self.local_env.clone();
-
-                        self.local_env = gamma1;
+                        let (name, pat_type) = self.synth_simple_pat(pat);
                         let type_core = self.quote_ctx().quote_value(&pat_type);
-                        self.local_env = gamma2;
+                        self.local_env.push_param(name.clone(), pat_type);
                         (name, type_core)
                     })
                     .unzip();
@@ -228,22 +220,14 @@ impl ElabCtx {
                     Rc::new(Value::Type),
                 )
             }
-            surface::Expr::FunExpr(_, pats, body) => todo!(),
-            #[cfg(FALSE)]
             surface::Expr::FunExpr(_, pats, body) => {
                 let initial_len = self.local_env.len();
                 let (names, args): (Vec<_>, Vec<_>) = pats
                     .iter()
                     .map(|pat| {
-                        let name = pat.into();
-
-                        let gamma1 = self.local_env.clone();
-                        let (_, pat_type) = self.synth_pat(Refutability::Irrefutible, pat);
-                        let gamma2 = self.local_env.clone();
-
-                        self.local_env = gamma1;
+                        let (name, pat_type) = self.synth_simple_pat(pat);
                         let type_core = self.quote_ctx().quote_value(&pat_type);
-                        self.local_env = gamma2;
+                        self.local_env.push_param(name.clone(), pat_type);
                         (name, type_core)
                     })
                     .unzip();
@@ -313,22 +297,15 @@ impl ElabCtx {
                     ret_type,
                 )
             }
-            surface::Expr::Let(_, pat, init, body) => todo!(),
-            #[cfg(FALSE)]
             surface::Expr::Let(_, pat, init, body) => {
-                let name = pat.as_ref().into();
-
-                let gamma1 = self.local_env.clone();
-                let (_, pat_type) = self.synth_pat(Refutability::Irrefutible, pat);
-                let gamma2 = self.local_env.clone();
-
-                self.local_env = gamma1.clone();
+                let (name, pat_type) = self.synth_simple_pat(pat);
                 let init_core = self.check_expr(init, &pat_type);
                 let init_value = self.eval_ctx().eval_expr(&init_core);
-                self.local_env = gamma2;
 
+                self.local_env.push_def(name.clone(), init_value, pat_type);
                 let (body_core, body_type) = self.synth_expr(body);
-                self.local_env = gamma1;
+                self.local_env.pop();
+
                 (
                     Expr::Let(name, Rc::new(init_core), Rc::new(body_core)),
                     body_type,
@@ -344,7 +321,7 @@ impl ElabCtx {
                     .iter()
                     .map(|(pat, expr)| {
                         let initial_len = self.local_env.len();
-                        let pat_core = self.check_pat(Refutability::Refutible, pat, &scrut_type);
+                        let pat_core = self.check_match_pat(pat, &scrut_type);
                         let expr_core = self.check_expr(expr, &match_type);
                         self.local_env.truncate(initial_len);
                         (pat_core, expr_core)
@@ -376,7 +353,6 @@ impl ElabCtx {
     fn check_expr_inner(&mut self, expr: &surface::Expr<TextRange>, expected: &Rc<Value>) -> Expr {
         let expected = self.elim_ctx().force_value(expected);
         match (expr, expected.as_ref()) {
-            #[cfg(FALSE)]
             (surface::Expr::FunExpr(_, pats, body), Value::FunType(_, closure)) => {
                 if pats.len() != closure.arity() {
                     todo!("arity mismatch")
@@ -394,15 +370,15 @@ impl ElabCtx {
                 while let Some((pat, (expected, cont))) =
                     Option::zip(pats.next(), self.elim_ctx().split_fun_closure(closure))
                 {
-                    let name = pat.into();
-                    let arg_type = self.quote_ctx().quote_value(&expected);
+                    let type_core = self.quote_ctx().quote_value(&expected);
 
                     let arg_value = Rc::new(Value::local(self.local_env.len().to_level()));
-                    self.check_pat(Refutability::Irrefutible, pat, &expected);
+                    let name = self.check_simple_pat(pat, &expected);
+                    self.local_env.push_param(name.clone(), expected);
 
                     closure = cont(arg_value.clone());
                     args_values.push(arg_value);
-                    arg_types.push(arg_type);
+                    arg_types.push(type_core);
                     names.push(name);
                 }
 
@@ -433,11 +409,43 @@ impl ElabCtx {
         }
     }
 
-    pub fn synth_pat(
+    fn synth_simple_pat(&mut self, pat: &surface::SimplePat<TextRange>) -> (VarName, Rc<Value>) {
+        let surface::SimplePat { name, ty } = pat;
+        let (range, name) = name;
+        let name = match name {
+            Some(name) => VarName::User(name.clone()),
+            None => VarName::Underscore,
+        };
+        let ty = match ty {
+            Some(ty) => {
+                let type_core = self.check_expr_is_type(ty);
+                self.eval_ctx().eval_expr(&type_core)
+            }
+            None => {
+                self.push_meta_value(MetaSource::PatType(self.file, *range), Rc::new(Value::Type))
+            }
+        };
+        (name, ty)
+    }
+
+    fn check_simple_pat(
         &mut self,
-        refutability: Refutability,
-        pat: &surface::Pat<TextRange>,
-    ) -> (Pat, Rc<Value>) {
+        pat: &surface::SimplePat<TextRange>,
+        expected: &Rc<Value>,
+    ) -> VarName {
+        let surface::SimplePat { name, ty } = pat;
+        let (_, name) = name;
+        let name = match name {
+            Some(name) => VarName::User(name.clone()),
+            None => VarName::Underscore,
+        };
+        if let Some(ty) = ty {
+            self.check_expr(ty, expected);
+        }
+        name
+    }
+
+    pub fn synth_match_pat(&mut self, pat: &surface::Pat<TextRange>) -> (Pat, Rc<Value>) {
         match pat {
             surface::Pat::Error(_) => {
                 let ty = self.push_meta_value(MetaSource::Error, Rc::new(Value::Type));
@@ -456,27 +464,17 @@ impl ElabCtx {
                     .push_param(VarName::User(name.clone()), ty.clone());
                 (Pat::Name(VarName::User(name.clone())), ty)
             }
-            surface::Pat::Bool(_, b) => {
-                if refutability == Refutability::Irrefutible {
-                    todo!("refutable pattern")
-                }
-                (Pat::Bool(*b), Rc::new(Value::BoolType))
-            }
+            surface::Pat::Bool(_, b) => (Pat::Bool(*b), Rc::new(Value::BoolType)),
             surface::Pat::Ann(_, pat, ty) => {
                 let type_core = self.check_expr_is_type(ty);
                 let type_value = self.eval_ctx().eval_expr(&type_core);
-                let pat_core = self.check_pat(refutability, pat, &type_value);
+                let pat_core = self.check_match_pat(pat, &type_value);
                 (pat_core, type_value)
             }
         }
     }
 
-    pub fn check_pat(
-        &mut self,
-        refutability: Refutability,
-        pat: &surface::Pat<TextRange>,
-        expected: &Rc<Value>,
-    ) -> Pat {
+    pub fn check_match_pat(&mut self, pat: &surface::Pat<TextRange>, expected: &Rc<Value>) -> Pat {
         let expected = self.elim_ctx().force_value(expected);
         match pat {
             surface::Pat::Error(_) => Pat::Error,
@@ -490,7 +488,7 @@ impl ElabCtx {
                 Pat::Name(VarName::User(name.clone()))
             }
             _ => {
-                let (core, got) = self.synth_pat(refutability, pat);
+                let (core, got) = self.synth_match_pat(pat);
                 match self.unify_ctx().unify_values(&got, &expected) {
                     Ok(_) => core,
                     Err(error) => {
