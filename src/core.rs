@@ -53,8 +53,8 @@ pub enum Expr {
     FunCall(Rc<Self>, Rc<[Self]>),
     /// `match e1 {p2 => e2, ..., pn => en}`
     Match(Rc<Self>, Rc<[(Pat, Self)]>),
-    /// `let x = e1 in e2`
-    Let(VarName, Rc<Self>, Rc<Self>),
+    /// `let x: e2 = e2 in e3`
+    Let(VarName, Rc<Self>, Rc<Self>, Rc<Self>),
     /// `e1: e2`
     Ann(Rc<Self>, Rc<Self>),
 }
@@ -86,7 +86,9 @@ impl Expr {
                         .iter()
                         .any(|(pat, expr)| expr.binds_local(var.succ_by(pat.num_names())))
             }
-            Self::Let(_, init, body) => init.binds_local(var) || body.binds_local(var.succ()),
+            Self::Let(_, ty, init, body) => {
+                ty.binds_local(var) || init.binds_local(var) || body.binds_local(var.succ())
+            }
             Self::Ann(expr, ty) => expr.binds_local(var) || ty.binds_local(var),
         }
     }

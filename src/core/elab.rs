@@ -308,6 +308,7 @@ impl ElabCtx {
             }
             surface::Expr::Let(_, pat, init, body) => {
                 let (name, pat_type) = self.synth_simple_pat(pat);
+                let type_core = self.quote_ctx().quote_value(&pat_type);
                 let init_core = self.check_expr(init, &pat_type);
                 let init_value = self.eval_ctx().eval_expr(&init_core);
 
@@ -316,7 +317,12 @@ impl ElabCtx {
                 self.local_env.pop();
 
                 (
-                    Expr::Let(name, Rc::new(init_core), Rc::new(body_core)),
+                    Expr::Let(
+                        name,
+                        Rc::new(type_core),
+                        Rc::new(init_core),
+                        Rc::new(body_core),
+                    ),
                     body_type,
                 )
             }

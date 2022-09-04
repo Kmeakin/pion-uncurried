@@ -75,7 +75,7 @@ impl<'env> EvalCtx<'env> {
                 let arms = MatchArms::new(self.local_values.clone(), arms.clone());
                 self.elim_ctx().do_match(scrut, arms)
             }
-            Expr::Let(_, init, body) => {
+            Expr::Let(_, _ty, init, body) => {
                 let init_value = self.eval_expr(init);
                 self.local_values.push(init_value);
                 let body_value = self.eval_expr(body);

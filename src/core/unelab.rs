@@ -60,10 +60,10 @@ impl<'env> UnelabCtx<'env> {
             Expr::Local(index) => {
                 let name = match self.local_names.get_by_index(*index) {
                     Some(VarName::User(name)) => name.clone(),
+                    Some(VarName::Fresh) => todo!("gensym"),
                     Some(VarName::Underscore) => {
                         unreachable!("Underscore cannot not be referenced by a local variable")
                     }
-                    Some(VarName::Fresh) => todo!("gensym"),
                     _ => unreachable!("Unbound local variable: {index:?}"),
                 };
                 surface::Expr::Name((), name)
@@ -150,8 +150,8 @@ impl<'env> UnelabCtx<'env> {
                     .collect();
                 surface::Expr::Match((), Rc::new(scrut), arms)
             }
-            Expr::Let(name, init, body) => {
-                let pat = self.unelab_simple_pat(name, &Expr::Error); // TODO: include type in Expr::Let
+            Expr::Let(name, ty, init, body) => {
+                let pat = self.unelab_simple_pat(name, ty);
 
                 let init = self.unelab_expr(init);
                 self.local_names.push(name.clone());
