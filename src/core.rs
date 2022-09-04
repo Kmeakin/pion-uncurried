@@ -102,10 +102,10 @@ pub enum VarName {
 impl<Range> From<&surface::Pat<Range>> for VarName {
     fn from(other: &surface::Pat<Range>) -> Self {
         match other {
-            surface::Pat::Wildcard(_) => VarName::Underscore,
-            surface::Pat::Name(_, name) => VarName::User(name.clone()),
+            surface::Pat::Wildcard(_) => Self::Underscore,
+            surface::Pat::Name(_, name) => Self::User(name.clone()),
             surface::Pat::Ann(_, pat, _) => Self::from(pat.as_ref()),
-            _ => VarName::Fresh,
+            _ => Self::Fresh,
         }
     }
 }
