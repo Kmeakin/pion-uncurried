@@ -13,7 +13,7 @@ fn test_elab(input_path: &Path, expected_path: &Path) {
     let mut files = codespan_reporting::files::SimpleFiles::new();
     let config = codespan_reporting::term::Config::default();
 
-    let src = match std::fs::read_to_string(&input_path) {
+    let src = match std::fs::read_to_string(input_path) {
         Ok(contents) => contents,
         Err(err) => panic!("Cannot read `{input_path}`: {err}"),
     };
