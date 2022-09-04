@@ -129,8 +129,8 @@ pub enum MetaSource {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Pat {
     Error,
-    Name(VarName),
     Bool(bool),
+    Name(VarName),
 }
 
 impl Pat {

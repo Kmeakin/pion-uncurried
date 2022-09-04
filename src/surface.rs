@@ -67,11 +67,11 @@ pub enum Expr<Range> {
     Placeholder(Range),
     Name(Range, RcStr),
     Bool(Range, bool),
-    FunType(Range, Rc<[Pat<Range>]>, Rc<Self>),
-    FunExpr(Range, Rc<[Pat<Range>]>, Rc<Self>),
+    FunType(Range, Rc<[SimplePat<Range>]>, Rc<Self>),
+    FunExpr(Range, Rc<[SimplePat<Range>]>, Rc<Self>),
     FunCall(Range, Rc<Self>, Rc<[Self]>),
     Match(Range, Rc<Self>, Rc<[(Pat<Range>, Self)]>),
-    Let(Range, Rc<Pat<Range>>, Rc<Self>, Rc<Self>),
+    Let(Range, Rc<SimplePat<Range>>, Rc<Self>, Rc<Self>),
     Ann(Range, Rc<Self>, Rc<Self>),
 }
 
@@ -115,6 +115,12 @@ impl Expr<TextRange> {
             | Self::Ann(range, ..) => *range,
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SimplePat<Range> {
+    pub name: Option<RcStr>,
+    pub ty: Option<Rc<Expr<Range>>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -27,7 +27,6 @@ impl<'env> EvalCtx<'env> {
     fn elim_ctx(&self) -> ElimCtx { ElimCtx::new(self.item_values, self.meta_values) }
 
     #[debug_ensures(self.local_values.len() == old(self.local_values.len()))]
-    #[allow(clippy::option_if_let_else)]
     pub fn eval_expr(&mut self, expr: &Expr) -> Rc<Value> {
         match expr {
             Expr::Error => Rc::new(Value::Error),

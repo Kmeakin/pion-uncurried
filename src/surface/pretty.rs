@@ -1,6 +1,6 @@
 use pretty::{docs, Doc, DocAllocator, RcAllocator, RcDoc};
 
-use super::{Expr, Pat};
+use super::{Expr, Pat, SimplePat};
 
 pub struct PrettyCtx {
     alloc: RcAllocator,
@@ -34,6 +34,8 @@ impl<'a> PrettyCtx {
             doc
         }
     }
+
+    fn bool(&'a self, b: bool) -> DocBuilder<'a> { self.text(if b { "true" } else { "false" }) }
 
     pub fn pretty_module<Range>(&'a self, module: &super::Module<Range>) -> DocBuilder<'a> {
         let decls = module.decls.iter().map(|decl| self.pretty_decl(decl));
@@ -78,10 +80,9 @@ impl<'a> PrettyCtx {
             Expr::Error(_) => self.text("#error"),
             Expr::Placeholder(_) => self.text("_"),
             Expr::Name(_, name) => self.text(name.to_string()),
-            Expr::Bool(_, true) => self.text("true"),
-            Expr::Bool(_, false) => self.text("false"),
+            Expr::Bool(_, b) => self.bool(*b),
             Expr::FunType(_, args, ret) => {
-                let args = args.iter().map(|pat| self.pretty_pat(pat));
+                let args = args.iter().map(|pat| self.pretty_simple_pat(pat));
                 let sep = docs!(self, ",", self.space());
                 let args = self.intersperse(args, sep);
                 let ret = self.pretty_expr_prec(Prec::Fun, ret);
@@ -101,7 +102,7 @@ impl<'a> PrettyCtx {
                 )
             }
             Expr::FunExpr(_, args, body) => {
-                let args = args.iter().map(|pat| self.pretty_pat(pat));
+                let args = args.iter().map(|pat| self.pretty_simple_pat(pat));
                 let sep = docs!(self, ",", self.space());
                 let args = self.intersperse(args, sep);
                 let body = self.pretty_expr_prec(Prec::Fun, body);
@@ -128,7 +129,7 @@ impl<'a> PrettyCtx {
                 self.parens(prec > Prec::Call, docs!(self, fun, "(", args, ")"))
             }
             Expr::Let(_, pat, init, body) => {
-                let pat = self.pretty_pat(pat);
+                let pat = self.pretty_simple_pat(pat);
                 let init = self.pretty_expr_prec(Prec::MAX, init);
                 let body = self.pretty_expr_prec(Prec::Let, body);
                 self.parens(
@@ -190,6 +191,19 @@ impl<'a> PrettyCtx {
         }
     }
 
+    fn pretty_simple_pat<Range>(&self, pat: &SimplePat<Range>) -> DocBuilder {
+        let SimplePat { name, ty } = pat;
+        let name = match name {
+            Some(name) => self.text(name.to_string()),
+            None => self.text("_"),
+        };
+        let ty = ty.as_ref().map(|ty| {
+            let ty = self.pretty_expr_prec(Prec::Fun, ty);
+            docs!(self, self.space(), ":", self.space(), ty)
+        });
+        docs!(self, name, ty)
+    }
+
     fn pretty_pat<Range>(&self, pat: &Pat<Range>) -> DocBuilder {
         self.pretty_pat_prec(Prec::MAX, pat)
     }
@@ -199,8 +213,7 @@ impl<'a> PrettyCtx {
             Pat::Error(_) => self.text("#error"),
             Pat::Wildcard(_) => self.text("_"),
             Pat::Name(_, name) => self.text(name.to_string()),
-            Pat::Bool(_, true) => self.text("true"),
-            Pat::Bool(_, false) => self.text("false"),
+            Pat::Bool(_, b) => self.bool(*b),
             Pat::Ann(_, pat, ty) => {
                 let pat = self.pretty_pat_prec(Prec::Ann, pat);
                 let ty = self.pretty_expr_prec(Prec::Fun, ty);

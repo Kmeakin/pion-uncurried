@@ -59,13 +59,13 @@ AnnExpr: Expr<TextRange> = {
 }
 
 LetExpr: Expr<TextRange> = {
-    <start: @L> "let" <pat: Pat> "=" <init: Expr> "in" <body: LetExpr> <end: @R> => Expr::Let(TextRange::new(start, end), Rc::new(pat), Rc::new(init), Rc::new(body)),
+    <start: @L> "let" <pat: SimplePat> "=" <init: Expr> "in" <body: LetExpr> <end: @R> => Expr::Let(TextRange::new(start, end), Rc::new(pat), Rc::new(init), Rc::new(body)),
     FunExpr => <>,
 }
 
 FunExpr: Expr<TextRange> = {
-    <start: @L> "fn" "(" <args: List<Pat, ",">> ")" "=>" <body: FunExpr> <end: @R> => Expr::FunExpr(TextRange::new(start, end), args, Rc::new(body)),
-    <start: @L> "fn" "(" <args: List<Pat, ",">> ")" "->" <body: FunExpr> <end: @R> => Expr::FunType(TextRange::new(start, end), args, Rc::new(body)),
+    <start: @L> "fn" "(" <args: List<SimplePat, ",">> ")" "=>" <body: FunExpr> <end: @R> => Expr::FunExpr(TextRange::new(start, end), args, Rc::new(body)),
+    <start: @L> "fn" "(" <args: List<SimplePat, ",">> ")" "->" <body: FunExpr> <end: @R> => Expr::FunType(TextRange::new(start, end), args, Rc::new(body)),
     CallExpr => <>,
 }
 
@@ -108,6 +108,13 @@ AtomPat: Pat<TextRange> = {
         errors.push(ParseError::from(error));
         Pat::Error(TextRange::new(start, end))
     }
+}
+
+SimplePat: SimplePat<TextRange> = {
+    "_" => SimplePat {name: None, ty: None},
+    "_" ":" <ty: FunExpr> => SimplePat {name: None, ty: Some(Rc::new(ty))},
+    <name: Name> => SimplePat {name: Some(name), ty: None},
+    <name: Name> ":" <ty: FunExpr> => SimplePat {name: Some(name), ty: Some(Rc::new(ty))},
 }
 
 Name: RcStr = {

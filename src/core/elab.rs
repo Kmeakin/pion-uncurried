@@ -202,6 +202,8 @@ impl ElabCtx {
                 self.synth_error_expr()
             }
             surface::Expr::Bool(_, b) => (Expr::Bool(*b), Rc::new(Value::BoolType)),
+            surface::Expr::FunType(_, pats, ret) => todo!(),
+            #[cfg(FALSE)]
             surface::Expr::FunType(_, pats, ret) => {
                 let initial_len = self.local_env.len();
                 let (names, args): (Vec<_>, Vec<_>) = pats
@@ -226,6 +228,8 @@ impl ElabCtx {
                     Rc::new(Value::Type),
                 )
             }
+            surface::Expr::FunExpr(_, pats, body) => todo!(),
+            #[cfg(FALSE)]
             surface::Expr::FunExpr(_, pats, body) => {
                 let initial_len = self.local_env.len();
                 let (names, args): (Vec<_>, Vec<_>) = pats
@@ -309,6 +313,8 @@ impl ElabCtx {
                     ret_type,
                 )
             }
+            surface::Expr::Let(_, pat, init, body) => todo!(),
+            #[cfg(FALSE)]
             surface::Expr::Let(_, pat, init, body) => {
                 let name = pat.as_ref().into();
 
@@ -370,6 +376,7 @@ impl ElabCtx {
     fn check_expr_inner(&mut self, expr: &surface::Expr<TextRange>, expected: &Rc<Value>) -> Expr {
         let expected = self.elim_ctx().force_value(expected);
         match (expr, expected.as_ref()) {
+            #[cfg(FALSE)]
             (surface::Expr::FunExpr(_, pats, body), Value::FunType(_, closure)) => {
                 if pats.len() != closure.arity() {
                     todo!("arity mismatch")

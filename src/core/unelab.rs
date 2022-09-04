@@ -48,7 +48,6 @@ impl<'env> UnelabCtx<'env> {
     }
 
     #[debug_ensures(self.local_names.len() == old(self.local_names.len()))]
-    #[allow(clippy::option_if_let_else)]
     pub fn unelab_expr(&mut self, expr: &Expr) -> surface::Expr<()> {
         match expr {
             Expr::Error => surface::Expr::Error(()),
@@ -58,6 +57,9 @@ impl<'env> UnelabCtx<'env> {
             Expr::Local(index) => {
                 let name = match self.local_names.get_by_index(*index) {
                     Some(VarName::User(name)) => name.clone(),
+                    Some(VarName::Underscore) => {
+                        unreachable!("Underscore cannot not be referenced by a local variable")
+                    }
                     Some(VarName::Fresh) => todo!("gensym"),
                     _ => unreachable!("Unbound local variable: {index:?}"),
                 };
@@ -92,7 +94,7 @@ impl<'env> UnelabCtx<'env> {
                     .iter()
                     .zip(args.iter())
                     .map(|(name, ty)| {
-                        let pat = self.unelab_arg(name, ty);
+                        let pat = self.unelab_simple_pat(name, ty);
                         self.local_names.push(name.clone());
                         pat
                     })
@@ -107,7 +109,7 @@ impl<'env> UnelabCtx<'env> {
                     .iter()
                     .zip(args.iter())
                     .map(|(name, ty)| {
-                        let pat = self.unelab_arg(name, ty);
+                        let pat = self.unelab_simple_pat(name, ty);
                         self.local_names.push(name.clone());
                         pat
                     })
@@ -127,7 +129,7 @@ impl<'env> UnelabCtx<'env> {
                     .iter()
                     .map(|(pat, expr)| {
                         let initial_len = self.local_names.len();
-                        let pat = self.unelab_pat(pat);
+                        let pat = self.unelab_match_pat(pat);
                         let expr = self.unelab_expr(expr);
                         self.local_names.truncate(initial_len);
                         (pat, expr)
@@ -136,11 +138,8 @@ impl<'env> UnelabCtx<'env> {
                 surface::Expr::Match((), Rc::new(scrut), arms)
             }
             Expr::Let(name, init, body) => {
-                let pat = match name {
-                    VarName::User(name) => surface::Pat::Name((), name.clone()),
-                    VarName::Underscore => surface::Pat::Wildcard(()),
-                    VarName::Fresh => todo!("gensym"),
-                };
+                let pat = self.unelab_simple_pat(name, &Expr::Error); // TODO: include type in Expr::Let
+
                 let init = self.unelab_expr(init);
                 self.local_names.push(name.clone());
                 let body = self.unelab_expr(body);
@@ -155,29 +154,35 @@ impl<'env> UnelabCtx<'env> {
         }
     }
 
-    fn unelab_arg(&mut self, name: &VarName, ty: &Expr) -> surface::Pat<()> {
-        let pat = match name {
-            VarName::User(name) => surface::Pat::Name((), name.clone()),
-            VarName::Underscore => surface::Pat::Wildcard(()),
+    fn unelab_simple_pat(&mut self, name: &VarName, ty: &Expr) -> surface::SimplePat<()> {
+        let name = match name {
+            VarName::User(name) => Some(name.clone()),
+            VarName::Underscore => None,
             VarName::Fresh => todo!("gensym"),
         };
         let ty = self.unelab_expr(ty);
-        surface::Pat::Ann((), Rc::new(pat), Rc::new(ty))
+        surface::SimplePat {
+            name,
+            ty: Some(Rc::new(ty)),
+        }
     }
 
-    fn unelab_pat(&mut self, pat: &Pat) -> surface::Pat<()> {
+    fn unelab_match_pat(&mut self, pat: &Pat) -> surface::Pat<()> {
         match pat {
             Pat::Error => surface::Pat::Error(()),
-            Pat::Name(name) => {
-                let name = name.clone();
-                self.local_names.push(name.clone());
-                match name {
-                    VarName::User(name) => surface::Pat::Name((), name),
-                    VarName::Underscore => surface::Pat::Wildcard(()),
-                    VarName::Fresh => todo!("gensym"),
-                }
-            }
             Pat::Bool(b) => surface::Pat::Bool((), *b),
+            Pat::Name(name) => {
+                self.local_names.push(name.clone());
+                self.unelab_var_pat(name)
+            }
+        }
+    }
+
+    fn unelab_var_pat(&mut self, name: &VarName) -> surface::Pat<()> {
+        match name {
+            VarName::User(name) => surface::Pat::Name((), name.clone()),
+            VarName::Underscore => surface::Pat::Wildcard(()),
+            VarName::Fresh => todo!("gensym"),
         }
     }
 }

@@ -28,7 +28,6 @@ impl<'env> QuoteCtx<'env> {
     fn elim_ctx(&self) -> ElimCtx { ElimCtx::new(self.item_values, self.meta_values) }
 
     #[debug_ensures(self.local_values == old(self.local_values))]
-    #[allow(clippy::option_if_let_else)]
     pub fn quote_value(&mut self, value: &Rc<Value>) -> Expr {
         match self.elim_ctx().force_value(value).as_ref() {
             Value::Error => Expr::Error,

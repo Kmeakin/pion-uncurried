@@ -1,5 +1,9 @@
 #![warn(clippy::all, clippy::nursery, unused_qualifications)]
-#![allow(clippy::missing_const_for_fn, clippy::new_without_default)]
+#![allow(
+    clippy::missing_const_for_fn,
+    clippy::new_without_default,
+    clippy::option_if_let_else
+)]
 #![feature(custom_test_frameworks)]
 #![test_runner(datatest::runner)]
 
