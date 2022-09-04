@@ -207,7 +207,7 @@ impl ElabCtx {
                 let (names, args): (Vec<_>, Vec<_>) = pats
                     .iter()
                     .map(|pat| {
-                        let name = pat.name().into();
+                        let name = pat.into();
 
                         let gamma1 = self.local_env.clone();
                         let (_, pat_type) = self.synth_pat(Refutability::Irrefutible, pat);
@@ -231,7 +231,7 @@ impl ElabCtx {
                 let (names, args): (Vec<_>, Vec<_>) = pats
                     .iter()
                     .map(|pat| {
-                        let name = pat.name().into();
+                        let name = pat.into();
 
                         let gamma1 = self.local_env.clone();
                         let (_, pat_type) = self.synth_pat(Refutability::Irrefutible, pat);
@@ -310,7 +310,7 @@ impl ElabCtx {
                 )
             }
             surface::Expr::Let(_, pat, init, body) => {
-                let name = pat.name().into();
+                let name = pat.as_ref().into();
 
                 let gamma1 = self.local_env.clone();
                 let (_, pat_type) = self.synth_pat(Refutability::Irrefutible, pat);
@@ -387,7 +387,7 @@ impl ElabCtx {
                 while let Some((pat, (expected, cont))) =
                     Option::zip(pats.next(), self.elim_ctx().split_fun_closure(closure))
                 {
-                    let name = pat.name().into();
+                    let name = pat.into();
                     let arg_type = self.quote_ctx().quote_value(&expected);
 
                     let arg_value = Rc::new(Value::local(self.local_env.len().to_level()));
@@ -439,8 +439,8 @@ impl ElabCtx {
             surface::Pat::Wildcard(range) => {
                 let ty = self
                     .push_meta_value(MetaSource::PatType(self.file, *range), Rc::new(Value::Type));
-                self.local_env.push_param(VarName::Fresh, ty.clone());
-                (Pat::Name(VarName::Fresh), ty)
+                self.local_env.push_param(VarName::Underscore, ty.clone());
+                (Pat::Name(VarName::Underscore), ty)
             }
             surface::Pat::Name(range, name) => {
                 let ty = self
@@ -474,8 +474,8 @@ impl ElabCtx {
         match pat {
             surface::Pat::Error(_) => Pat::Error,
             surface::Pat::Wildcard(_) => {
-                self.local_env.push_param(VarName::Fresh, expected);
-                Pat::Name(VarName::Fresh)
+                self.local_env.push_param(VarName::Underscore, expected);
+                Pat::Name(VarName::Underscore)
             }
             surface::Pat::Name(_, name) => {
                 self.local_env

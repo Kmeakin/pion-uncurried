@@ -138,6 +138,7 @@ impl<'env> UnelabCtx<'env> {
             Expr::Let(name, init, body) => {
                 let pat = match name {
                     VarName::User(name) => surface::Pat::Name((), name.clone()),
+                    VarName::Underscore => surface::Pat::Wildcard(()),
                     VarName::Fresh => todo!("gensym"),
                 };
                 let init = self.unelab_expr(init);
@@ -157,6 +158,7 @@ impl<'env> UnelabCtx<'env> {
     fn unelab_arg(&mut self, name: &VarName, ty: &Expr) -> surface::Pat<()> {
         let pat = match name {
             VarName::User(name) => surface::Pat::Name((), name.clone()),
+            VarName::Underscore => surface::Pat::Wildcard(()),
             VarName::Fresh => todo!("gensym"),
         };
         let ty = self.unelab_expr(ty);
@@ -171,6 +173,7 @@ impl<'env> UnelabCtx<'env> {
                 self.local_names.push(name.clone());
                 match name {
                     VarName::User(name) => surface::Pat::Name((), name),
+                    VarName::Underscore => surface::Pat::Wildcard(()),
                     VarName::Fresh => todo!("gensym"),
                 }
             }

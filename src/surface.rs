@@ -126,18 +126,6 @@ pub enum Pat<Range> {
     Ann(Range, Rc<Self>, Rc<Expr<Range>>),
 }
 
-impl<Range> Pat<Range> {
-    pub fn name(&self) -> Option<RcStr> {
-        match self {
-            Self::Error(_) => None,
-            Self::Wildcard(_) => None,
-            Self::Name(_, name) => Some(name.clone()),
-            Self::Bool(..) => None,
-            Self::Ann(_, pat, _) => pat.name(),
-        }
-    }
-}
-
 impl Pat<TextRange> {
     pub fn range(&self) -> TextRange {
         match self {

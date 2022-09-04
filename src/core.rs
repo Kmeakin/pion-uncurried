@@ -3,7 +3,7 @@ use std::rc::Rc;
 use text_size::TextRange;
 
 use self::env::{SharedEnv, VarIndex, VarLevel};
-use crate::{FileId, RcStr};
+use crate::{surface, FileId, RcStr};
 
 pub mod conv;
 pub mod elab;
@@ -95,11 +95,19 @@ impl Expr {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum VarName {
     User(RcStr),
+    Underscore,
     Fresh,
 }
 
-impl From<Option<RcStr>> for VarName {
-    fn from(other: Option<RcStr>) -> Self { other.map_or(Self::Fresh, Self::User) }
+impl<Range> From<&surface::Pat<Range>> for VarName {
+    fn from(other: &surface::Pat<Range>) -> Self {
+        match other {
+            surface::Pat::Wildcard(_) => VarName::Underscore,
+            surface::Pat::Name(_, name) => VarName::User(name.clone()),
+            surface::Pat::Ann(_, pat, _) => Self::from(pat.as_ref()),
+            _ => VarName::Fresh,
+        }
+    }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
