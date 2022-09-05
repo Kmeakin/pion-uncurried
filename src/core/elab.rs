@@ -562,7 +562,6 @@ impl ElabCtx {
                 let value = Rc::new(Value::Bool(*b));
                 let ty = Rc::new(Value::BoolType);
                 self.local_env.push_def(name, value, ty);
-                dbg!(&self.local_env);
                 (Pat::Bool(*b), Rc::new(Value::BoolType))
             }
             surface::Pat::Ann(_, pat, ty) => {
