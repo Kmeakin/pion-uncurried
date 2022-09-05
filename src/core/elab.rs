@@ -453,6 +453,8 @@ impl ElabCtx {
         arms: &[(surface::Pat<TextRange>, surface::Expr<TextRange>)],
         expected: &Rc<Value>,
     ) -> Expr {
+        // TODO: check for exhaustivity and report unreachable patterns
+
         // FIXME: update `expected` with defintions introduced by `check_match_pat`
         // without having to quote `expected` back to `Expr`
 
