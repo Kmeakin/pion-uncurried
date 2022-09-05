@@ -54,6 +54,7 @@ impl<'env> EvalCtx<'env> {
                 }
                 head
             }
+            Expr::EnumType(id) => todo!(),
             Expr::FunType(names, args, ret) => Rc::new(Value::FunType(
                 names.clone(),
                 FunClosure::new(self.local_values.clone(), args.clone(), ret.clone()),
@@ -88,26 +89,6 @@ impl<'env> EvalCtx<'env> {
             Some(value) => value.clone(),
             None => unreachable!("Unbound local variable: {index:?}"),
         }
-    }
-
-    pub fn force_value(&self, value: &Rc<Value>) -> Rc<Value> {
-        let mut forced_value = value.clone();
-        while let Value::Stuck(head, spine) = forced_value.as_ref() {
-            let head_value = match head {
-                Head::Local(level) => match self.local_values.get_by_level(*level) {
-                    Some(value) => value,
-                    None => unreachable!("Unbound local variable: {level:?}"),
-                },
-                Head::Meta(level) => match self.meta_values.get_by_level(*level) {
-                    Some(Some(value)) => value,
-                    Some(None) => break,
-                    None => unreachable!("Unbound meta variable: {level:?}"),
-                },
-            };
-            dbg!(head_value);
-            forced_value = self.elim_ctx().apply_spine(head_value.clone(), spine)
-        }
-        forced_value
     }
 }
 

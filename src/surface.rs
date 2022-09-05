@@ -73,7 +73,7 @@ pub struct EnumDecl<Range> {
 pub struct EnumVariant<Range> {
     pub name: (Range, RcStr),
     pub args: Rc<[SimplePat<Range>]>,
-    pub ty: Option<Rc<Expr<Range>>>,
+    pub ret_type: Option<Rc<Expr<Range>>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

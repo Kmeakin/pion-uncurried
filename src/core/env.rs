@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use contracts::debug_invariant;
 
-use super::{EntryInfo, MetaSource, Value, VarName};
+use super::{EntryInfo, EnumDecl, MetaSource, Value, VarName};
 use crate::RcStr;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -273,4 +273,42 @@ impl ItemEnv {
         self.types.push(ty);
         self.values.push(value);
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EnumEnv {
+    pub names: UniqueEnv<RcStr>,
+    pub decls: UniqueEnv<EnumDecl>,
+    pub types: UniqueEnv<Rc<Value>>,
+}
+
+// #[debug_invariant(self.decls.len() == self.types.len())]
+impl EnumEnv {
+    pub fn new() -> Self {
+        Self {
+            names: UniqueEnv::new(),
+            decls: UniqueEnv::new(),
+            types: UniqueEnv::new(),
+        }
+    }
+
+    pub fn lookup(&self, name: &str) -> Option<(VarLevel, &EnumDecl, &Rc<Value>)> {
+        self.decls.iter().enumerate().find_map(|(level, decl)| {
+            let (level, decl) = if decl.name.as_ref() == name {
+                Some((VarLevel(level), decl))
+            } else {
+                None
+            }?;
+            let ty = self.types.get_by_level(level)?;
+            Some((level, decl, ty))
+        })
+    }
+
+    pub fn push(&mut self, decl: EnumDecl, ty: Rc<Value>) {
+        self.names.push(decl.name.clone());
+        self.decls.push(decl);
+        self.types.push(ty);
+    }
+
+    pub fn len(&self) -> EnvLen { self.decls.len() }
 }

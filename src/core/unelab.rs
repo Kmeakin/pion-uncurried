@@ -3,11 +3,12 @@ use std::rc::Rc;
 use contracts::debug_ensures;
 
 use super::env::{UniqueEnv, VarLevel};
-use super::{Decl, EntryInfo, Expr, LetDecl, Module, Pat, VarName};
+use super::{Decl, EntryInfo, EnumDecl, EnumVariant, Expr, LetDecl, Module, Pat, VarName};
 use crate::{surface, RcStr};
 
 pub struct UnelabCtx<'env> {
     item_names: &'env UniqueEnv<RcStr>,
+    enum_names: &'env UniqueEnv<RcStr>,
     meta_names: &'env UniqueEnv<VarName>,
     local_names: &'env mut UniqueEnv<VarName>,
 }
@@ -15,11 +16,13 @@ pub struct UnelabCtx<'env> {
 impl<'env> UnelabCtx<'env> {
     pub fn new(
         item_names: &'env UniqueEnv<RcStr>,
+        enum_names: &'env UniqueEnv<RcStr>,
         meta_names: &'env UniqueEnv<VarName>,
         local_names: &'env mut UniqueEnv<VarName>,
     ) -> Self {
         Self {
             item_names,
+            enum_names,
             meta_names,
             local_names,
         }
@@ -36,6 +39,7 @@ impl<'env> UnelabCtx<'env> {
         match decl {
             Decl::Error => surface::Decl::Error(()),
             Decl::Let(decl) => surface::Decl::Let((), self.unelab_let_decl(decl)),
+            Decl::Enum(decl) => surface::Decl::Enum((), self.unelab_enum_decl(decl)),
         }
     }
 
@@ -47,6 +51,69 @@ impl<'env> UnelabCtx<'env> {
             name: ((), name.clone()),
             ty: Some(Rc::new(ty)),
             expr: Rc::new(expr),
+        }
+    }
+
+    #[debug_ensures(self.local_names.len() == old(self.local_names.len()))]
+    fn unelab_enum_decl(&mut self, decl: &EnumDecl) -> surface::EnumDecl<()> {
+        let EnumDecl {
+            name,
+            arg_names,
+            args,
+            variants,
+        } = decl;
+
+        let initial_len = self.local_names.len();
+
+        let args = arg_names
+            .iter()
+            .zip(args.iter())
+            .map(|(name, ty)| {
+                let pat = self.unelab_simple_pat(name, ty);
+                self.local_names.push(name.clone());
+                pat
+            })
+            .collect();
+
+        let variants = variants
+            .iter()
+            .map(|variant| {
+                let EnumVariant {
+                    name,
+                    arg_names,
+                    args,
+                    ret_type,
+                } = variant;
+
+                let initial_len = self.local_names.len();
+                let args = arg_names
+                    .iter()
+                    .zip(args.iter())
+                    .map(|(name, ty)| {
+                        let pat = self.unelab_simple_pat(name, ty);
+                        self.local_names.push(name.clone());
+                        pat
+                    })
+                    .collect();
+
+                let ret_type = self.unelab_expr(ret_type);
+
+                self.local_names.truncate(initial_len);
+
+                surface::EnumVariant {
+                    name: ((), name.clone()),
+                    args,
+                    ret_type: Some(Rc::new(ret_type)),
+                }
+            })
+            .collect();
+
+        self.local_names.truncate(initial_len);
+
+        surface::EnumDecl {
+            name: ((), name.clone()),
+            args,
+            variants,
         }
     }
 
@@ -100,6 +167,13 @@ impl<'env> UnelabCtx<'env> {
                     }
                 }
                 head
+            }
+            Expr::EnumType(level) => {
+                let name = match self.enum_names.get_by_level(*level) {
+                    Some(name) => name.clone(),
+                    None => unreachable!("Unbound item variable: {level:?}"),
+                };
+                surface::Expr::Name((), name)
             }
             Expr::FunType(names, args, ret) => {
                 let initial_len = self.local_names.len();

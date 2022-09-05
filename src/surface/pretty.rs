@@ -1,6 +1,6 @@
 use pretty::{docs, Doc, DocAllocator, RcAllocator, RcDoc};
 
-use super::{Expr, Hole, Pat, SimplePat};
+use super::{EnumVariant, Expr, Hole, Pat, SimplePat};
 
 pub struct PrettyCtx {
     alloc: RcAllocator,
@@ -47,7 +47,7 @@ impl<'a> PrettyCtx {
         match decl {
             super::Decl::Error(_) => self.text("#error"),
             super::Decl::Let(_, decl) => self.pretty_let_decl(decl),
-            super::Decl::Enum(_, decl) => todo!(),
+            super::Decl::Enum(_, decl) => self.pretty_enum_decl(decl),
         }
     }
 
@@ -69,6 +69,75 @@ impl<'a> PrettyCtx {
             self.space(),
             expr,
             ";"
+        )
+    }
+
+    fn pretty_enum_decl<Range>(&'a self, decl: &super::EnumDecl<Range>) -> DocBuilder<'a> {
+        let super::EnumDecl {
+            name,
+            args,
+            variants,
+        } = decl;
+
+        let (_, name) = name;
+
+        let args = if args.len() > 0 {
+            let args = args.iter().map(|pat| self.pretty_simple_pat(pat));
+            let sep = docs!(self, ",", self.space());
+            let args = self.intersperse(args, sep);
+            Some(docs!(self, "(", args, ")"))
+        } else {
+            None
+        };
+
+        let is_empty = variants.is_empty();
+        let variants = variants.iter().map(|variant| {
+            let EnumVariant {
+                name,
+                args,
+                ret_type,
+            } = variant;
+
+            let (_, name) = name;
+
+            let args = if args.len() > 0 {
+                let args = args.iter().map(|pat| self.pretty_simple_pat(pat));
+                let sep = docs!(self, ",", self.space());
+                let args = self.intersperse(args, sep);
+                Some(docs!(self, "(", args, ")"))
+            } else {
+                None
+            };
+
+            let ret_type = match ret_type {
+                Some(ret_type) => {
+                    let expr = self.pretty_expr(ret_type);
+                    Some(docs!(self, self.space(), ":", self.space(), expr))
+                }
+                None => None,
+            };
+
+            docs!(
+                self,
+                self.hardline(),
+                self.text(name.to_string()),
+                args,
+                ret_type,
+                ",",
+            )
+        });
+
+        docs!(
+            self,
+            "enum",
+            self.space(),
+            self.text(name.to_string()),
+            args,
+            self.space(),
+            "{",
+            self.concat(variants).nest(INDENT),
+            (!is_empty).then_some(self.hardline()),
+            "}"
         )
     }
 
@@ -178,7 +247,7 @@ impl<'a> PrettyCtx {
                     "{",
                     self.concat(arms).nest(INDENT),
                     (!is_empty).then_some(self.hardline()),
-                    docs!(self, "}")
+                    "}"
                 )
                 .group()
             }

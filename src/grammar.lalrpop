@@ -54,7 +54,7 @@ Decl: Decl<TextRange> = {
 }
 
 EnumVariant: EnumVariant<TextRange> = {
-    <name: RangedName> <args: ("(" <List<SimplePat, ",">> ")")?> <ty: (":" <Expr>)?> => EnumVariant {name, args: args.unwrap_or_else(|| Rc::from([])), ty: ty.map(Rc::new)},
+    <name: RangedName> <args: ("(" <List<SimplePat, ",">> ")")?> <ret_type: (":" <Expr>)?> => EnumVariant {name, args: args.unwrap_or_else(|| Rc::from([])), ret_type: ret_type.map(Rc::new)},
 }
 
 pub Expr: Expr<TextRange> = {

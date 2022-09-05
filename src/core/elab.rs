@@ -4,13 +4,16 @@ use contracts::debug_ensures;
 use text_size::TextRange;
 
 use super::conv::ConvCtx;
-use super::env::{ItemEnv, LocalEnv, MetaEnv};
+use super::env::{EnumEnv, ItemEnv, LocalEnv, MetaEnv};
 use super::errors::ElabError;
 use super::eval::{ElimCtx, EvalCtx};
 use super::quote::QuoteCtx;
 use super::unelab::UnelabCtx;
 use super::unify::{PartialRenaming, UnifyCtx};
-use super::{Decl, Expr, FunClosure, LetDecl, MetaSource, Module, NameSource, Pat, Value, VarName};
+use super::{
+    Decl, EnumDecl, EnumVariant, Expr, FunClosure, LetDecl, MetaSource, Module, NameSource, Pat,
+    Value, VarName,
+};
 use crate::surface::pretty::PrettyCtx;
 use crate::surface::Hole;
 use crate::{surface, FileId};
@@ -20,6 +23,7 @@ pub struct ElabCtx {
     pub local_env: LocalEnv,
     pub meta_env: MetaEnv,
     pub item_env: ItemEnv,
+    pub enum_env: EnumEnv,
     pub renaming: PartialRenaming,
     pub errors: Vec<ElabError>,
     name_source: NameSource,
@@ -32,6 +36,7 @@ impl ElabCtx {
             local_env: LocalEnv::new(),
             meta_env: MetaEnv::new(),
             item_env: ItemEnv::new(),
+            enum_env: EnumEnv::new(),
             renaming: PartialRenaming::new(),
             errors: Vec::new(),
             name_source: NameSource::new(0),
@@ -72,6 +77,7 @@ impl ElabCtx {
     pub fn unelab_ctx(&mut self) -> UnelabCtx<'_> {
         UnelabCtx::new(
             &self.item_env.level_to_name,
+            &self.enum_env.names,
             &self.meta_env.names,
             &mut self.local_env.names,
         )
@@ -134,7 +140,7 @@ impl ElabCtx {
         match decl {
             surface::Decl::Error(_) => Decl::Error,
             surface::Decl::Let(_, decl) => Decl::Let(self.elab_let_decl(decl)),
-            surface::Decl::Enum(_, decl) => todo!(),
+            surface::Decl::Enum(_, decl) => Decl::Enum(self.elab_enum_decl(decl)),
         }
     }
 
@@ -169,6 +175,102 @@ impl ElabCtx {
             ty: Rc::new(type_core),
             expr: Rc::new(expr_core),
         }
+    }
+
+    fn elab_enum_decl(&mut self, decl: &surface::EnumDecl<TextRange>) -> EnumDecl {
+        let surface::EnumDecl {
+            name,
+            args,
+            variants,
+        } = decl;
+
+        let (_, name) = name;
+        let initial_len = self.local_env.len();
+
+        let (arg_names, args): (Vec<_>, Vec<_>) = args
+            .iter()
+            .map(|pat| {
+                let (name, pat_type) = self.synth_simple_pat(pat);
+                let type_core = self.quote_ctx().quote_value(&pat_type);
+                self.local_env.push_param(name.clone(), pat_type);
+                (name, type_core)
+            })
+            .unzip();
+        let arg_names: Rc<[_]> = Rc::from(arg_names);
+        let args: Rc<[_]> = Rc::from(args);
+
+        let enum_type_id = self.enum_env.len().to_level();
+
+        let variants = variants
+            .iter()
+            .map(|variant| {
+                let surface::EnumVariant {
+                    name,
+                    args,
+                    ret_type: ty,
+                } = variant;
+
+                let (_, name) = name;
+                let initial_len = self.local_env.len();
+
+                let (arg_names, args): (Vec<_>, Vec<_>) = args
+                    .iter()
+                    .map(|pat| {
+                        let (name, pat_type) = self.synth_simple_pat(pat);
+                        let type_core = self.quote_ctx().quote_value(&pat_type);
+                        self.local_env.push_param(name.clone(), pat_type);
+                        (name, type_core)
+                    })
+                    .unzip();
+
+                let arg_names: Rc<[_]> = Rc::from(arg_names);
+                let args: Rc<[_]> = Rc::from(args);
+
+                let ret_type = match ty {
+                    Some(ty) => {
+                        let type_core = self.check_expr_is_type(ty);
+                        let type_value = self.eval_ctx().eval_expr(&type_core);
+                        let type_core = self.quote_ctx().quote_value(&type_value);
+                        type_core
+                    }
+                    None if args.len() > 0 => {
+                        Expr::FunCall(Rc::new(Expr::EnumType(enum_type_id)), args.clone())
+                    }
+                    None => Expr::EnumType(enum_type_id),
+                };
+
+                self.local_env.truncate(initial_len);
+
+                EnumVariant {
+                    name: name.clone(),
+                    arg_names,
+                    args,
+                    ret_type: Rc::new(ret_type),
+                }
+            })
+            .collect();
+
+        self.local_env.truncate(initial_len);
+
+        let decl = EnumDecl {
+            name: name.clone(),
+            arg_names: arg_names.clone(),
+            args: args.clone(),
+            variants,
+        };
+
+        let fun_type = if args.len() > 0 {
+            Rc::new(Value::FunType(
+                arg_names,
+                FunClosure::new(self.local_env.values.clone(), args, Rc::new(Expr::Type)),
+            ))
+        } else {
+            Rc::new(Value::Type)
+        };
+
+        self.enum_env.push(decl.clone(), fun_type);
+
+        decl
     }
 
     #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]

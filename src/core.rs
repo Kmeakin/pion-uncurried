@@ -23,6 +23,7 @@ pub struct Module {
 pub enum Decl {
     Error,
     Let(LetDecl),
+    Enum(EnumDecl),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -30,6 +31,22 @@ pub struct LetDecl {
     pub name: Option<RcStr>,
     pub ty: Rc<Expr>,
     pub expr: Rc<Expr>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EnumDecl {
+    pub name: RcStr,
+    pub arg_names: Rc<[VarName]>,
+    pub args: Rc<[Expr]>,
+    pub variants: Rc<[EnumVariant]>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EnumVariant {
+    pub name: RcStr,
+    pub arg_names: Rc<[VarName]>,
+    pub args: Rc<[Expr]>,
+    pub ret_type: Rc<Expr>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -44,6 +61,8 @@ pub enum Expr {
     Item(VarLevel),
     Meta(VarLevel),
     MetaInsertion(VarLevel, SharedEnv<EntryInfo>),
+
+    EnumType(VarLevel),
 
     /// `fn (x1: e1, x2: e2, ...) -> en`
     FunType(Rc<[VarName]>, Rc<[Self]>, Rc<Self>),
@@ -69,7 +88,8 @@ impl Expr {
             | Self::Bool(_)
             | Self::Item(_)
             | Self::Meta(_)
-            | Self::MetaInsertion(..) => false,
+            | Self::MetaInsertion(..)
+            | Self::EnumType(..) => false,
             Self::FunType(_, args, body) | Self::FunExpr(_, args, body) => {
                 args.iter().any(|arg| {
                     let res = arg.binds_local(var);
