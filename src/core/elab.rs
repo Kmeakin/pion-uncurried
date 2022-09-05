@@ -134,6 +134,7 @@ impl ElabCtx {
         match decl {
             surface::Decl::Error(_) => Decl::Error,
             surface::Decl::Let(_, decl) => Decl::Let(self.elab_let_decl(decl)),
+            surface::Decl::Enum(_, decl) => todo!(),
         }
     }
 

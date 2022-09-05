@@ -28,6 +28,7 @@ extern {
         ";" =>          Token::Semicolon,
         "," =>          Token::Comma,
 
+        "enum" =>       Token::KwEnum,
         "false" =>      Token::KwFalse,
         "fn" =>         Token::KwFn,
         "in" =>         Token::KwIn,
@@ -44,10 +45,16 @@ pub Module: Module<TextRange> = {
 Decl: Decl<TextRange> = {
     <start: @L> "let" <name: NameOrUnderscore> <ty: (":" <LetExpr>)?> "=" <expr: Expr> ";" <end: @R> => Decl::Let(TextRange::new(start, end), LetDecl {name, ty: ty.map(Rc::new), expr: Rc::new(expr)}),
 
+    <start: @L> "enum" <name: RangedName> <args: ("(" <List<SimplePat, ",">> ")")?> "{" <variants: List<EnumVariant, ",">> "}" <end: @R> => Decl::Enum(TextRange::new(start, end), EnumDecl{name, args: args.unwrap_or_else(|| Rc::from([])), variants}),
+
     <start: @L> <error: !> <end: @R> => {
         errors.push(ParseError::from(error));
         Decl::Error(TextRange::new(start, end))
     }
+}
+
+EnumVariant: EnumVariant<TextRange> = {
+    <name: RangedName> <args: ("(" <List<SimplePat, ",">> ")")?> <ty: (":" <Expr>)?> => EnumVariant {name, args: args.unwrap_or_else(|| Rc::from([])), ty: ty.map(Rc::new)},
 }
 
 pub Expr: Expr<TextRange> = {
@@ -129,6 +136,10 @@ Name: RcStr = {
 NameOrUnderscore: (TextRange, Option<RcStr>) = {
     <start: @L> <name: Name> <end: @R> => (TextRange::new(start, end), Some(name)),
     <start: @L> "_" <end: @R> => (TextRange::new(start, end), None),
+}
+
+RangedName: (TextRange, RcStr) = {
+    <start: @L> <name: Name> <end: @R> => (TextRange::new(start, end), (name)),
 }
 
 #[inline]

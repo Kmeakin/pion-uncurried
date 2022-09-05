@@ -47,6 +47,7 @@ impl<'a> PrettyCtx {
         match decl {
             super::Decl::Error(_) => self.text("#error"),
             super::Decl::Let(_, decl) => self.pretty_let_decl(decl),
+            super::Decl::Enum(_, decl) => todo!(),
         }
     }
 

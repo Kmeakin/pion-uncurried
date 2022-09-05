@@ -52,6 +52,7 @@ impl Module<TextRange> {
 pub enum Decl<Range> {
     Error(Range),
     Let(Range, LetDecl<Range>),
+    Enum(Range, EnumDecl<Range>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -59,6 +60,20 @@ pub struct LetDecl<Range> {
     pub name: (Range, Option<RcStr>),
     pub ty: Option<Rc<Expr<Range>>>,
     pub expr: Rc<Expr<Range>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EnumDecl<Range> {
+    pub name: (Range, RcStr),
+    pub args: Rc<[SimplePat<Range>]>,
+    pub variants: Rc<[EnumVariant<Range>]>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EnumVariant<Range> {
+    pub name: (Range, RcStr),
+    pub args: Rc<[SimplePat<Range>]>,
+    pub ty: Option<Rc<Expr<Range>>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
