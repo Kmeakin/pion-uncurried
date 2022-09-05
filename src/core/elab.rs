@@ -453,7 +453,7 @@ impl ElabCtx {
         arms: &[(surface::Pat<TextRange>, surface::Expr<TextRange>)],
         expected: &Rc<Value>,
     ) -> Expr {
-        // FIXME: updated `expected` with defintions introduced by `check_mat_pat`
+        // FIXME: update `expected` with defintions introduced by `check_match_pat`
         // without having to quote `expected` back to `Expr`
 
         let (scrut_core, scrut_type) = self.synth_expr(scrut);
