@@ -51,7 +51,7 @@ pub enum Expr {
     FunExpr(Rc<[VarName]>, Rc<[Self]>, Rc<Self>),
     /// `e1(e2, e3, ...)`
     FunCall(Rc<Self>, Rc<[Self]>),
-    /// `match e1 {p2 => e2, ..., pn => en}`
+    /// `match e1 in {p2 => e2, ..., pn => en}`
     Match(Rc<Self>, Rc<[(Pat, Self)]>),
     /// `let x: e2 = e2 in e3`
     Let(VarName, Rc<Self>, Rc<Self>, Rc<Self>),
@@ -190,6 +190,10 @@ impl MatchArms {
     pub fn new(local_values: SharedEnv<Rc<Value>>, arms: Rc<[(Pat, Expr)]>) -> Self {
         Self { local_values, arms }
     }
+
+    pub fn len(&self) -> usize { self.arms.len() }
+
+    pub fn is_empty(&self) -> bool { self.len() == 0 }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

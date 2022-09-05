@@ -4,12 +4,13 @@ use contracts::debug_ensures;
 
 use super::env::{EnvLen, UniqueEnv};
 use super::eval::ElimCtx;
-use super::{Elim, Expr, FunClosure, Head, Value};
+use super::{Elim, Expr, FunClosure, Head, NameSource, Value};
 
 pub struct QuoteCtx<'env> {
     local_values: EnvLen,
     item_values: &'env UniqueEnv<Rc<Value>>,
     meta_values: &'env UniqueEnv<Option<Rc<Value>>>,
+    name_source: &'env mut NameSource,
 }
 
 impl<'env> QuoteCtx<'env> {
@@ -17,11 +18,13 @@ impl<'env> QuoteCtx<'env> {
         local_values: EnvLen,
         item_values: &'env UniqueEnv<Rc<Value>>,
         meta_values: &'env UniqueEnv<Option<Rc<Value>>>,
+        name_source: &'env mut NameSource,
     ) -> Self {
         Self {
             local_values,
             item_values,
             meta_values,
+            name_source,
         }
     }
 

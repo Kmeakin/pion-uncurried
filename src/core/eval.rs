@@ -33,10 +33,7 @@ impl<'env> EvalCtx<'env> {
             Expr::Type => Rc::new(Value::Type),
             Expr::BoolType => Rc::new(Value::BoolType),
             Expr::Bool(b) => Rc::new(Value::Bool(*b)),
-            Expr::Local(idx) => match self.local_values.get_by_index(*idx) {
-                Some(value) => value.clone(),
-                None => unreachable!("Unbound local variable: {idx:?}"),
-            },
+            Expr::Local(index) => self.eval_local_var(*index),
             Expr::Item(level) => match self.item_values.get_by_level(*level) {
                 Some(value) => value.clone(),
                 None => unreachable!("Unbound item variable: {level:?}"),
@@ -85,6 +82,33 @@ impl<'env> EvalCtx<'env> {
             Expr::Ann(expr, _) => self.eval_expr(expr),
         }
     }
+
+    fn eval_local_var(&mut self, index: VarIndex) -> Rc<Value> {
+        match self.local_values.get_by_index(index) {
+            Some(value) => value.clone(),
+            None => unreachable!("Unbound local variable: {index:?}"),
+        }
+    }
+
+    pub fn force_value(&self, value: &Rc<Value>) -> Rc<Value> {
+        let mut forced_value = value.clone();
+        while let Value::Stuck(head, spine) = forced_value.as_ref() {
+            let head_value = match head {
+                Head::Local(level) => match self.local_values.get_by_level(*level) {
+                    Some(value) => value,
+                    None => unreachable!("Unbound local variable: {level:?}"),
+                },
+                Head::Meta(level) => match self.meta_values.get_by_level(*level) {
+                    Some(Some(value)) => value,
+                    Some(None) => break,
+                    None => unreachable!("Unbound meta variable: {level:?}"),
+                },
+            };
+            dbg!(head_value);
+            forced_value = self.elim_ctx().apply_spine(head_value.clone(), spine)
+        }
+        forced_value
+    }
 }
 
 pub struct ElimCtx<'env> {
@@ -109,6 +133,7 @@ impl<'env> ElimCtx<'env> {
 
     pub fn call_fun(&self, mut fun: Rc<Value>, args: Vec<Rc<Value>>) -> Rc<Value> {
         match Rc::make_mut(&mut fun) {
+            Value::Error => fun,
             Value::FunValue(_, closure) => self.call_closure(closure, args),
             Value::Stuck(_, spine) => {
                 spine.push(Elim::FunCall(args));
@@ -119,10 +144,14 @@ impl<'env> ElimCtx<'env> {
     }
 
     pub fn do_match(&self, mut scrut: Rc<Value>, arms: MatchArms) -> Rc<Value> {
-        if let Value::Stuck(_, spine) = Rc::make_mut(&mut scrut) {
-            spine.push(Elim::Match(arms));
-            return scrut;
-        }
+        match Rc::make_mut(&mut scrut) {
+            Value::Error => return scrut,
+            Value::Stuck(_, spine) => {
+                spine.push(Elim::Match(arms));
+                return scrut;
+            }
+            _ => {}
+        };
 
         let MatchArms {
             mut local_values,

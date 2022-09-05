@@ -4,7 +4,7 @@ use contracts::debug_ensures;
 use text_size::TextRange;
 
 use super::conv::ConvCtx;
-use super::env::{ItemEnv, LocalEnv, MetaEnv};
+use super::env::{ItemEnv, LocalEnv, MetaEnv, VarIndex, VarLevel};
 use super::errors::ElabError;
 use super::eval::{ElimCtx, EvalCtx};
 use super::quote::QuoteCtx;
@@ -52,11 +52,12 @@ impl ElabCtx {
 
     pub fn elim_ctx(&self) -> ElimCtx { ElimCtx::new(&self.item_env.values, &self.meta_env.values) }
 
-    pub fn quote_ctx(&self) -> QuoteCtx {
+    pub fn quote_ctx(&mut self) -> QuoteCtx {
         QuoteCtx::new(
             self.local_env.values.len(),
             &self.item_env.values,
             &self.meta_env.values,
+            &mut self.name_source,
         )
     }
 
@@ -333,24 +334,13 @@ impl ElabCtx {
                 )
             }
             surface::Expr::Match(range, scrut, arms) => {
-                let (scrut_core, scrut_type) = self.synth_expr(scrut);
                 let name = self.name_source.next();
                 let match_type = self.push_meta_value(
                     name,
                     MetaSource::MatchType(self.file, *range),
                     Rc::new(Value::Type),
                 );
-                let arms = arms
-                    .iter()
-                    .map(|(pat, expr)| {
-                        let initial_len = self.local_env.len();
-                        let pat_core = self.check_match_pat(pat, &scrut_type);
-                        let expr_core = self.check_expr(expr, &match_type);
-                        self.local_env.truncate(initial_len);
-                        (pat_core, expr_core)
-                    })
-                    .collect();
-                (Expr::Match(Rc::new(scrut_core), arms), match_type)
+                (self.check_match_expr(scrut, arms, &match_type), match_type)
             }
             surface::Expr::Ann(_, expr, ty) => {
                 let type_core = self.check_expr_is_type(ty);
@@ -393,6 +383,7 @@ impl ElabCtx {
                 while let Some((pat, (expected, cont))) =
                     Option::zip(pats.next(), self.elim_ctx().split_fun_closure(closure))
                 {
+                    dbg!(&expected);
                     let type_core = self.quote_ctx().quote_value(&expected);
 
                     let arg_value = Rc::new(Value::local(self.local_env.len().to_level()));
@@ -428,6 +419,9 @@ impl ElabCtx {
                     Rc::new(body_core),
                 )
             }
+            (surface::Expr::Match(_, scrut, arms), _) => {
+                self.check_match_expr(scrut, arms, &expected)
+            }
 
             // return early, rather than creating a fresh metavar and unifying it with the expected
             // type
@@ -451,6 +445,32 @@ impl ElabCtx {
                 }
             }
         }
+    }
+
+    fn check_match_expr(
+        &mut self,
+        scrut: &surface::Expr<TextRange>,
+        arms: &[(surface::Pat<TextRange>, surface::Expr<TextRange>)],
+        expected: &Rc<Value>,
+    ) -> Expr {
+        // FIXME: updated `expected` with defintions introduced by `check_mat_pat`
+        // without having to quote `expected` back to `Expr`
+
+        let (scrut_core, scrut_type) = self.synth_expr(scrut);
+
+        let expected_core = self.quote_ctx().quote_value(expected);
+        let arms = arms
+            .iter()
+            .map(|(pat, expr)| {
+                let initial_len = self.local_env.len();
+                let pat_core = self.check_match_pat(pat, &scrut_type);
+                let expected = &self.eval_ctx().eval_expr(&expected_core);
+                let expr_core = self.check_expr(expr, expected);
+                self.local_env.truncate(initial_len);
+                (pat_core, expr_core)
+            })
+            .collect();
+        Expr::Match(Rc::new(scrut_core), arms)
     }
 
     fn synth_simple_pat(&mut self, pat: &surface::SimplePat<TextRange>) -> (VarName, Rc<Value>) {
@@ -483,13 +503,28 @@ impl ElabCtx {
         expected: &Rc<Value>,
     ) -> VarName {
         let surface::SimplePat { name, ty } = pat;
-        let (_, name) = name;
+        let (range, name) = name;
         let name = match name {
             Some(name) => VarName::User(name.clone()),
             None => VarName::Underscore,
         };
         if let Some(ty) = ty {
-            self.check_expr(ty, expected);
+            let type_core = self.check_expr_is_type(ty);
+            let got = self.eval_ctx().eval_expr(&type_core);
+            match self.unify_ctx().unify_values(&got, expected) {
+                Ok(_) => {}
+                Err(error) => {
+                    let expected_type = self.pretty_value(expected).into();
+                    let actual_type = self.pretty_value(&got).into();
+                    self.errors.push(ElabError::TypeMismatch {
+                        file: self.file,
+                        range: *range,
+                        expected_type,
+                        actual_type,
+                        error,
+                    });
+                }
+            }
         }
         name
     }
@@ -522,7 +557,14 @@ impl ElabCtx {
                     .push_param(VarName::User(name.clone()), ty.clone());
                 (Pat::Name(VarName::User(name.clone())), ty)
             }
-            surface::Pat::Bool(_, b) => (Pat::Bool(*b), Rc::new(Value::BoolType)),
+            surface::Pat::Bool(_, b) => {
+                let name = self.name_source.next();
+                let value = Rc::new(Value::Bool(*b));
+                let ty = Rc::new(Value::BoolType);
+                self.local_env.push_def(name, value, ty);
+                dbg!(&self.local_env);
+                (Pat::Bool(*b), Rc::new(Value::BoolType))
+            }
             surface::Pat::Ann(_, pat, ty) => {
                 let type_core = self.check_expr_is_type(ty);
                 let type_value = self.eval_ctx().eval_expr(&type_core);

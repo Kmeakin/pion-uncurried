@@ -4,7 +4,7 @@ use contracts::debug_ensures;
 
 use super::env::{EnvLen, SharedEnv, UniqueEnv, VarIndex, VarLevel};
 use super::eval::ElimCtx;
-use super::{Elim, Expr, FunClosure, Head, NameSource, Value, VarName};
+use super::{Elim, Expr, FunClosure, Head, MatchArms, NameSource, Value};
 
 pub struct UnifyCtx<'env> {
     renaming: &'env mut PartialRenaming,
@@ -146,6 +146,7 @@ impl<'env> UnifyCtx<'env> {
         for (elim1, elim2) in spine1.iter().zip(spine2.iter()) {
             match (elim1, elim2) {
                 (Elim::FunCall(args1), Elim::FunCall(args2)) => self.unify_args(args1, args2)?,
+                (Elim::Match(arms1), Elim::Match(arms2)) => self.unify_arms(arms1, arms2)?,
                 _ => return Err(UnifyError::Mismatch),
             }
         }
@@ -162,6 +163,15 @@ impl<'env> UnifyCtx<'env> {
             self.unify_values(arg1, arg2)?;
         }
         Ok(())
+    }
+
+    #[debug_ensures(self.local_env == old(self.local_env))]
+    fn unify_arms(&mut self, arms1: &MatchArms, arms2: &MatchArms) -> Result<(), UnifyError> {
+        if arms1.len() != arms2.len() {
+            return Err(UnifyError::Mismatch);
+        }
+
+        todo!()
     }
 
     /// Solve a pattern unification problem that looks like:
