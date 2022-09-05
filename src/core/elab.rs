@@ -278,11 +278,7 @@ impl ElabCtx {
         self.synth_expr_inner(expr)
     }
 
-    fn synth_error_expr(&mut self) -> (Expr, Rc<Value>) {
-        let name = self.name_source.next();
-        let ty = self.push_meta_value(name, MetaSource::Error, Rc::new(Value::Type));
-        (Expr::Error, ty)
-    }
+    fn synth_error_expr(&mut self) -> (Expr, Rc<Value>) { (Expr::Error, Rc::new(Value::Error)) }
 
     fn synth_expr_inner(&mut self, expr: &surface::Expr<TextRange>) -> (Expr, Rc<Value>) {
         match expr {
@@ -368,6 +364,7 @@ impl ElabCtx {
                 let fun_type = self.elim_ctx().force_value(&fun_type);
                 let closure = match fun_type.as_ref() {
                     Value::FunType(_, closure) => closure,
+                    Value::Error => return self.synth_error_expr(),
                     _ => {
                         let fun_type = self.pretty_value(&fun_type).into();
                         self.errors.push(ElabError::CallNonFun {
