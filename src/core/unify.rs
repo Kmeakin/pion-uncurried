@@ -221,7 +221,11 @@ impl<'env> UnifyCtx<'env> {
                             Value::Stuck(Head::Local(source_var), _) => {
                                 return Err(SpineError::NonLinearSpine(*source_var))
                             }
-                            _ => return Err(SpineError::NonRigidSpine),
+                            Value::Stuck(Head::Meta(_), _) => {
+                                return Err(SpineError::NonRigidSpine)
+                            }
+
+                            _ => {}
                         }
                     }
                 }
