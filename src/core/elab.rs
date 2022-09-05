@@ -4,7 +4,7 @@ use contracts::debug_ensures;
 use text_size::TextRange;
 
 use super::conv::ConvCtx;
-use super::env::{ItemEnv, LocalEnv, MetaEnv, VarIndex, VarLevel};
+use super::env::{ItemEnv, LocalEnv, MetaEnv};
 use super::errors::ElabError;
 use super::eval::{ElimCtx, EvalCtx};
 use super::quote::QuoteCtx;

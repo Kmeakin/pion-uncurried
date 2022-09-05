@@ -3,7 +3,7 @@ use std::rc::Rc;
 use text_size::TextRange;
 
 use self::env::{SharedEnv, VarIndex, VarLevel};
-use crate::{surface, FileId, RcStr};
+use crate::{FileId, RcStr};
 
 pub mod conv;
 pub mod elab;
@@ -107,6 +107,7 @@ pub struct NameSource(u32);
 impl NameSource {
     pub fn new(counter: u32) -> Self { Self(counter) }
 
+    #[allow(clippy::should_implement_trait)]
     pub fn next(&mut self) -> VarName {
         let next = VarName::Fresh(self.0);
         self.0 += 1;
