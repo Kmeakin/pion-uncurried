@@ -148,7 +148,6 @@ impl<'env> UnelabCtx<'env> {
                         (pat, expr)
                     })
                     .collect();
-                self.local_names.pop();
                 surface::Expr::Match((), Rc::new(scrut), arms)
             }
             Expr::Let(name, ty, init, body) => {
