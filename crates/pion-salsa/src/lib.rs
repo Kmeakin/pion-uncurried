@@ -1,12 +1,24 @@
-pub fn add(left: usize, right: usize) -> usize { left + right }
+#![warn(clippy::all, clippy::nursery, unused_qualifications)]
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+#[salsa::jar(db = Db)]
+pub struct Jar();
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
+pub trait Db: salsa::DbWithJar<Jar> {}
+
+impl<DB> Db for DB where DB: ?Sized + salsa::DbWithJar<Jar> {}
+
+#[derive(Default)]
+#[salsa::db(Jar)]
+pub struct Database {
+    storage: salsa::Storage<Self>,
+}
+
+impl salsa::Database for Database {}
+
+impl salsa::ParallelDatabase for Database {
+    fn snapshot(&self) -> salsa::Snapshot<Self> {
+        salsa::Snapshot::new(Self {
+            storage: self.storage.snapshot(),
+        })
     }
 }
