@@ -1,0 +1,105 @@
+use std::sync::Arc;
+
+use text_size::TextSize;
+
+use crate::surface::syntax::*;
+use crate::surface::errors::*;
+use crate::surface::parser::lexer::*;
+
+grammar<'src>(
+    db: &dyn crate::Db,
+);
+
+extern {
+    type Location = TextSize;
+    type Error = LexError;
+
+    enum Token<'src> {
+        "_" =>          Token::Underscore,
+        "Name" =>       Token::Name(<&'src str>),
+        "Hole" =>       Token::Hole(<&'src str>),
+
+        "(" =>          Token::LParen,
+        ")" =>          Token::RParen,
+        "{" =>          Token::LCurly,
+        "}" =>          Token::RCurly,
+
+        "->" =>         Token::SingleArrow,
+        "=>" =>         Token::DoubleArrow,
+        "=" =>          Token::Eq,
+        ":" =>          Token::Colon,
+        ";" =>          Token::Semicolon,
+        "," =>          Token::Comma,
+
+        "enum" =>       Token::KwEnum,
+        "false" =>      Token::KwFalse,
+        "fn" =>         Token::KwFn,
+        "in" =>         Token::KwIn,
+        "let" =>        Token::KwLet,
+        "match" =>      Token::KwMatch,
+        "true" =>       Token::KwTrue,
+    }
+}
+
+pub Module: Module = {
+    <items: Item*> => Module::new(db, items),
+}
+
+pub Item: Item = {
+    LetDef => Item::Let(<>),
+    EnumDef => Item::Enum(<>),
+}
+
+pub LetDef: LetDef = {
+    "let" <name: Name> <ty: (":" <Expr>)?> "=" <expr: Expr> ";" => LetDef::new(db, name, ty, expr),
+}
+
+pub EnumDef: EnumDef = {
+    "enum" <name: Name> <args: ("(" <List<AnnPat ,",">> ")")?> "{" <variants: List<EnumVariant, ",">> "}" => EnumDef::new(db, name, args.unwrap_or_default(), variants),
+}
+
+pub EnumVariant: EnumVariant = {
+    <name: Name> <args: ("(" <List<AnnPat ,",">> ")")?> <ty: (":" <Expr>)?> => EnumVariant {name, args: args.unwrap_or_default(), ty},
+}
+
+pub Expr: Expr = {
+    AtomExpr => <>,
+}
+
+AtomExpr: Expr = {
+    "(" <expr: Expr> ")" => Expr::Paren(Arc::new(expr)),
+    <lit: Lit> => Expr::Lit(lit),
+    <name: Name> => Expr::Name(name),
+}
+
+pub Pat: Pat = {
+    "_" => Pat::Wildcard,
+    "(" <pat: Pat> ")" => Pat::Paren(Arc::new(pat)),
+    <lit: Lit> => Pat::Lit(lit),
+    <name: Name> => Pat::Name(name),
+}
+
+AnnPat: AnnPat = {
+    <pat: Pat> <ty: (":" <Expr>)?> => AnnPat {pat, ty},
+}
+
+pub Lit: Lit = {
+    <b: Bool> => Lit::Bool(b),
+}
+
+Bool: bool = {
+    "true" => true,
+    "false" => false,
+}
+
+Name: String = {
+    <s: "Name"> => s.into(),
+}
+
+#[inline]
+List<T, Sep>: Vec<T> = {
+    <mut elems: (<T> Sep)*> <last: T?> => {
+        elems.extend(last);
+        elems
+    }
+}

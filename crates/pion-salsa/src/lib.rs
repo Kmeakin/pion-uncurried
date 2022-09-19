@@ -1,7 +1,21 @@
 #![warn(clippy::all, clippy::nursery, unused_qualifications)]
 
+use std::sync::{Arc, Mutex};
+
+use salsa::DebugWithDb;
+
+pub mod core;
+pub mod surface;
+
 #[salsa::jar(db = Db)]
-pub struct Jar();
+pub struct Jar(
+    crate::surface::syntax::SourceFile,
+    crate::surface::syntax::Module,
+    crate::surface::syntax::LetDef,
+    crate::surface::syntax::EnumDef,
+    crate::surface::errors::ParseErrors,
+    crate::surface::parser::parse_module,
+);
 
 pub trait Db: salsa::DbWithJar<Jar> {}
 
@@ -11,14 +25,28 @@ impl<DB> Db for DB where DB: ?Sized + salsa::DbWithJar<Jar> {}
 #[salsa::db(Jar)]
 pub struct Database {
     storage: salsa::Storage<Self>,
+    log: Option<Arc<Mutex<Vec<String>>>>,
 }
 
-impl salsa::Database for Database {}
+impl salsa::Database for Database {
+    fn salsa_event(&self, event: salsa::Event) {
+        // Log interesting events, if logging is enabled
+        if let Some(log) = &self.log {
+            // don't log boring events
+            if let salsa::EventKind::WillExecute { .. } = event.kind {
+                log.lock()
+                    .unwrap()
+                    .push(format!("Event: {:?}", event.debug(self)));
+            }
+        }
+    }
+}
 
 impl salsa::ParallelDatabase for Database {
     fn snapshot(&self) -> salsa::Snapshot<Self> {
         salsa::Snapshot::new(Self {
             storage: self.storage.snapshot(),
+            log: self.log.clone(),
         })
     }
 }
