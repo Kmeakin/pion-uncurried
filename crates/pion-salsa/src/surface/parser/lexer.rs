@@ -25,7 +25,7 @@ pub enum Token<'src> {
     #[token("}")]                                   RCurly,
 
     #[token("->")] #[token("→")]                    SingleArrow,
-    #[token("=>")] #[token("⇒")]                    DoubleArrow,
+    #[token("=>")] #[token("⇒")]                   DoubleArrow,
     #[token("=")]                                   Eq,
     #[token(":")]                                   Colon,
     #[token(";")]                                   Semicolon,
