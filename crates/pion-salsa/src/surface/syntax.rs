@@ -24,7 +24,9 @@ pub enum Item {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LetDef {
     pub name: String,
+    #[return_ref]
     pub ty: Option<Expr>,
+    #[return_ref]
     pub expr: Expr,
 }
 

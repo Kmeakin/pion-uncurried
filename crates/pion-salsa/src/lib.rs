@@ -1,4 +1,9 @@
 #![warn(clippy::all, clippy::nursery, unused_qualifications)]
+#![allow(
+    clippy::missing_const_for_fn,
+    clippy::new_without_default,
+    clippy::option_if_let_else
+)]
 
 use std::sync::{Arc, Mutex};
 
@@ -15,6 +20,7 @@ pub struct Jar(
     crate::surface::syntax::EnumDef,
     crate::surface::errors::ParseErrors,
     crate::surface::parser::parse_module,
+    crate::core::elab::elab_let_def,
 );
 
 pub trait Db: salsa::DbWithJar<Jar> {}
