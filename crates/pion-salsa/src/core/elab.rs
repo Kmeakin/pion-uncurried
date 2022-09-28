@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use codespan_reporting::diagnostic::{Diagnostic, Label};
+use contracts::debug_ensures;
 
 use super::env::{LocalEnv, MetaEnv, MetaSource, NameSource};
 use super::eval::{ElimCtx, EvalCtx};
@@ -44,6 +45,7 @@ impl ElabCtx {
                     (Some(_), _) => return None,
                     (None, MetaSource::Error) => return None,
                     (None, MetaSource::PatType(span)) => (*span, "type of pattern"),
+                    (None, MetaSource::MatchType(_)) => todo!(),
                 };
                 Some(
                     Diagnostic::error()
@@ -138,10 +140,6 @@ pub fn elab_let_def(
     }
 }
 
-pub struct SynthExpr(Expr, Arc<Value>);
-
-pub struct CheckExpr(Expr);
-
 impl ElabCtx {
     pub fn eval_ctx(&mut self) -> EvalCtx {
         EvalCtx::new(&mut self.local_env.values, &self.meta_env.values)
@@ -160,9 +158,7 @@ impl ElabCtx {
             &mut self.renaming,
         )
     }
-}
 
-impl ElabCtx {
     fn push_meta_expr(&mut self, name: VarName, source: MetaSource, ty: Arc<Value>) -> Expr {
         let var = self.meta_env.push(name, source, ty);
         Expr::MetaInsertion(var, self.local_env.sources.clone())
@@ -172,7 +168,13 @@ impl ElabCtx {
         let expr = self.push_meta_expr(name, source, ty);
         self.eval_ctx().eval_expr(&expr)
     }
+}
 
+pub struct SynthExpr(Expr, Arc<Value>);
+
+pub struct CheckExpr(Expr);
+
+impl ElabCtx {
     fn synth_lit(&mut self, lit: &surface::Lit) -> (Lit, Arc<Value>) {
         match lit {
             surface::Lit::Bool(b) => (Lit::Bool(*b), Arc::new(Value::BoolType)),
@@ -186,7 +188,9 @@ impl ElabCtx {
         SynthExpr(Expr::Error, ty)
     }
 
+    #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
     fn synth_expr(&mut self, expr: &surface::Expr<Span>) -> SynthExpr {
+        let file = self.file;
         match expr {
             surface::Expr::Error(_) => self.synth_error_expr(),
             surface::Expr::Paren(_, expr) => self.synth_expr(expr),
@@ -208,7 +212,7 @@ impl ElabCtx {
                 self.diagnostics.push(
                     Diagnostic::error()
                         .with_message(format!("Unbound variable: `{name}`"))
-                        .with_labels(vec![Label::primary(self.file, *span)]),
+                        .with_labels(vec![Label::primary(file, *span)]),
                 );
 
                 self.synth_error_expr()
@@ -218,10 +222,9 @@ impl ElabCtx {
                 let args: Vec<_> = pats
                     .iter()
                     .map(|pat| {
-                        let (pat_core, pat_type) = self.synth_ann_pat(pat);
-                        let pat_name = pat.pat.name();
+                        let SynthPat(pat_core, pat_type) = self.synth_ann_pat(pat);
                         let type_core = self.quote_ctx().quote_value(&pat_type);
-                        self.local_env.push_param(pat_name, pat_type);
+                        self.subst_pat(&pat_core, pat_type, None);
                         type_core
                     })
                     .collect();
@@ -237,10 +240,9 @@ impl ElabCtx {
                 let args: Vec<_> = pats
                     .iter()
                     .map(|pat| {
-                        let (pat_core, pat_type) = self.synth_ann_pat(pat);
-                        let pat_name = pat.pat.name();
+                        let SynthPat(pat_core, pat_type) = self.synth_ann_pat(pat);
                         let type_core = self.quote_ctx().quote_value(&pat_type);
-                        self.local_env.push_param(pat_name, pat_type);
+                        self.subst_pat(&pat_core, pat_type, None);
                         type_core
                     })
                     .collect();
@@ -267,7 +269,7 @@ impl ElabCtx {
                         self.diagnostics.push(
                             Diagnostic::error()
                                 .with_message("Called non-function expression")
-                                .with_labels(vec![Label::primary(self.file, fun_span)]),
+                                .with_labels(vec![Label::primary(file, fun_span)]),
                         );
                         return self.synth_error_expr();
                     }
@@ -282,7 +284,7 @@ impl ElabCtx {
                                 "Function expects {expected_arity} arguments but {actual_arity} \
                                  arguments were supplied"
                             ))
-                            .with_labels(vec![Label::primary(self.file, *span)]),
+                            .with_labels(vec![Label::primary(file, *span)]),
                     );
                 }
 
@@ -310,16 +312,16 @@ impl ElabCtx {
                 )
             }
             surface::Expr::Let(_, pat, init, body) => {
-                let (pat_core, type_value) = self.synth_ann_pat(pat);
-                let pat_name = pat.pat.name();
+                let initial_len = self.local_env.len();
+                let SynthPat(pat_core, type_value) = self.synth_ann_pat(pat);
                 let type_core = self.quote_ctx().quote_value(&type_value);
 
                 let CheckExpr(init_core) = self.check_expr(init, &type_value);
                 let init_value = self.eval_ctx().eval_expr(&init_core);
 
-                self.local_env.push_def(pat_name, init_value, type_value);
+                self.subst_pat(&pat_core, type_value, Some(init_value));
                 let SynthExpr(body_core, body_type) = self.synth_expr(body);
-                self.local_env.pop();
+                self.local_env.truncate(initial_len);
 
                 SynthExpr(
                     Expr::Let(
@@ -331,7 +333,14 @@ impl ElabCtx {
                     body_type,
                 )
             }
-            surface::Expr::Match(..) => todo!(),
+            surface::Expr::Match(span, scrut, arms) => {
+                let name = self.name_source.fresh();
+                let source = MetaSource::MatchType(*span);
+                let match_type = self.push_meta_value(name, source, Arc::new(Value::Type));
+
+                let CheckExpr(match_expr) = self.check_match_expr(scrut, arms, &match_type);
+                SynthExpr(match_expr, match_type)
+            }
         }
     }
 
@@ -339,6 +348,7 @@ impl ElabCtx {
         self.check_expr(expr, &Arc::new(Value::Type))
     }
 
+    #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
     fn check_expr(&mut self, expr: &surface::Expr<Span>, expected: &Arc<Value>) -> CheckExpr {
         match (expr, expected.as_ref()) {
             (surface::Expr::Error(_), _) => CheckExpr(Expr::Error),
@@ -359,9 +369,8 @@ impl ElabCtx {
                     let type_core = self.quote_ctx().quote_value(&expected);
 
                     let arg_value = Arc::new(Value::local(self.local_env.len().to_level()));
-                    let pat_core = self.check_ann_pat(pat, &expected);
-                    let pat_name = pat.pat.name();
-                    self.local_env.push_param(pat_name.clone(), expected);
+                    let CheckPat(pat_core) = self.check_ann_pat(pat, &expected);
+                    self.subst_pat(&pat_core, expected, None);
 
                     closure = cont(arg_value.clone());
                     args_values.push(arg_value);
@@ -375,16 +384,16 @@ impl ElabCtx {
                 CheckExpr(Expr::FunExpr(Arc::from(arg_types), Arc::new(ret_core)))
             }
             (surface::Expr::Let(_, pat, init, body), _) => {
-                let (pat_core, type_value) = self.synth_ann_pat(pat);
-                let pat_name = pat.pat.name();
+                let initial_len = self.local_env.len();
+                let SynthPat(pat_core, type_value) = self.synth_ann_pat(pat);
                 let type_core = self.quote_ctx().quote_value(&type_value);
 
                 let CheckExpr(init_core) = self.check_expr(init, &type_value);
                 let init_value = self.eval_ctx().eval_expr(&init_core);
 
-                self.local_env.push_def(pat_name, init_value, type_value);
+                self.subst_pat(&pat_core, type_value, Some(init_value));
                 let CheckExpr(body_core) = self.check_expr(body, expected);
-                self.local_env.pop();
+                self.local_env.truncate(initial_len);
 
                 CheckExpr(Expr::Let(
                     Arc::new(pat_core),
@@ -392,6 +401,9 @@ impl ElabCtx {
                     Arc::new(init_core),
                     Arc::new(body_core),
                 ))
+            }
+            (surface::Expr::Match(_, scrut, arms), _) => {
+                self.check_match_expr(scrut, arms, expected)
             }
             _ => {
                 let SynthExpr(core, got) = self.synth_expr(expr);
@@ -407,20 +419,110 @@ impl ElabCtx {
         }
     }
 
-    fn synth_ann_pat(&mut self, pat: &surface::AnnPat<Span>) -> (Pat, Arc<Value>) {
+    #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
+    fn check_match_expr(
+        &mut self,
+        scrut: &surface::Expr<Span>,
+        arms: &[(surface::Pat<Span>, surface::Expr<Span>)],
+        expected: &Arc<Value>,
+    ) -> CheckExpr {
+        // TODO: check for exhaustivity and report unreachable patterns
+
+        // FIXME: update `expected` with defintions introduced by `check_match_pat`
+        // without having to quote `expected` back to `Expr`
+
+        let SynthExpr(scrut_core, scrut_type) = self.synth_expr(scrut);
+        let scrut_value = self.eval_ctx().eval_expr(&scrut_core);
+
+        let expected_core = self.quote_ctx().quote_value(expected);
+
+        let arms = arms
+            .iter()
+            .map(|(pat, expr)| {
+                let initial_len = self.local_env.len();
+
+                let CheckPat(pat_core) = self.check_pat(pat, &scrut_type);
+
+                self.subst_pat(&pat_core, scrut_type.clone(), Some(scrut_value.clone()));
+                let expected = &self.eval_ctx().eval_expr(&expected_core);
+                let CheckExpr(expr_core) = self.check_expr(expr, expected);
+                self.local_env.truncate(initial_len);
+
+                (pat_core, expr_core)
+            })
+            .collect();
+
+        CheckExpr(Expr::Match(Arc::new(scrut_core), arms))
+    }
+}
+
+pub struct SynthPat(Pat, Arc<Value>);
+
+pub struct CheckPat(Pat);
+
+impl ElabCtx {
+    #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
+    fn synth_pat(&mut self, pat: &surface::Pat<Span>) -> SynthPat {
+        let mut meta = || {
+            let name = self.name_source.fresh();
+            let span = pat.span();
+            let source = MetaSource::PatType(span);
+            self.push_meta_value(name, source, Arc::new(Value::Type))
+        };
+
+        match pat {
+            surface::Pat::Paren(_, pat) => self.synth_pat(pat),
+            surface::Pat::Error(_) => SynthPat(Pat::Name(VarName::Underscore), meta()),
+            surface::Pat::Wildcard(_) => SynthPat(Pat::Name(VarName::Underscore), meta()),
+            surface::Pat::Name(_, name) => SynthPat(Pat::Name(VarName::User(name.clone())), meta()),
+            surface::Pat::Lit(_, lit) => {
+                let (lit, ty) = self.synth_lit(lit);
+                SynthPat(Pat::Lit(lit), ty)
+            }
+        }
+    }
+
+    #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
+    fn check_pat(&mut self, pat: &surface::Pat<Span>, expected: &Arc<Value>) -> CheckPat {
+        let expected = self.elim_ctx().force_value(expected);
+        match pat {
+            surface::Pat::Paren(_, pat) => self.check_pat(pat, &expected),
+            surface::Pat::Error(_) => CheckPat(Pat::Name(VarName::Underscore)),
+            surface::Pat::Wildcard(_) => CheckPat(Pat::Name(VarName::Underscore)),
+            surface::Pat::Name(_, name) => {
+                let name = VarName::User(name.clone());
+                CheckPat(Pat::Name(name))
+            }
+            _ => {
+                let SynthPat(core, got) = self.synth_pat(pat);
+                match self.unify_ctx().unify_values(&got, &expected) {
+                    Ok(_) => CheckPat(core),
+                    Err(error) => {
+                        let span = pat.span();
+                        self.report_type_mismatch(span, &expected, &got, error);
+                        CheckPat(Pat::Error)
+                    }
+                }
+            }
+        }
+    }
+
+    #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
+    fn synth_ann_pat(&mut self, pat: &surface::AnnPat<Span>) -> SynthPat {
         let surface::AnnPat { pat, ty } = pat;
         match ty {
             None => self.synth_pat(pat),
             Some(ty) => {
                 let CheckExpr(type_core) = self.check_expr_is_type(ty);
                 let type_value = self.eval_ctx().eval_expr(&type_core);
-                let pat_core = self.check_pat(pat, &type_value);
-                (pat_core, type_value)
+                let CheckPat(pat_core) = self.check_pat(pat, &type_value);
+                SynthPat(pat_core, type_value)
             }
         }
     }
 
-    fn check_ann_pat(&mut self, pat: &surface::AnnPat<Span>, expected: &Arc<Value>) -> Pat {
+    #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
+    fn check_ann_pat(&mut self, pat: &surface::AnnPat<Span>, expected: &Arc<Value>) -> CheckPat {
         let surface::AnnPat { pat, ty } = pat;
         match ty {
             None => self.check_pat(pat, expected),
@@ -438,41 +540,17 @@ impl ElabCtx {
         }
     }
 
-    fn synth_pat(&mut self, pat: &surface::Pat<Span>) -> (Pat, Arc<Value>) {
-        let mut meta = || {
-            let name = self.name_source.fresh();
-            let span = pat.span();
-            let source = MetaSource::PatType(span);
-            self.push_meta_value(name, source, Arc::new(Value::Type))
-        };
+    fn subst_pat(&mut self, pat: &Pat, ty: Arc<Value>, value: Option<Arc<Value>>) {
         match pat {
-            surface::Pat::Paren(_, pat) => self.synth_pat(pat),
-            surface::Pat::Error(_) => (Pat::Error, meta()),
-            surface::Pat::Wildcard(_) => (Pat::Name(VarName::Underscore), meta()),
-            surface::Pat::Name(_, name) => (Pat::Name(VarName::User(name.clone())), meta()),
-            surface::Pat::Lit(_, lit) => {
-                let (lit, ty) = self.synth_lit(lit);
-                (Pat::Lit(lit), ty)
+            Pat::Error => {
+                self.local_env.push(VarName::Underscore, ty, value);
             }
-        }
-    }
-
-    fn check_pat(&mut self, pat: &surface::Pat<Span>, expected: &Arc<Value>) -> Pat {
-        match pat {
-            surface::Pat::Paren(_, pat) => self.check_pat(pat, expected),
-            surface::Pat::Error(_) => Pat::Error,
-            surface::Pat::Wildcard(_) => Pat::Name(VarName::Underscore),
-            surface::Pat::Name(_, name) => Pat::Name(VarName::User(name.clone())),
-            _ => {
-                let (core, got) = self.synth_pat(pat);
-                match self.unify_ctx().unify_values(&got, expected) {
-                    Ok(()) => core,
-                    Err(error) => {
-                        let span = pat.span();
-                        self.report_type_mismatch(span, expected, &got, error);
-                        Pat::Error
-                    }
-                }
+            Pat::Name(name) => {
+                self.local_env.push(name.clone(), ty, value);
+            }
+            Pat::Lit(_) => {
+                let name = self.name_source.fresh();
+                self.local_env.push(name, ty, value);
             }
         }
     }

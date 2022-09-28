@@ -159,6 +159,7 @@ impl<T> Default for SharedEnv<T> {
     fn default() -> Self { Self::new() }
 }
 
+#[derive(Debug, Clone)]
 pub struct LocalEnv {
     pub names: UniqueEnv<VarName>,
     pub sources: SharedEnv<LocalSource>,
@@ -188,20 +189,27 @@ impl LocalEnv {
         self.types.pop();
     }
 
-    pub fn push_def(&mut self, name: VarName, ty: Arc<Value>, value: Arc<Value>) {
+    pub fn push(&mut self, name: VarName, ty: Arc<Value>, value: Option<Arc<Value>>) -> Arc<Value> {
+        let (source, value) = match value {
+            Some(value) => (LocalSource::Def, value),
+            None => (
+                LocalSource::Param,
+                Arc::new(Value::local(self.values.len().to_level())),
+            ),
+        };
         self.names.push(name);
-        self.sources.push(LocalSource::Def);
-        self.types.push(ty);
-        self.values.push(value);
-    }
-
-    pub fn push_param(&mut self, name: VarName, ty: Arc<Value>) -> Arc<Value> {
-        let value = Arc::new(Value::local(self.values.len().to_level()));
-        self.names.push(name);
-        self.sources.push(LocalSource::Param);
+        self.sources.push(source);
         self.types.push(ty);
         self.values.push(value.clone());
         value
+    }
+
+    pub fn push_def(&mut self, name: VarName, ty: Arc<Value>, value: Arc<Value>) -> Arc<Value> {
+        self.push(name, ty, Some(value))
+    }
+
+    pub fn push_param(&mut self, name: VarName, ty: Arc<Value>) -> Arc<Value> {
+        self.push(name, ty, None)
     }
 
     pub fn truncate(&mut self, len: EnvLen) {
@@ -268,6 +276,7 @@ pub enum LocalSource {
 pub enum MetaSource {
     Error,
     PatType(Span),
+    MatchType(Span),
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Default)]
