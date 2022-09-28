@@ -1,46 +1,64 @@
 use std::sync::Arc;
 
+use codespan_reporting::diagnostic::{Diagnostic, Label};
+
 use super::env::{LocalEnv, MetaEnv, MetaSource, NameSource};
 use super::eval::{ElimCtx, EvalCtx};
 use super::quote::QuoteCtx;
 use super::syntax::*;
 use super::unify::{PartialRenaming, UnifyCtx};
 use crate::surface::syntax as surface;
+use crate::ir::syntax as ir;
+use crate::FileId;
 
 pub struct ElabCtx {
     local_env: LocalEnv,
     meta_env: MetaEnv,
     renaming: PartialRenaming,
     name_source: NameSource,
+    file: FileId,
+    diagnostics: Vec<Diagnostic<FileId>>,
 }
 
 impl ElabCtx {
-    pub fn new() -> Self {
+    pub fn new(file: FileId) -> Self {
         Self {
             local_env: LocalEnv::new(),
             meta_env: MetaEnv::new(),
             renaming: PartialRenaming::default(),
             name_source: NameSource::default(),
+            file,
+            diagnostics: Vec::new(),
         }
+    }
+
+    pub fn finish(mut self) -> Vec<Diagnostic<FileId>> {
+        let unsolved_metas = self
+            .meta_env
+            .values
+            .iter()
+            .zip(self.meta_env.sources.iter())
+            .filter_map(move |it| match it {
+                (Some(_), _) => None,
+                (None, MetaSource::Error) => None,
+                (None, source) => todo!(),
+            });
+        self.diagnostics.extend(unsolved_metas);
+        self.diagnostics
     }
 }
 
-#[salsa::tracked(return_ref)]
-pub fn elab_let_def(db: &dyn crate::Db, source: surface::LetDef) -> (Expr, Expr) {
-    let mut ctx = ElabCtx::new();
-    let type_expr = source.ty(db);
-    let body_expr = source.expr(db);
+pub fn elab_let_def(db: &dyn crate::Db, def: ir::LetDef) -> (Expr, Expr) {
+    let mut ctx = ElabCtx::new(FileId(0));
+    let type_expr = todo!();
+    let body_expr = todo!();
 
     let type_core = match type_expr {
         Some(type_expr) => {
             let CheckExpr(expr) = ctx.check_expr_is_type(type_expr);
             expr
         }
-        None => {
-            let name = ctx.name_source.fresh();
-            let source = MetaSource::LetItemType;
-            ctx.push_meta_expr(name, source, Arc::new(Value::Type))
-        }
+        None => todo!(),
     };
     let type_value = ctx.eval_ctx().eval_expr(&type_core);
 
@@ -51,6 +69,8 @@ pub fn elab_let_def(db: &dyn crate::Db, source: surface::LetDef) -> (Expr, Expr)
 
     let forced_type_value = ctx.elim_ctx().force_value(&type_value);
     let forced_type_core = ctx.quote_ctx().quote_value(&forced_type_value);
+
+    let errors = ctx.finish();
 
     (forced_body_expr, forced_type_core)
 }

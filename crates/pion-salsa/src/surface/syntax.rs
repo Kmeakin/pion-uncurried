@@ -2,13 +2,11 @@
 
 use std::sync::Arc;
 
-#[salsa::tracked]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SourceFile {
     pub text: String,
 }
 
-#[salsa::tracked]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Module {
     pub items: Vec<Item>,
@@ -20,23 +18,17 @@ pub enum Item {
     Enum(EnumDef),
 }
 
-#[salsa::tracked]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LetDef {
     pub name: String,
-    #[return_ref]
     pub ty: Option<Expr>,
-    #[return_ref]
     pub expr: Expr,
 }
 
-#[salsa::tracked]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EnumDef {
     pub name: String,
-    #[return_ref]
     pub args: Vec<AnnPat>,
-    #[return_ref]
     pub variants: Vec<EnumVariant>,
 }
 

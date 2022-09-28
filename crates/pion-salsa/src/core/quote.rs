@@ -41,6 +41,17 @@ impl<'env> QuoteCtx<'env> {
                         let args = args.iter().map(|arg| self.quote_value(arg)).collect();
                         Expr::FunCall(Arc::new(head_core), args)
                     }
+                    Elim::Match(arms) => {
+                        let mut arms = arms.clone();
+                        let mut core_arms = Vec::with_capacity(arms.arms.len());
+                        while let Some((pat, value, next_arms)) =
+                            self.elim_ctx().split_arms(arms.clone())
+                        {
+                            core_arms.push((pat, self.quote_value(&value)));
+                            arms = next_arms;
+                        }
+                        Expr::Match(Arc::new(head_core), Arc::from(core_arms))
+                    }
                 })
             }
             Value::FunType(closure) => {

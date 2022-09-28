@@ -2,7 +2,7 @@
 
 use lalrpop_util::lalrpop_mod;
 
-use super::errors::{ParseError, ParseErrors};
+use super::errors::{ParseError, };
 use super::syntax::*;
 
 pub mod lexer;
@@ -13,20 +13,18 @@ lalrpop_mod!(
     "/surface/parser/grammar.rs"
 );
 
-#[salsa::tracked(return_ref)]
 pub fn parse_module(db: &dyn crate::Db, source: SourceFile) -> Module {
-    let text = source.text(db);
+    let text = source.text;
     let (tokens, errors) = lexer::lex(&text);
 
     for error in errors {
-        ParseErrors::push(db, ParseError::from(error))
+        todo!()
     }
 
     match grammar::ModuleParser::new().parse(db, tokens) {
         Ok(module) => module,
         Err(error) => {
-            ParseErrors::push(db, ParseError::from(error));
-            Module::new(db, vec![])
+            todo!()
         }
     }
 }

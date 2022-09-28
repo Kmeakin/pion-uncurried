@@ -2,9 +2,6 @@ use text_size::{TextRange, TextSize};
 
 use super::parser::lexer;
 
-#[salsa::accumulator]
-pub struct ParseErrors(ParseError);
-
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum LexError {
     TooLong(usize),

@@ -51,6 +51,7 @@ pub enum Head {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Elim {
     FunCall(Vec<Arc<Value>>),
+    Match(MatchArms),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -66,6 +67,20 @@ impl FunClosure {
     }
 
     pub fn arity(&self) -> usize { self.args.len() }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MatchArms {
+    pub env: SharedEnv<Arc<Value>>,
+    pub arms: Arc<[(Pat, Expr)]>,
+}
+
+impl MatchArms {
+    pub fn new(env: SharedEnv<Arc<Value>>, arms: Arc<[(Pat, Expr)]>) -> Self { Self { env, arms } }
+
+    pub fn len(&self) -> usize { self.arms.len() }
+
+    pub fn is_empty(&self) -> bool { self.len() == 0 }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

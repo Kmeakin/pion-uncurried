@@ -4,7 +4,7 @@ use contracts::debug_ensures;
 
 use super::env::{EnvLen, SharedEnv, UniqueEnv, VarIndex, VarLevel};
 use super::eval::ElimCtx;
-use super::syntax::{Elim, Expr, FunClosure, Head, Value};
+use super::syntax::{Elim, Expr, FunClosure, Head, MatchArms, Value};
 
 pub struct UnifyCtx<'env> {
     local_env: EnvLen,
@@ -140,7 +140,6 @@ impl<'env> UnifyCtx<'env> {
         for (elim1, elim2) in spine1.iter().zip(spine2.iter()) {
             match (elim1, elim2) {
                 (Elim::FunCall(args1), Elim::FunCall(args2)) => self.unify_args(args1, args2)?,
-                #[cfg(FALSE)]
                 (Elim::Match(arms1), Elim::Match(arms2)) => self.unify_arms(arms1, arms2)?,
                 _ => return Err(UnifyError::Mismatch),
             }
@@ -161,7 +160,6 @@ impl<'env> UnifyCtx<'env> {
     }
 
     #[debug_ensures(self.local_env == old(self.local_env))]
-    #[cfg(FALSE)]
     fn unify_arms(&mut self, arms1: &MatchArms, arms2: &MatchArms) -> Result<(), UnifyError> {
         if arms1.len() != arms2.len() {
             return Err(UnifyError::Mismatch);
@@ -225,7 +223,6 @@ impl<'env> UnifyCtx<'env> {
                         }
                     }
                 }
-                #[cfg(FALSE)]
                 Elim::Match(_) => return Err(SpineError::Match),
             }
         }
@@ -273,7 +270,6 @@ impl<'env> UnifyCtx<'env> {
                                 .collect::<Result<_, _>>()?;
                             Expr::FunCall(Arc::new(head?), args)
                         }
-                        #[cfg(FALSE)]
                         Elim::Match(arms) => {
                             let mut arms = arms.clone();
                             let mut core_arms = Vec::with_capacity(arms.arms.len());
@@ -306,7 +302,6 @@ impl<'env> UnifyCtx<'env> {
                 let types = Arc::from(vec![Expr::Error; arity]); // TODO: what should the introduced type be?
                 Expr::FunExpr(types, Arc::new(expr))
             }
-            #[cfg(FALSE)]
             Elim::Match(_) => unreachable!("should have been caught by `init_renaming`"),
         })
     }

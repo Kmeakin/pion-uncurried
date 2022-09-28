@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use contracts::debug_invariant;
+use text_size::TextRange;
 
 use super::syntax::{Value, VarName};
 
@@ -266,8 +267,6 @@ pub enum LocalSource {
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum MetaSource {
     Error,
-    LetItemType,
-    ExprType,
     PatType,
 }
 

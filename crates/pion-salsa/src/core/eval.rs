@@ -104,6 +104,7 @@ impl<'env> ElimCtx<'env> {
     fn apply_spine(&self, head: Arc<Value>, spine: &[Elim]) -> Arc<Value> {
         spine.iter().fold(head, |head, elim| match elim {
             Elim::FunCall(args) => self.do_fun_call(head, args.clone()),
+            Elim::Match(arms) => self.do_match(head, arms.clone()),
         })
     }
 
@@ -120,6 +121,36 @@ impl<'env> ElimCtx<'env> {
             }
             _ => unreachable!("tried to call non-fun value: {fun:?}"),
         }
+    }
+
+    pub fn do_match(&self, mut scrut: Arc<Value>, arms: MatchArms) -> Arc<Value> {
+        match Arc::make_mut(&mut scrut) {
+            Value::Error => return scrut,
+            Value::Stuck(_, spine) => {
+                spine.push(Elim::Match(arms));
+                return scrut;
+            }
+            _ => {}
+        };
+
+        let MatchArms { mut env, arms } = arms;
+        for (pat, expr) in arms.iter() {
+            match (pat, scrut.clone()) {
+                (Pat::Error, _) => return Arc::new(Value::Error),
+                (Pat::Name(_), scrut) => {
+                    env.push(scrut);
+                    return self.eval_ctx(&mut env).eval_expr(expr);
+                }
+                (Pat::Lit(lit1), scrut) => match scrut.as_ref() {
+                    Value::Lit(lit2) if lit1 == lit2 => {
+                        return self.eval_ctx(&mut env).eval_expr(expr);
+                    }
+                    _ => continue,
+                },
+            }
+        }
+
+        unreachable!("non-exhaustive match: {scrut:?}")
     }
 
     pub fn apply_closure(&self, closure: &FunClosure, args: Vec<Arc<Value>>) -> Arc<Value> {
@@ -143,5 +174,19 @@ impl<'env> ElimCtx<'env> {
             closure.args = args;
             closure
         }))
+    }
+
+    pub fn split_arms(&self, mut arms: MatchArms) -> Option<(Pat, Arc<Value>, MatchArms)> {
+        match arms.arms.split_first() {
+            None => None,
+            Some((first, rest)) => {
+                let first = first.clone();
+                arms.arms = Arc::from(rest);
+
+                let mut ctx = self.eval_ctx(&mut arms.env);
+                let (pat, expr) = first;
+                Some((pat, ctx.eval_expr(&expr), arms))
+            }
+        }
     }
 }
