@@ -6,7 +6,7 @@ use super::env::{LocalEnv, MetaEnv, MetaSource, NameSource};
 use super::eval::{ElimCtx, EvalCtx};
 use super::quote::QuoteCtx;
 use super::syntax::*;
-use super::unify::{PartialRenaming, UnifyCtx};
+use super::unify::{PartialRenaming, RenameError, SpineError, UnifyCtx, UnifyError};
 use crate::ir::span::Span;
 use crate::ir::syntax as ir;
 use crate::surface::syntax as surface;
@@ -54,9 +54,45 @@ impl ElabCtx {
         self.diagnostics.extend(unsolved_metas);
         self.diagnostics
     }
+
+    fn report_type_mismatch(
+        &mut self,
+        span: Span,
+        _expected: &Value,
+        _actual: &Value,
+        error: UnifyError,
+    ) {
+        let diag = match error {
+            UnifyError::Mismatch => Diagnostic::error()
+                .with_message("Type mismatch")
+                .with_labels(vec![Label::primary(self.file, span)]),
+            UnifyError::Spine(error) => match error {
+                SpineError::NonLinearSpine(_) => Diagnostic::error()
+                    .with_message(
+                        "Unification error: variable appeared more than once in problem spine",
+                    )
+                    .with_labels(vec![Label::primary(self.file, span)]),
+                SpineError::NonRigidSpine => Diagnostic::error()
+                    .with_message("Unification error: meta variable found in problem spine")
+                    .with_labels(vec![Label::primary(self.file, span)]),
+                SpineError::Match => Diagnostic::error()
+                    .with_message("Unification error: match-expression found in problem spine")
+                    .with_labels(vec![Label::primary(self.file, span)]),
+            },
+            UnifyError::Rename(error) => match error {
+                RenameError::EscapingLocalVar(_) => Diagnostic::error()
+                    .with_message("Unification error: local variable escapes solution")
+                    .with_labels(vec![Label::primary(self.file, span)]),
+                RenameError::InfiniteSolution => Diagnostic::error()
+                    .with_message("Unification error: attempted to construct infinite solution")
+                    .with_labels(vec![Label::primary(self.file, span)]),
+            },
+        };
+        self.diagnostics.push(diag);
+    }
 }
 
-pub fn elab_let_def(db: &dyn crate::Db, def: ir::LetDef) -> (Expr, Expr) {
+pub fn elab_let_def(db: &dyn crate::Db, def: ir::LetDef) -> (Expr, Expr, Vec<Diagnostic<FileId>>) {
     let mut ctx = ElabCtx::new(FileId(0));
     let type_expr = todo!();
     let body_expr = todo!();
@@ -80,7 +116,7 @@ pub fn elab_let_def(db: &dyn crate::Db, def: ir::LetDef) -> (Expr, Expr) {
 
     let errors = ctx.finish();
 
-    (forced_body_expr, forced_type_core)
+    (forced_body_expr, forced_type_core, errors)
 }
 
 pub struct SynthExpr(Expr, Arc<Value>);
@@ -124,16 +160,18 @@ impl ElabCtx {
         }
     }
 
+    fn synth_error_expr(&mut self) -> SynthExpr {
+        let name = self.name_source.fresh();
+        let source = MetaSource::Error;
+        let ty = self.push_meta_value(name, source, Arc::new(Value::Type));
+        SynthExpr(Expr::Error, ty)
+    }
+
     fn synth_expr(&mut self, expr: &surface::Expr<Span>) -> SynthExpr {
         match expr {
-            surface::Expr::Error(span) => {
-                let name = self.name_source.fresh();
-                let source = MetaSource::Error;
-                let ty = self.push_meta_value(name, source, Arc::new(Value::Type));
-                SynthExpr(Expr::Error, ty)
-            }
-            surface::Expr::Paren(span, expr) => self.synth_expr(expr),
-            surface::Expr::Lit(span, lit) => {
+            surface::Expr::Error(_) => self.synth_error_expr(),
+            surface::Expr::Paren(_, expr) => self.synth_expr(expr),
+            surface::Expr::Lit(_, lit) => {
                 let (lit, ty) = self.synth_lit(lit);
                 SynthExpr(Expr::Lit(lit), ty)
             }
@@ -148,9 +186,15 @@ impl ElabCtx {
                     _ => {}
                 }
 
-                todo!("Unbound variable: `{name}`")
+                self.diagnostics.push(
+                    Diagnostic::error()
+                        .with_message(format!("Unbound variable: `{name}`"))
+                        .with_labels(vec![Label::primary(self.file, *span)]),
+                );
+
+                self.synth_error_expr()
             }
-            surface::Expr::FunType(span, pats, ret) => {
+            surface::Expr::FunType(_, pats, ret) => {
                 let initial_len = self.local_env.len();
                 let args: Vec<_> = pats
                     .iter()
@@ -169,7 +213,7 @@ impl ElabCtx {
                     Arc::new(Value::Type),
                 )
             }
-            surface::Expr::FunExpr(span, pats, body) => {
+            surface::Expr::FunExpr(_, pats, body) => {
                 let initial_len = self.local_env.len();
                 let args: Vec<_> = pats
                     .iter()
@@ -198,14 +242,29 @@ impl ElabCtx {
                 let fun_type = self.elim_ctx().force_value(&fun_type);
                 let closure = match fun_type.as_ref() {
                     Value::FunType(closure) => closure,
-                    Value::Error => todo!(),
-                    _ => todo!(),
+                    Value::Error => return self.synth_error_expr(),
+                    _ => {
+                        let fun_span = fun.span();
+                        self.diagnostics.push(
+                            Diagnostic::error()
+                                .with_message("Called non-function expression")
+                                .with_labels(vec![Label::primary(self.file, fun_span)]),
+                        );
+                        return self.synth_error_expr();
+                    }
                 };
 
                 let expected_arity = closure.arity();
                 let actual_arity = args.len();
                 if actual_arity != expected_arity {
-                    todo!()
+                    self.diagnostics.push(
+                        Diagnostic::error()
+                            .with_message(format!(
+                                "Function expects {expected_arity} arguments but {actual_arity} \
+                                 arguments were supplied"
+                            ))
+                            .with_labels(vec![Label::primary(self.file, *span)]),
+                    );
                 }
 
                 let initial_closure = closure.clone();
@@ -231,7 +290,7 @@ impl ElabCtx {
                     ret_type,
                 )
             }
-            surface::Expr::Let(span, pat, init, body) => {
+            surface::Expr::Let(_, pat, init, body) => {
                 let (pat_core, type_value) = self.synth_ann_pat(pat);
                 let pat_name = pat.pat.name();
                 let type_core = self.quote_ctx().quote_value(&type_value);
@@ -253,7 +312,7 @@ impl ElabCtx {
                     body_type,
                 )
             }
-            surface::Expr::Match(span, ..) => todo!(),
+            surface::Expr::Match(..) => todo!(),
         }
     }
 
@@ -263,8 +322,8 @@ impl ElabCtx {
 
     fn check_expr(&mut self, expr: &surface::Expr<Span>, expected: &Arc<Value>) -> CheckExpr {
         match (expr, expected.as_ref()) {
-            (surface::Expr::Error(span), _) => CheckExpr(Expr::Error),
-            (surface::Expr::FunExpr(span, pats, body), Value::FunType(closure))
+            (surface::Expr::Error(_), _) => CheckExpr(Expr::Error),
+            (surface::Expr::FunExpr(_, pats, body), Value::FunType(closure))
                 if pats.len() == closure.arity() =>
             {
                 let initial_len = self.local_env.len();
@@ -296,7 +355,7 @@ impl ElabCtx {
 
                 CheckExpr(Expr::FunExpr(Arc::from(arg_types), Arc::new(ret_core)))
             }
-            (surface::Expr::Let(span, pat, init, body), _) => {
+            (surface::Expr::Let(_, pat, init, body), _) => {
                 let (pat_core, type_value) = self.synth_ann_pat(pat);
                 let pat_name = pat.pat.name();
                 let type_core = self.quote_ctx().quote_value(&type_value);
@@ -319,7 +378,11 @@ impl ElabCtx {
                 let SynthExpr(core, got) = self.synth_expr(expr);
                 match self.unify_ctx().unify_values(&got, expected) {
                     Ok(()) => CheckExpr(core),
-                    Err(error) => todo!(),
+                    Err(error) => {
+                        let span = expr.span();
+                        self.report_type_mismatch(span, expected, &got, error);
+                        CheckExpr(Expr::Error)
+                    }
                 }
             }
         }
@@ -345,7 +408,13 @@ impl ElabCtx {
             Some(ty) => {
                 let CheckExpr(type_core) = self.check_expr_is_type(ty);
                 let type_value = self.eval_ctx().eval_expr(&type_core);
-                self.check_pat(pat, expected)
+
+                if let Err(error) = self.unify_ctx().unify_values(&type_value, expected) {
+                    let span = pat.span();
+                    self.report_type_mismatch(span, expected, &type_value, error);
+                }
+
+                self.check_pat(pat, &type_value)
             }
         }
     }
@@ -379,7 +448,11 @@ impl ElabCtx {
                 let (core, got) = self.synth_pat(pat);
                 match self.unify_ctx().unify_values(&got, expected) {
                     Ok(()) => core,
-                    Err(error) => todo!(),
+                    Err(error) => {
+                        let span = pat.span();
+                        self.report_type_mismatch(span, expected, &got, error);
+                        Pat::Error
+                    }
                 }
             }
         }
