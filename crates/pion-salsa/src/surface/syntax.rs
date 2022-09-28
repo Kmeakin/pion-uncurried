@@ -3,68 +3,97 @@
 use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SourceFile {
-    pub text: String,
+pub struct Module<Span> {
+    pub items: Vec<Item<Span>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Module {
-    pub items: Vec<Item>,
+pub enum Item<Span> {
+    Let(LetDef<Span>),
+    Enum(EnumDef<Span>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Item {
-    Let(LetDef),
-    Enum(EnumDef),
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LetDef {
+pub struct LetDef<Span> {
     pub name: String,
-    pub ty: Option<Expr>,
-    pub expr: Expr,
+    pub ty: Option<Expr<Span>>,
+    pub expr: Expr<Span>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct EnumDef {
+pub struct EnumDef<Span> {
     pub name: String,
-    pub args: Vec<AnnPat>,
-    pub variants: Vec<EnumVariant>,
+    pub args: Vec<AnnPat<Span>>,
+    pub variants: Vec<EnumVariant<Span>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct EnumVariant {
+pub struct EnumVariant<Span> {
     pub name: String,
-    pub args: Vec<AnnPat>,
-    pub ty: Option<Expr>,
+    pub args: Vec<AnnPat<Span>>,
+    pub ty: Option<Expr<Span>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Expr {
-    Error,
-    Paren(Arc<Self>),
-    Lit(Lit),
-    Name(String),
-    FunType(Vec<AnnPat>, Arc<Self>),
-    FunExpr(Vec<AnnPat>, Arc<Self>),
-    FunCall(Arc<Self>, Vec<Self>),
-    Let(Arc<AnnPat>, Arc<Self>, Arc<Self>),
-    Match(Arc<Self>, Vec<(Pat, Self)>),
+pub enum Expr<Span> {
+    Error(Span),
+    Paren(Span, Arc<Self>),
+    Lit(Span, Lit),
+    Name(Span, String),
+    FunType(Span, Vec<AnnPat<Span>>, Arc<Self>),
+    FunExpr(Span, Vec<AnnPat<Span>>, Arc<Self>),
+    FunCall(Span, Arc<Self>, Vec<Self>),
+    Let(Span, Arc<AnnPat<Span>>, Arc<Self>, Arc<Self>),
+    Match(Span, Arc<Self>, Vec<(Pat<Span>, Self)>),
+}
+
+impl<Span> Expr<Span> {
+    pub fn span(&self) -> Span
+    where
+        Span: Clone,
+    {
+        match self {
+            Self::Error(span, ..)
+            | Self::Paren(span, ..)
+            | Self::Lit(span, ..)
+            | Self::Name(span, ..)
+            | Self::FunType(span, ..)
+            | Self::FunExpr(span, ..)
+            | Self::FunCall(span, ..)
+            | Self::Let(span, ..)
+            | Self::Match(span, ..) => span.clone(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Pat {
-    Error,
-    Wildcard,
-    Paren(Arc<Self>),
-    Lit(Lit),
-    Name(String),
+pub enum Pat<Span> {
+    Error(Span),
+    Wildcard(Span),
+    Paren(Span, Arc<Self>),
+    Lit(Span, Lit),
+    Name(Span, String),
+}
+
+impl<Span> Pat<Span> {
+    pub fn span(&self) -> Span
+    where
+        Span: Clone,
+    {
+        match self {
+            Pat::Error(span, ..)
+            | Pat::Wildcard(span, ..)
+            | Pat::Paren(span, ..)
+            | Pat::Lit(span, ..)
+            | Pat::Name(span, ..) => span.clone(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AnnPat {
-    pub pat: Pat,
-    pub ty: Option<Expr>,
+pub struct AnnPat<Span> {
+    pub pat: Pat<Span>,
+    pub ty: Option<Expr<Span>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

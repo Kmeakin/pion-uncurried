@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use contracts::debug_invariant;
-use text_size::TextRange;
 
 use super::syntax::{Value, VarName};
 

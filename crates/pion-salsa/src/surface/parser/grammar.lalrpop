@@ -6,8 +6,9 @@ use crate::surface::syntax::*;
 use crate::surface::errors::*;
 use crate::surface::parser::lexer::*;
 
+use crate::ir::span::Span;
+
 grammar<'src>(
-    db: &dyn crate::Db,
 );
 
 extern {
@@ -41,45 +42,45 @@ extern {
     }
 }
 
-pub Module: Module = {
-    <items: Item*> => Module::new(db, items),
+pub Module: Module<Span> = {
+    <items: Item*> => Module{items},
 }
 
-pub Item: Item = {
+pub Item: Item<Span> = {
     LetDef => Item::Let(<>),
     EnumDef => Item::Enum(<>),
 }
 
-pub LetDef: LetDef = {
-    "let" <name: Name> <ty: (":" <Expr>)?> "=" <expr: Expr> ";" => LetDef::new(db, name, ty, expr),
+pub LetDef: LetDef<Span> = {
+    "let" <name: Name> <ty: (":" <Expr>)?> "=" <expr: Expr> ";" => LetDef {name, ty, expr},
 }
 
-pub EnumDef: EnumDef = {
-    "enum" <name: Name> <args: ("(" <List<AnnPat ,",">> ")")?> "{" <variants: List<EnumVariant, ",">> "}" => EnumDef::new(db, name, args.unwrap_or_default(), variants),
+pub EnumDef: EnumDef<Span> = {
+    "enum" <name: Name> <args: ("(" <List<AnnPat ,",">> ")")?> "{" <variants: List<EnumVariant, ",">> "}" => EnumDef {name, args: args.unwrap_or_default(), variants},
 }
 
-pub EnumVariant: EnumVariant = {
+pub EnumVariant: EnumVariant<Span> = {
     <name: Name> <args: ("(" <List<AnnPat ,",">> ")")?> <ty: (":" <Expr>)?> => EnumVariant {name, args: args.unwrap_or_default(), ty},
 }
 
-pub Expr: Expr = {
+pub Expr: Expr<Span> = {
     AtomExpr => <>,
 }
 
-AtomExpr: Expr = {
-    "(" <expr: Expr> ")" => Expr::Paren(Arc::new(expr)),
-    <lit: Lit> => Expr::Lit(lit),
-    <name: Name> => Expr::Name(name),
+AtomExpr: Expr<Span> = {
+    <start: @L> "(" <expr: Expr> ")" <end: @R> => Expr::Paren(Span::new(start, end), Arc::new(expr)),
+    <start: @L> <lit: Lit> <end: @R> => Expr::Lit(Span::new(start, end), lit),
+    <start: @L> <name: Name> <end: @R> => Expr::Name(Span::new(start, end), name),
 }
 
-pub Pat: Pat = {
-    "_" => Pat::Wildcard,
-    "(" <pat: Pat> ")" => Pat::Paren(Arc::new(pat)),
-    <lit: Lit> => Pat::Lit(lit),
-    <name: Name> => Pat::Name(name),
+pub Pat: Pat<Span> = {
+    <start: @L> "_" <end: @R> => Pat::Wildcard(Span::new(start, end)),
+    <start: @L> "(" <pat: Pat> ")" <end: @R> => Pat::Paren(Span::new(start, end), Arc::new(pat)),
+    <start: @L> <lit: Lit> <end: @R> => Pat::Lit(Span::new(start, end), lit),
+    <start: @L> <name: Name> <end: @R> => Pat::Name(Span::new(start, end), name),
 }
 
-AnnPat: AnnPat = {
+AnnPat: AnnPat<Span> = {
     <pat: Pat> <ty: (":" <Expr>)?> => AnnPat {pat, ty},
 }
 

@@ -95,14 +95,14 @@ pub enum VarName {
     Underscore,
 }
 
-impl surface::Pat {
+impl<Span> surface::Pat<Span> {
     pub fn name(&self) -> VarName {
         match self {
-            Self::Error => VarName::Underscore,
-            Self::Wildcard => VarName::Underscore,
-            Self::Lit(_) => VarName::Underscore,
-            Self::Paren(pat) => pat.name(),
-            Self::Name(name) => VarName::User(name.clone()),
+            Self::Error(_) => VarName::Underscore,
+            Self::Wildcard(_) => VarName::Underscore,
+            Self::Lit(..) => VarName::Underscore,
+            Self::Paren(_, pat) => pat.name(),
+            Self::Name(_, name) => VarName::User(name.clone()),
         }
     }
 }

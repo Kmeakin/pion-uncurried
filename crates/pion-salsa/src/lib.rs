@@ -10,11 +10,15 @@ use std::sync::{Arc, Mutex};
 use salsa::DebugWithDb;
 
 pub mod core;
-pub mod surface;
 pub mod ir;
+pub mod surface;
 
 #[salsa::jar(db = Db)]
-pub struct Jar();
+pub struct Jar(
+    crate::ir::symbol::Symbol,
+    crate::ir::input_file::InputFile,
+    //
+);
 
 pub trait Db: salsa::DbWithJar<Jar> {}
 

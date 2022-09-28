@@ -2,8 +2,8 @@
 
 use lalrpop_util::lalrpop_mod;
 
-use super::errors::{ParseError, };
 use super::syntax::*;
+use crate::ir::span::Span;
 
 pub mod lexer;
 
@@ -13,15 +13,14 @@ lalrpop_mod!(
     "/surface/parser/grammar.rs"
 );
 
-pub fn parse_module(db: &dyn crate::Db, source: SourceFile) -> Module {
-    let text = source.text;
+pub fn parse_module(text: &str) -> Module<Span> {
     let (tokens, errors) = lexer::lex(&text);
 
     for error in errors {
         todo!()
     }
 
-    match grammar::ModuleParser::new().parse(db, tokens) {
+    match grammar::ModuleParser::new().parse(tokens) {
         Ok(module) => module,
         Err(error) => {
             todo!()
