@@ -1,5 +1,6 @@
 use super::input_file::InputFile;
 use super::span::Span;
+use super::symbol::Symbol;
 use crate::surface::syntax as surface;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -14,9 +15,9 @@ pub enum Item {
 }
 
 #[salsa::tracked]
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct LetDef {
-    pub name: String,
+    pub name: Symbol,
 
     pub file: InputFile,
 
@@ -26,10 +27,10 @@ pub struct LetDef {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EnumDef {
-    pub name: String,
+    pub name: Symbol,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EnumVariant {
-    pub name: String,
+    pub name: Symbol,
 }

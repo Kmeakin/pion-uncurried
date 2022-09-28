@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use super::env::{LocalSource, SharedEnv, VarIndex, VarLevel};
-use crate::surface::syntax as surface;
+use crate::ir::symbol::Symbol;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Expr {
@@ -88,21 +88,9 @@ pub enum Lit {
     Bool(bool),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum VarName {
-    User(String),
+    User(Symbol),
     Synth(u32),
     Underscore,
-}
-
-impl<Span> surface::Pat<Span> {
-    pub fn name(&self) -> VarName {
-        match self {
-            Self::Error(_) => VarName::Underscore,
-            Self::Wildcard(_) => VarName::Underscore,
-            Self::Lit(..) => VarName::Underscore,
-            Self::Paren(_, pat) => pat.name(),
-            Self::Name(_, name) => VarName::User(name.clone()),
-        }
-    }
 }

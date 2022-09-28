@@ -4,6 +4,7 @@ use contracts::debug_invariant;
 
 use super::syntax::{Value, VarName};
 use crate::ir::span::Span;
+use crate::ir::symbol::Symbol;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct VarIndex(usize);
@@ -219,7 +220,7 @@ impl LocalEnv {
         self.values.truncate(len);
     }
 
-    pub fn lookup(&self, name: &str) -> Option<(VarIndex, Arc<Value>)> {
+    pub fn lookup(&self, name: Symbol) -> Option<(VarIndex, Arc<Value>)> {
         let index = self
             .names
             .entries
@@ -227,7 +228,7 @@ impl LocalEnv {
             .rev()
             .enumerate()
             .find(|(_, n)| match n {
-                VarName::User(n) => n == name,
+                VarName::User(n) => *n == name,
                 _ => false,
             })
             .map(|(index, _)| VarIndex(index))?;

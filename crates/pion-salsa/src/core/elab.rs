@@ -10,27 +10,32 @@ use super::syntax::*;
 use super::unify::{PartialRenaming, RenameError, SpineError, UnifyCtx, UnifyError};
 use crate::ir::input_file::InputFile;
 use crate::ir::span::Span;
+use crate::ir::symbol::Symbol;
 use crate::ir::syntax as ir;
 use crate::surface::syntax as surface;
 
-pub struct ElabCtx {
+pub struct ElabCtx<'db> {
     local_env: LocalEnv,
     meta_env: MetaEnv,
     renaming: PartialRenaming,
     name_source: NameSource,
-    file: InputFile,
     diagnostics: Vec<Diagnostic<InputFile>>,
+
+    db: &'db dyn crate::Db,
+    file: InputFile,
 }
 
-impl ElabCtx {
-    pub fn new(file: InputFile) -> Self {
+impl<'db> ElabCtx<'db> {
+    pub fn new(db: &'db dyn crate::Db, file: InputFile) -> Self {
         Self {
             local_env: LocalEnv::new(),
             meta_env: MetaEnv::new(),
             renaming: PartialRenaming::default(),
             name_source: NameSource::default(),
-            file,
             diagnostics: Vec::new(),
+
+            db,
+            file,
         }
     }
 
@@ -104,7 +109,7 @@ pub fn elab_let_def(
     let type_expr = &surface.ty;
     let body_expr = &surface.expr;
 
-    let mut ctx = ElabCtx::new(file);
+    let mut ctx = ElabCtx::new(db, file);
 
     match type_expr {
         Some(type_expr) => {
@@ -140,7 +145,7 @@ pub fn elab_let_def(
     }
 }
 
-impl ElabCtx {
+impl ElabCtx<'_> {
     pub fn eval_ctx(&mut self) -> EvalCtx {
         EvalCtx::new(&mut self.local_env.values, &self.meta_env.values)
     }
@@ -174,7 +179,7 @@ pub struct SynthExpr(Expr, Arc<Value>);
 
 pub struct CheckExpr(Expr);
 
-impl ElabCtx {
+impl ElabCtx<'_> {
     fn synth_lit(&mut self, lit: &surface::Lit) -> (Lit, Arc<Value>) {
         match lit {
             surface::Lit::Bool(b) => (Lit::Bool(*b), Arc::new(Value::BoolType)),
@@ -199,7 +204,8 @@ impl ElabCtx {
                 SynthExpr(Expr::Lit(lit), ty)
             }
             surface::Expr::Name(span, name) => {
-                if let Some((index, ty)) = self.local_env.lookup(name) {
+                let symbol = Symbol::intern(self.db, name);
+                if let Some((index, ty)) = self.local_env.lookup(symbol) {
                     return SynthExpr(Expr::Local(index), ty);
                 }
 
@@ -460,9 +466,10 @@ pub struct SynthPat(Pat, Arc<Value>);
 
 pub struct CheckPat(Pat);
 
-impl ElabCtx {
+impl ElabCtx<'_> {
     #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
     fn synth_pat(&mut self, pat: &surface::Pat<Span>) -> SynthPat {
+        let db = self.db;
         let mut meta = || {
             let name = self.name_source.fresh();
             let span = pat.span();
@@ -474,7 +481,10 @@ impl ElabCtx {
             surface::Pat::Paren(_, pat) => self.synth_pat(pat),
             surface::Pat::Error(_) => SynthPat(Pat::Name(VarName::Underscore), meta()),
             surface::Pat::Wildcard(_) => SynthPat(Pat::Name(VarName::Underscore), meta()),
-            surface::Pat::Name(_, name) => SynthPat(Pat::Name(VarName::User(name.clone())), meta()),
+            surface::Pat::Name(_, name) => {
+                let name = VarName::User(Symbol::intern(db, name));
+                SynthPat(Pat::Name(name), meta())
+            }
             surface::Pat::Lit(_, lit) => {
                 let (lit, ty) = self.synth_lit(lit);
                 SynthPat(Pat::Lit(lit), ty)
@@ -490,7 +500,7 @@ impl ElabCtx {
             surface::Pat::Error(_) => CheckPat(Pat::Name(VarName::Underscore)),
             surface::Pat::Wildcard(_) => CheckPat(Pat::Name(VarName::Underscore)),
             surface::Pat::Name(_, name) => {
-                let name = VarName::User(name.clone());
+                let name = VarName::User(Symbol::intern(self.db, name));
                 CheckPat(Pat::Name(name))
             }
             _ => {
@@ -546,7 +556,7 @@ impl ElabCtx {
                 self.local_env.push(VarName::Underscore, ty, value);
             }
             Pat::Name(name) => {
-                self.local_env.push(name.clone(), ty, value);
+                self.local_env.push(*name, ty, value);
             }
             Pat::Lit(_) => {
                 let name = self.name_source.fresh();
