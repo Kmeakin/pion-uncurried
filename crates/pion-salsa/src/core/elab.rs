@@ -45,7 +45,7 @@ impl ElabCtx {
                     (Some(_), _) => return None,
                     (None, MetaSource::Error) => return None,
                     (None, MetaSource::PatType(span)) => (*span, "type of pattern"),
-                    (None, MetaSource::MatchType(_)) => todo!(),
+                    (None, MetaSource::MatchType(span)) => (*span, "type of `match` expression"),
                 };
                 Some(
                     Diagnostic::error()
