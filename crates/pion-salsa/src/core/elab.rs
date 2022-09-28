@@ -104,26 +104,38 @@ pub fn elab_let_def(
 
     let mut ctx = ElabCtx::new(file);
 
-    let type_core = match type_expr {
+    match type_expr {
         Some(type_expr) => {
-            let CheckExpr(expr) = ctx.check_expr_is_type(type_expr);
-            expr
+            let CheckExpr(type_core) = ctx.check_expr_is_type(type_expr);
+            let type_value = ctx.eval_ctx().eval_expr(&type_core);
+
+            let CheckExpr(body_core) = ctx.check_expr(body_expr, &type_value);
+            let body_value = ctx.eval_ctx().eval_expr(&body_core);
+            let forced_body_value = ctx.elim_ctx().force_value(&body_value);
+            let forced_body_expr = ctx.quote_ctx().quote_value(&forced_body_value);
+
+            let forced_type_value = ctx.elim_ctx().force_value(&type_value);
+            let forced_type_expr = ctx.quote_ctx().quote_value(&forced_type_value);
+
+            let errors = ctx.finish();
+
+            (forced_body_expr, forced_type_expr, errors)
         }
-        None => todo!(),
-    };
-    let type_value = ctx.eval_ctx().eval_expr(&type_core);
+        None => {
+            let SynthExpr(body_core, body_type) = ctx.synth_expr(body_expr);
+            let body_value = ctx.eval_ctx().eval_expr(&body_core);
 
-    let CheckExpr(body_core) = ctx.check_expr(body_expr, &type_value);
-    let body_value = ctx.eval_ctx().eval_expr(&body_core);
-    let forced_body_value = ctx.elim_ctx().force_value(&body_value);
-    let forced_body_expr = ctx.quote_ctx().quote_value(&forced_body_value);
+            let forced_body_value = ctx.elim_ctx().force_value(&body_value);
+            let forced_body_expr = ctx.quote_ctx().quote_value(&forced_body_value);
 
-    let forced_type_value = ctx.elim_ctx().force_value(&type_value);
-    let forced_type_core = ctx.quote_ctx().quote_value(&forced_type_value);
+            let forced_type_value = ctx.elim_ctx().force_value(&body_type);
+            let forced_type_expr = ctx.quote_ctx().quote_value(&forced_type_value);
 
-    let errors = ctx.finish();
+            let errors = ctx.finish();
 
-    (forced_body_expr, forced_type_core, errors)
+            (forced_body_expr, forced_type_expr, errors)
+        }
+    }
 }
 
 pub struct SynthExpr(Expr, Arc<Value>);
