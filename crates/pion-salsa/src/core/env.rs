@@ -3,6 +3,7 @@ use std::sync::Arc;
 use contracts::debug_invariant;
 
 use super::syntax::{Value, VarName};
+use crate::ir::span::Span;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct VarIndex(usize);
@@ -266,7 +267,7 @@ pub enum LocalSource {
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum MetaSource {
     Error,
-    PatType,
+    PatType(Span),
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Default)]

@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use codespan_reporting::diagnostic::Diagnostic;
+use codespan_reporting::diagnostic::{Diagnostic, Label};
 
 use super::env::{LocalEnv, MetaEnv, MetaSource, NameSource};
 use super::eval::{ElimCtx, EvalCtx};
@@ -39,10 +39,17 @@ impl ElabCtx {
             .values
             .iter()
             .zip(self.meta_env.sources.iter())
-            .filter_map(move |it| match it {
-                (Some(_), _) => None,
-                (None, MetaSource::Error) => None,
-                (None, source) => todo!(),
+            .filter_map(move |it| {
+                let (span, name) = match it {
+                    (Some(_), _) => return None,
+                    (None, MetaSource::Error) => return None,
+                    (None, MetaSource::PatType(span)) => (*span, "type of pattern"),
+                };
+                Some(
+                    Diagnostic::error()
+                        .with_message(format!("Unable to infer {name}"))
+                        .with_labels(vec![Label::primary(self.file, span)]),
+                )
             });
         self.diagnostics.extend(unsolved_metas);
         self.diagnostics
@@ -346,15 +353,16 @@ impl ElabCtx {
     fn synth_pat(&mut self, pat: &surface::Pat<Span>) -> (Pat, Arc<Value>) {
         let mut meta = || {
             let name = self.name_source.fresh();
-            let source = MetaSource::PatType;
+            let span = pat.span();
+            let source = MetaSource::PatType(span);
             self.push_meta_value(name, source, Arc::new(Value::Type))
         };
         match pat {
-            surface::Pat::Paren(span, pat) => self.synth_pat(pat),
-            surface::Pat::Error(span) => (Pat::Error, meta()),
-            surface::Pat::Wildcard(span) => (Pat::Name(VarName::Underscore), meta()),
-            surface::Pat::Name(span, name) => (Pat::Name(VarName::User(name.clone())), meta()),
-            surface::Pat::Lit(span, lit) => {
+            surface::Pat::Paren(_, pat) => self.synth_pat(pat),
+            surface::Pat::Error(_) => (Pat::Error, meta()),
+            surface::Pat::Wildcard(_) => (Pat::Name(VarName::Underscore), meta()),
+            surface::Pat::Name(_, name) => (Pat::Name(VarName::User(name.clone())), meta()),
+            surface::Pat::Lit(_, lit) => {
                 let (lit, ty) = self.synth_lit(lit);
                 (Pat::Lit(lit), ty)
             }
@@ -363,10 +371,10 @@ impl ElabCtx {
 
     fn check_pat(&mut self, pat: &surface::Pat<Span>, expected: &Arc<Value>) -> Pat {
         match pat {
-            surface::Pat::Paren(span, pat) => self.check_pat(pat, expected),
-            surface::Pat::Error(span) => Pat::Error,
-            surface::Pat::Wildcard(span) => Pat::Name(VarName::Underscore),
-            surface::Pat::Name(span, name) => Pat::Name(VarName::User(name.clone())),
+            surface::Pat::Paren(_, pat) => self.check_pat(pat, expected),
+            surface::Pat::Error(_) => Pat::Error,
+            surface::Pat::Wildcard(_) => Pat::Name(VarName::Underscore),
+            surface::Pat::Name(_, name) => Pat::Name(VarName::User(name.clone())),
             _ => {
                 let (core, got) = self.synth_pat(pat);
                 match self.unify_ctx().unify_values(&got, expected) {
