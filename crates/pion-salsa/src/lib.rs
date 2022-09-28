@@ -15,9 +15,10 @@ pub mod surface;
 
 #[salsa::jar(db = Db)]
 pub struct Jar(
-    crate::ir::symbol::Symbol,
     crate::ir::input_file::InputFile,
-    //
+    crate::ir::symbol::Symbol,
+    crate::ir::syntax::LetDef,
+    crate::core::elab::elab_let_def,
 );
 
 pub trait Db: salsa::DbWithJar<Jar> {}
@@ -30,9 +31,6 @@ pub struct Database {
     storage: salsa::Storage<Self>,
     log: Option<Arc<Mutex<Vec<String>>>>,
 }
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub struct FileId(usize);
 
 impl salsa::Database for Database {
     fn salsa_event(&self, event: salsa::Event) {

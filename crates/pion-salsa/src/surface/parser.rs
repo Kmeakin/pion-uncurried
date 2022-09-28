@@ -2,6 +2,7 @@
 
 use lalrpop_util::lalrpop_mod;
 
+use super::errors::ParseError;
 use super::syntax::*;
 use crate::ir::span::Span;
 
@@ -13,17 +14,20 @@ lalrpop_mod!(
     "/surface/parser/grammar.rs"
 );
 
-pub fn parse_module(text: &str) -> Module<Span> {
+pub fn parse_module(text: &str) -> (Module<Span>, Vec<ParseError>) {
     let (tokens, errors) = lexer::lex(&text);
+    let mut errors: Vec<ParseError> = errors
+        .iter()
+        .map(|error| ParseError::from(*error))
+        .collect();
 
-    for error in errors {
-        todo!()
-    }
-
-    match grammar::ModuleParser::new().parse(tokens) {
+    let module = match grammar::ModuleParser::new().parse(tokens) {
         Ok(module) => module,
         Err(error) => {
-            todo!()
+            errors.push(error.into());
+            Module { items: vec![] }
         }
-    }
+    };
+
+    (module, errors)
 }

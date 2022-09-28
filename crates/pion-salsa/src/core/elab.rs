@@ -7,22 +7,22 @@ use super::eval::{ElimCtx, EvalCtx};
 use super::quote::QuoteCtx;
 use super::syntax::*;
 use super::unify::{PartialRenaming, RenameError, SpineError, UnifyCtx, UnifyError};
+use crate::ir::input_file::InputFile;
 use crate::ir::span::Span;
 use crate::ir::syntax as ir;
 use crate::surface::syntax as surface;
-use crate::FileId;
 
 pub struct ElabCtx {
     local_env: LocalEnv,
     meta_env: MetaEnv,
     renaming: PartialRenaming,
     name_source: NameSource,
-    file: FileId,
-    diagnostics: Vec<Diagnostic<FileId>>,
+    file: InputFile,
+    diagnostics: Vec<Diagnostic<InputFile>>,
 }
 
 impl ElabCtx {
-    pub fn new(file: FileId) -> Self {
+    pub fn new(file: InputFile) -> Self {
         Self {
             local_env: LocalEnv::new(),
             meta_env: MetaEnv::new(),
@@ -33,7 +33,7 @@ impl ElabCtx {
         }
     }
 
-    pub fn finish(mut self) -> Vec<Diagnostic<FileId>> {
+    pub fn finish(mut self) -> Vec<Diagnostic<InputFile>> {
         let unsolved_metas = self
             .meta_env
             .values
@@ -92,10 +92,17 @@ impl ElabCtx {
     }
 }
 
-pub fn elab_let_def(db: &dyn crate::Db, def: ir::LetDef) -> (Expr, Expr, Vec<Diagnostic<FileId>>) {
-    let mut ctx = ElabCtx::new(FileId(0));
-    let type_expr = todo!();
-    let body_expr = todo!();
+#[salsa::tracked]
+pub fn elab_let_def(
+    db: &dyn crate::Db,
+    def: ir::LetDef,
+) -> (Expr, Expr, Vec<Diagnostic<InputFile>>) {
+    let file = def.file(db);
+    let surface = def.surface(db);
+    let type_expr = &surface.ty;
+    let body_expr = &surface.expr;
+
+    let mut ctx = ElabCtx::new(file);
 
     let type_core = match type_expr {
         Some(type_expr) => {
