@@ -15,7 +15,7 @@ lalrpop_mod!(
 );
 
 pub fn parse_module(text: &str) -> (Module<Span>, Vec<ParseError>) {
-    let (tokens, errors) = lexer::lex(&text);
+    let (tokens, errors) = lexer::lex(text);
     let mut errors: Vec<ParseError> = errors
         .iter()
         .map(|error| ParseError::from(*error))
