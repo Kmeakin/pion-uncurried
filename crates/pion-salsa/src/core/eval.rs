@@ -73,7 +73,11 @@ impl<'env> EvalCtx<'env> {
                 self.local_env.pop();
                 body_value
             }
-            Expr::Match(..) => todo!(),
+            Expr::Match(scrut, arms) => {
+                let scrut = self.eval_expr(scrut);
+                let arms = MatchArms::new(self.local_env.clone(), arms.clone());
+                self.elim_ctx().do_match(scrut, arms)
+            }
         }
     }
 }
@@ -136,7 +140,10 @@ impl<'env> ElimCtx<'env> {
         let MatchArms { mut env, arms } = arms;
         for (pat, expr) in arms.iter() {
             match (pat, scrut.clone()) {
-                (Pat::Error, _) => return Arc::new(Value::Error),
+                (Pat::Error, _) => {
+                    env.push(scrut);
+                    return Arc::new(Value::Error);
+                }
                 (Pat::Name(_), scrut) => {
                     env.push(scrut);
                     return self.eval_ctx(&mut env).eval_expr(expr);
