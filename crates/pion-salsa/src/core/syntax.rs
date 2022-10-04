@@ -22,11 +22,17 @@ pub enum Expr {
     Local(VarIndex),
     Meta(VarLevel),
     MetaInsertion(VarLevel, SharedEnv<LocalSource>),
-    FunType(Arc<[Self]>, Arc<Self>),
-    FunExpr(Arc<[Self]>, Arc<Self>),
+    FunType(Arc<[FunArg<Self>]>, Arc<Self>),
+    FunExpr(Arc<[FunArg<Self>]>, Arc<Self>),
     FunCall(Arc<Self>, Arc<[Self]>),
     Let(Arc<Pat>, Arc<Self>, Arc<Self>, Arc<Self>),
     Match(Arc<Self>, Arc<[(Pat, Self)]>),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FunArg<Type> {
+    pub pat: Pat,
+    pub ty: Type,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -67,12 +73,12 @@ pub enum Elim {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FunClosure {
     pub env: SharedEnv<Arc<Value>>,
-    pub args: Arc<[Expr]>,
+    pub args: Arc<[FunArg<Expr>]>,
     pub body: Arc<Expr>,
 }
 
 impl FunClosure {
-    pub fn new(env: SharedEnv<Arc<Value>>, args: Arc<[Expr]>, body: Arc<Expr>) -> Self {
+    pub fn new(env: SharedEnv<Arc<Value>>, args: Arc<[FunArg<Expr>]>, body: Arc<Expr>) -> Self {
         Self { env, args, body }
     }
 

@@ -170,17 +170,23 @@ impl<'env> ElimCtx<'env> {
     pub fn split_fun_closure(
         &self,
         mut closure: FunClosure,
-    ) -> Option<(Arc<Value>, impl FnOnce(Arc<Value>) -> FunClosure)> {
-        let (arg, args) = closure.args.split_first()?;
+    ) -> Option<(FunArg<Arc<Value>>, impl FnOnce(Arc<Value>) -> FunClosure)> {
+        let (FunArg { pat, ty }, args) = closure.args.split_first()?;
         let mut ctx = self.eval_ctx(&mut closure.env);
-        let value = ctx.eval_expr(arg);
+        let ty = ctx.eval_expr(ty);
 
         let args = Arc::from(args);
-        Some((value, move |prev| {
-            closure.env.push(prev);
-            closure.args = args;
-            closure
-        }))
+        Some((
+            FunArg {
+                pat: pat.clone(),
+                ty,
+            },
+            move |prev| {
+                closure.env.push(prev);
+                closure.args = args;
+                closure
+            },
+        ))
     }
 
     pub fn split_arms(&self, mut arms: MatchArms) -> Option<(Pat, Arc<Value>, MatchArms)> {

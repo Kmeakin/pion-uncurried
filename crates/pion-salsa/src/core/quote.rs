@@ -66,27 +66,30 @@ impl<'env> QuoteCtx<'env> {
     }
 
     #[debug_ensures(self.local_env == old(self.local_env))]
-    fn quote_closure(&mut self, closure: &FunClosure) -> (Arc<[Expr]>, Expr) {
+    fn quote_closure(&mut self, closure: &FunClosure) -> (Arc<[FunArg<Expr>]>, Expr) {
         let initial_len = self.local_env;
 
         let initial_closure = closure.clone();
         let mut closure = closure.clone();
-        let mut exprs = Vec::with_capacity(closure.arity());
-        let mut args = Vec::with_capacity(closure.arity());
+        let mut fun_args = Vec::with_capacity(closure.arity());
+        let mut arg_values = Vec::with_capacity(closure.arity());
 
-        while let Some((value, cont)) = self.elim_ctx().split_fun_closure(closure.clone()) {
-            let arg = Arc::new(Value::local(self.local_env.to_level()));
-            closure = cont(arg.clone());
-            exprs.push(self.quote_value(&value));
-            args.push(arg);
+        while let Some((FunArg { pat, ty }, cont)) =
+            self.elim_ctx().split_fun_closure(closure.clone())
+        {
+            let arg_value = Arc::new(Value::local(self.local_env.to_level()));
+            closure = cont(arg_value.clone());
+            let type_core = self.quote_value(&ty);
+            fun_args.push(FunArg { pat, ty: type_core });
+            arg_values.push(arg_value);
             self.local_env.push();
         }
 
-        let body = self.elim_ctx().apply_closure(&initial_closure, args);
+        let body = self.elim_ctx().apply_closure(&initial_closure, arg_values);
         let body = self.quote_value(&body);
 
         self.local_env.truncate(initial_len);
 
-        (Arc::from(exprs), body)
+        (Arc::from(fun_args), body)
     }
 }

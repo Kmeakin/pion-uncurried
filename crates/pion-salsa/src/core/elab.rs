@@ -229,42 +229,48 @@ impl ElabCtx<'_> {
             }
             surface::Expr::FunType(_, pats, ret) => {
                 let initial_len = self.local_env.len();
-                let args: Vec<_> = pats
+                let fun_args: Vec<_> = pats
                     .iter()
                     .map(|pat| {
                         let SynthPat(pat_core, pat_type) = self.synth_ann_pat(pat);
                         let type_core = self.quote_ctx().quote_value(&pat_type);
                         self.subst_pat(&pat_core, pat_type, None);
-                        type_core
+                        FunArg {
+                            pat: pat_core,
+                            ty: type_core,
+                        }
                     })
                     .collect();
                 let CheckExpr(ret) = self.check_expr_is_type(ret);
                 self.local_env.truncate(initial_len);
                 SynthExpr(
-                    Expr::FunType(Arc::from(args), Arc::new(ret)),
+                    Expr::FunType(Arc::from(fun_args), Arc::new(ret)),
                     Arc::new(Value::Type),
                 )
             }
             surface::Expr::FunExpr(_, pats, body) => {
                 let initial_len = self.local_env.len();
-                let args: Vec<_> = pats
+                let fun_args: Vec<_> = pats
                     .iter()
                     .map(|pat| {
                         let SynthPat(pat_core, pat_type) = self.synth_ann_pat(pat);
                         let type_core = self.quote_ctx().quote_value(&pat_type);
                         self.subst_pat(&pat_core, pat_type, None);
-                        type_core
+                        FunArg {
+                            pat: pat_core,
+                            ty: type_core,
+                        }
                     })
                     .collect();
-                let args: Arc<[_]> = Arc::from(args);
+                let fun_args: Arc<[_]> = Arc::from(fun_args);
 
                 let SynthExpr(body_core, body_type) = self.synth_expr(body);
                 let ret_type = self.quote_ctx().quote_value(&body_type);
                 self.local_env.truncate(initial_len);
 
-                let fun_core = Expr::FunExpr(args.clone(), Arc::new(body_core));
+                let fun_core = Expr::FunExpr(fun_args.clone(), Arc::new(body_core));
                 let closure =
-                    FunClosure::new(self.local_env.values.clone(), args, Arc::new(ret_type));
+                    FunClosure::new(self.local_env.values.clone(), fun_args, Arc::new(ret_type));
                 let fun_type = Value::FunType(closure);
                 SynthExpr(fun_core, Arc::new(fun_type))
             }
@@ -305,7 +311,7 @@ impl ElabCtx<'_> {
                 let mut arg_values = Vec::with_capacity(args.len());
                 let mut args = args.iter();
 
-                while let Some((arg, (expected, cont))) =
+                while let Some((arg, (FunArg { pat, ty: expected }, cont))) =
                     Option::zip(args.next(), self.elim_ctx().split_fun_closure(closure))
                 {
                     let CheckExpr(arg_core) = self.check_expr(arg, &expected);
@@ -370,10 +376,10 @@ impl ElabCtx<'_> {
                 let mut closure = closure.clone();
 
                 let mut args_values = Vec::with_capacity(pats.len());
-                let mut arg_types = Vec::with_capacity(pats.len());
+                let mut fun_args = Vec::with_capacity(pats.len());
 
                 let mut pats = pats.iter();
-                while let Some((pat, (expected, cont))) =
+                while let Some((pat, (FunArg { ty: expected, .. }, cont))) =
                     Option::zip(pats.next(), self.elim_ctx().split_fun_closure(closure))
                 {
                     let type_core = self.quote_ctx().quote_value(&expected);
@@ -384,14 +390,17 @@ impl ElabCtx<'_> {
 
                     closure = cont(arg_value.clone());
                     args_values.push(arg_value);
-                    arg_types.push(type_core);
+                    fun_args.push(FunArg {
+                        pat: pat_core,
+                        ty: type_core,
+                    });
                 }
 
                 let expected_ret = self.elim_ctx().apply_closure(&initial_closure, args_values);
                 let CheckExpr(ret_core) = self.check_expr(body, &expected_ret);
                 self.local_env.truncate(initial_len);
 
-                CheckExpr(Expr::FunExpr(Arc::from(arg_types), Arc::new(ret_core)))
+                CheckExpr(Expr::FunExpr(Arc::from(fun_args), Arc::new(ret_core)))
             }
             (surface::Expr::Let(_, pat, init, body), _) => {
                 let initial_len = self.local_env.len();

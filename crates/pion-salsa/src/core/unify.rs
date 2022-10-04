@@ -4,7 +4,7 @@ use contracts::debug_ensures;
 
 use super::env::{EnvLen, SharedEnv, UniqueEnv, VarIndex, VarLevel};
 use super::eval::ElimCtx;
-use super::syntax::{Elim, Expr, FunClosure, Head, MatchArms, Value};
+use super::syntax::*;
 
 pub struct UnifyCtx<'env> {
     local_env: EnvLen,
@@ -88,7 +88,7 @@ impl<'env> UnifyCtx<'env> {
             self.elim_ctx().split_fun_closure(closure1.clone()),
             self.elim_ctx().split_fun_closure(closure2.clone()),
         ) {
-            match self.unify_values(&arg1, &arg2) {
+            match self.unify_values(&arg1.ty, &arg2.ty) {
                 Ok(_) => {}
                 Err(err) => {
                     self.local_env.truncate(initial_len);
@@ -299,7 +299,15 @@ impl<'env> UnifyCtx<'env> {
         spine.iter().fold(expr, |expr, elim| match elim {
             Elim::FunCall(args) => {
                 let arity = args.len();
-                let types = Arc::from(vec![Expr::Error; arity]); // TODO: what should the introduced type be?
+
+                // TODO: what should the introduced args be?
+                let args: Vec<_> = std::iter::repeat_with(|| FunArg {
+                    pat: Pat::Error,
+                    ty: Expr::Error,
+                })
+                .take(arity)
+                .collect();
+                let types = Arc::from(args);
                 Expr::FunExpr(types, Arc::new(expr))
             }
             Elim::Match(_) => unreachable!("should have been caught by `init_renaming`"),
@@ -310,38 +318,40 @@ impl<'env> UnifyCtx<'env> {
         &mut self,
         meta_var: VarLevel,
         closure: &FunClosure,
-    ) -> Result<(Arc<[Expr]>, Expr), RenameError> {
+    ) -> Result<(Arc<[FunArg<Expr>]>, Expr), RenameError> {
         let initial_source_len = self.renaming.source.len();
         let initial_target_len = self.renaming.target;
 
         let initial_closure = closure.clone();
         let mut closure = closure.clone();
-        let mut exprs = Vec::with_capacity(closure.arity());
-        let mut args = Vec::with_capacity(closure.arity());
+        let mut fun_args = Vec::with_capacity(closure.arity());
+        let mut arg_values = Vec::with_capacity(closure.arity());
 
-        while let Some((value, cont)) = self.elim_ctx().split_fun_closure(closure.clone()) {
-            let arg = self.renaming.next_local_var();
-            closure = cont(arg.clone());
-            let expr = match self.rename_value(meta_var, &value) {
-                Ok(expr) => expr,
+        while let Some((FunArg { pat, ty }, cont)) =
+            self.elim_ctx().split_fun_closure(closure.clone())
+        {
+            let arg_value = self.renaming.next_local_var();
+            closure = cont(arg_value.clone());
+            let ty = match self.rename_value(meta_var, &ty) {
+                Ok(ty) => ty,
                 Err(err) => {
                     self.renaming
                         .truncate(initial_source_len, initial_target_len);
                     return Err(err);
                 }
             };
-            exprs.push(expr);
-            args.push(arg);
+            fun_args.push(FunArg { pat, ty });
+            arg_values.push(arg_value);
             self.renaming.push_local();
         }
 
-        let body = self.elim_ctx().apply_closure(&initial_closure, args);
+        let body = self.elim_ctx().apply_closure(&initial_closure, arg_values);
         let body = self.rename_value(meta_var, &body);
 
         self.renaming
             .truncate(initial_source_len, initial_target_len);
 
-        Ok((Arc::from(exprs), body?))
+        Ok((Arc::from(fun_args), body?))
     }
 }
 
