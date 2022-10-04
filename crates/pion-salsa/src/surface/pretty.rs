@@ -56,8 +56,8 @@ impl<'a> PrettyCtx {
             "let",
             self.space(),
             name.clone(),
-            self.space(),
             ty,
+            self.space(),
             "=",
             self.space(),
             body,
@@ -201,7 +201,7 @@ impl<'a> PrettyCtx {
     fn pretty_type_annotation<Span>(&'a self, ty: &Option<Expr<Span>>) -> DocBuilder {
         let ty = ty
             .as_ref()
-            .map(|ty| docs!(self, ":", self.space(), self.pretty_expr(ty), self.space()));
+            .map(|ty| docs!(self, ":", self.space(), self.pretty_expr(ty)));
         docs!(self, ty)
     }
 

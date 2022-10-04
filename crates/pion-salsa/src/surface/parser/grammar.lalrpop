@@ -1,9 +1,11 @@
+use std::sync::Arc;
+
 use text_size::TextSize;
+use text_size::TextRange;
 
 use crate::surface::syntax::*;
 use crate::surface::errors::*;
 use crate::surface::parser::lexer::*;
-
 use crate::ir::span::Span;
 
 grammar<'src>(
@@ -62,6 +64,22 @@ pub EnumVariant: EnumVariant<Span> = {
 }
 
 pub Expr: Expr<Span> = {
+    LetExpr => <>,
+}
+
+LetExpr: Expr<Span> = {
+    <start: @L> "let" <pat: AnnPat> "=" <init: Expr> "in" <body: Expr> <end: @R> => Expr::Let(TextRange::new(start, end), Arc::new(pat), Arc::new(init), Arc::new(body)),
+    FunExpr => <>,
+}
+
+FunExpr: Expr<Span> = {
+    <start: @L> "fn" "(" <args: List<AnnPat, ",">> ")" "=>" <body: FunExpr> <end: @R> => Expr::FunExpr(TextRange::new(start, end), args, Arc::new(body)),
+    <start: @L> "fn" "(" <args: List<AnnPat, ",">> ")" "->" <body: FunExpr> <end: @R> => Expr::FunType(TextRange::new(start, end), args, Arc::new(body)),
+    CallExpr => <>,
+}
+
+CallExpr: Expr<Span> = {
+    <start: @L> <fun: CallExpr> "(" <args: List<Expr, ",">> ")" <end: @R> => Expr::FunCall(TextRange::new(start, end), Arc::new(fun), args),
     AtomExpr => <>,
 }
 
@@ -69,6 +87,14 @@ AtomExpr: Expr<Span> = {
     "(" <expr: Expr> ")" => expr,
     <start: @L> <lit: Lit> <end: @R> => Expr::Lit(Span::new(start, end), lit),
     <start: @L> <name: Name> <end: @R> => Expr::Name(Span::new(start, end), name),
+    <start: @L> <hole: Hole> <end: @R> => Expr::Hole(TextRange::new(start, end), hole),
+    <start: @L> "match" <scrutinee: Expr> "{" <arms: List<(<Pat> "=>" <Expr>), ",">> "}" <end: @R> => Expr::Match(TextRange::new(start, end), Arc::new(scrutinee), arms),
+}
+
+pub Hole: Hole = {
+    <name: "Hole"> => {
+        if name == "?_" { Hole::Underscore } else { Hole::Name(name.into()) }
+    }
 }
 
 pub Pat: Pat<Span> = {
