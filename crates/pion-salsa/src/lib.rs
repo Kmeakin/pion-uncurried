@@ -4,6 +4,8 @@
     clippy::new_without_default,
     clippy::option_if_let_else
 )]
+#![feature(custom_test_frameworks)]
+#![test_runner(datatest::runner)]
 
 use std::sync::{Arc, Mutex};
 
@@ -13,6 +15,9 @@ pub mod cli;
 pub mod core;
 pub mod ir;
 pub mod surface;
+
+#[cfg(test)]
+mod tests;
 
 #[salsa::jar(db = Db)]
 pub struct Jar(
