@@ -103,11 +103,28 @@ impl<'db> ElabCtx<'db> {
 }
 
 #[salsa::tracked]
+pub fn elab_module(db: &dyn crate::Db, module: ir::Module) -> Module {
+    let items = module.items(db);
+    let items = items
+        .iter()
+        .map(|item| match item {
+            ir::Item::Enum(_) => todo!(),
+            ir::Item::Let(let_def) => {
+                let let_def = elab_let_def(db, *let_def);
+                Item::Let(let_def)
+            }
+        })
+        .collect();
+    Module { items }
+}
+
+#[salsa::tracked]
 pub fn elab_let_def(db: &dyn crate::Db, let_def: ir::LetDef) -> LetDef {
     let file = let_def.file(db);
+    let name = let_def.name(db);
     let surface = let_def.surface(db);
     let type_expr = &surface.ty;
-    let body_expr = &surface.expr;
+    let body_expr = &surface.body;
 
     let mut ctx = ElabCtx::new(db, file);
 
@@ -127,6 +144,7 @@ pub fn elab_let_def(db: &dyn crate::Db, let_def: ir::LetDef) -> LetDef {
             let diagnostics = ctx.finish();
 
             LetDef {
+                name,
                 body: (forced_body_expr, forced_body_value),
                 ty: (forced_type_expr, forced_type_value),
                 diagnostics,
@@ -145,6 +163,7 @@ pub fn elab_let_def(db: &dyn crate::Db, let_def: ir::LetDef) -> LetDef {
             let diagnostics = ctx.finish();
 
             LetDef {
+                name,
                 body: (forced_body_expr, forced_body_value),
                 ty: (forced_type_expr, forced_type_value),
                 diagnostics,

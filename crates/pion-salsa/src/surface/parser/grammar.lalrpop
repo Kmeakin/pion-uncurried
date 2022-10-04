@@ -50,7 +50,7 @@ pub Item: Item<Span> = {
 }
 
 pub LetDef: LetDef<Span> = {
-    "let" <name: Name> <ty: (":" <Expr>)?> "=" <expr: Expr> ";" => LetDef {name, ty, expr},
+    "let" <name: Name> <ty: (":" <Expr>)?> "=" <body: Expr> ";" => LetDef {name, ty, body},
 }
 
 pub EnumDef: EnumDef<Span> = {

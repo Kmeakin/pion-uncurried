@@ -29,9 +29,31 @@ impl<'a> UnelabCtx<'a> {
         }
     }
 
-    fn gen_name(&mut self, count: u32) -> String {
-        // FIXME: something nicer?
-        format!("${count}")
+    #[debug_ensures(self.local_names.len() == old(self.local_names.len()))]
+    pub fn unelab_module(&mut self, module: &Module) -> surface::Module<()> {
+        let Module { items } = module;
+        let items = items.iter().map(|item| self.unelab_item(item)).collect();
+        surface::Module { items }
+    }
+
+    #[debug_ensures(self.local_names.len() == old(self.local_names.len()))]
+    pub fn unelab_item(&mut self, item: &Item) -> surface::Item<()> {
+        match item {
+            Item::Let(let_def) => surface::Item::Let(self.unelab_let_def(let_def)),
+        }
+    }
+
+    #[debug_ensures(self.local_names.len() == old(self.local_names.len()))]
+    pub fn unelab_let_def(&mut self, let_def: &LetDef) -> surface::LetDef<()> {
+        let LetDef { name, body, ty, .. } = let_def;
+        let name = name.contents(self.db).clone();
+        let ty = self.unelab_expr(&ty.0);
+        let body = self.unelab_expr(&body.0);
+        surface::LetDef {
+            name,
+            ty: Some(ty),
+            body,
+        }
     }
 
     #[debug_ensures(self.local_names.len() == old(self.local_names.len()))]
@@ -180,5 +202,10 @@ impl<'a> UnelabCtx<'a> {
             Pat::Name(name) => self.local_names.push(*name),
             Pat::Lit(_) => self.local_names.push(self.name_source.fresh()),
         }
+    }
+
+    fn gen_name(&mut self, count: u32) -> String {
+        // FIXME: something nicer?
+        format!("${count}")
     }
 }

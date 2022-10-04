@@ -8,13 +8,6 @@ pub fn elab(path: String) {
     let input_file = InputFile::new(&db, name, contents);
 
     let module = crate::ir::lower_file(&db, input_file);
-
-    for item in module.items(&db) {
-        match item {
-            crate::ir::syntax::Item::Enum(enum_def) => todo!(),
-            crate::ir::syntax::Item::Let(let_def) => {
-                let let_def = crate::core::elab::elab_let_def(&db, let_def);
-            }
-        }
-    }
+    let module = crate::core::elab::elab_module(&db, module);
+    dbg!(module);
 }

@@ -16,13 +16,14 @@ pub mod surface;
 
 #[salsa::jar(db = Db)]
 pub struct Jar(
-    crate::ir::input_file::InputFile,
     crate::surface::parser::parse_input_file,
+    crate::ir::input_file::InputFile,
     crate::ir::symbol::Symbol,
     crate::ir::syntax::Module,
     crate::ir::syntax::LetDef,
     crate::ir::syntax::EnumDef,
     crate::ir::lower_file,
+    crate::core::elab::elab_module,
     crate::core::elab::elab_let_def,
 );
 

@@ -7,7 +7,18 @@ use crate::ir::input_file::InputFile;
 use crate::ir::symbol::Symbol;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Module {
+    pub items: Vec<Item>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Item {
+    Let(LetDef),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LetDef {
+    pub name: Symbol,
     pub body: (Expr, Arc<Value>),
     pub ty: (Expr, Arc<Value>),
     pub diagnostics: Vec<Diagnostic<InputFile>>,
