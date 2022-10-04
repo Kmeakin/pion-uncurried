@@ -314,6 +314,7 @@ impl<'env> UnifyCtx<'env> {
         })
     }
 
+    #[allow(clippy::type_complexity)]
     fn rename_fun_closure(
         &mut self,
         meta_var: VarLevel,

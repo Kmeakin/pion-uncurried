@@ -30,33 +30,6 @@ impl<'a> UnelabCtx<'a> {
     }
 
     #[debug_ensures(self.local_names.len() == old(self.local_names.len()))]
-    pub fn unelab_module(&mut self, module: &Module) -> surface::Module<()> {
-        let Module { items } = module;
-        let items = items.iter().map(|item| self.unelab_item(item)).collect();
-        surface::Module { items }
-    }
-
-    #[debug_ensures(self.local_names.len() == old(self.local_names.len()))]
-    pub fn unelab_item(&mut self, item: &Item) -> surface::Item<()> {
-        match item {
-            Item::Let(let_def) => surface::Item::Let(self.unelab_let_def(let_def)),
-        }
-    }
-
-    #[debug_ensures(self.local_names.len() == old(self.local_names.len()))]
-    pub fn unelab_let_def(&mut self, let_def: &LetDef) -> surface::LetDef<()> {
-        let LetDef { name, body, ty, .. } = let_def;
-        let name = name.contents(self.db).clone();
-        let ty = self.unelab_expr(&ty.0);
-        let body = self.unelab_expr(&body.0);
-        surface::LetDef {
-            name,
-            ty: Some(ty),
-            body,
-        }
-    }
-
-    #[debug_ensures(self.local_names.len() == old(self.local_names.len()))]
     pub fn unelab_expr(&mut self, expr: &Expr) -> surface::Expr<()> {
         match expr {
             Expr::Error => surface::Expr::Error(()),
@@ -207,5 +180,35 @@ impl<'a> UnelabCtx<'a> {
     fn gen_name(&mut self, count: u32) -> String {
         // FIXME: something nicer?
         format!("${count}")
+    }
+}
+
+pub fn unelab_module(db: &dyn crate::Db, module: &Module) -> surface::Module<()> {
+    let Module { items } = module;
+    let items = items.iter().map(|item| unelab_item(db, item)).collect();
+    surface::Module { items }
+}
+
+pub fn unelab_item(db: &dyn crate::Db, item: &Item) -> surface::Item<()> {
+    match item {
+        Item::Let(let_def) => surface::Item::Let(unelab_let_def(db, let_def)),
+    }
+}
+
+pub fn unelab_let_def(db: &dyn crate::Db, let_def: &LetDef) -> surface::LetDef<()> {
+    let mut local_names = UniqueEnv::new();
+    let meta_names = UniqueEnv::new();
+    let mut name_source = NameSource::new(0);
+    let mut ctx = UnelabCtx::new(&mut local_names, &meta_names, &mut name_source, db);
+
+    let LetDef { name, body, ty, .. } = let_def;
+
+    let name = name.contents(db).clone();
+    let ty = ctx.unelab_expr(&ty.0);
+    let body = ctx.unelab_expr(&body.0);
+    surface::LetDef {
+        name,
+        ty: Some(ty),
+        body,
     }
 }
