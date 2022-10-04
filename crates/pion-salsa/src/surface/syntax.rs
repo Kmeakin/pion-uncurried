@@ -37,7 +37,6 @@ pub struct EnumVariant<Span> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Expr<Span> {
     Error(Span),
-    Paren(Span, Arc<Self>),
     Lit(Span, Lit),
     Name(Span, String),
     FunType(Span, Vec<AnnPat<Span>>, Arc<Self>),
@@ -54,7 +53,6 @@ impl<Span> Expr<Span> {
     {
         match self {
             Self::Error(span, ..)
-            | Self::Paren(span, ..)
             | Self::Lit(span, ..)
             | Self::Name(span, ..)
             | Self::FunType(span, ..)
@@ -70,7 +68,6 @@ impl<Span> Expr<Span> {
 pub enum Pat<Span> {
     Error(Span),
     Wildcard(Span),
-    Paren(Span, Arc<Self>),
     Lit(Span, Lit),
     Name(Span, String),
 }
@@ -83,7 +80,6 @@ impl<Span> Pat<Span> {
         match self {
             Pat::Error(span, ..)
             | Pat::Wildcard(span, ..)
-            | Pat::Paren(span, ..)
             | Pat::Lit(span, ..)
             | Pat::Name(span, ..) => span.clone(),
         }

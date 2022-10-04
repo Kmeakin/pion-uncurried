@@ -54,7 +54,7 @@ impl<'env> EvalCtx<'env> {
                 }
                 head
             }
-            Expr::EnumType(id) => todo!(),
+            Expr::EnumType(_) => todo!(),
             Expr::FunType(names, args, ret) => Rc::new(Value::FunType(
                 names.clone(),
                 FunClosure::new(self.local_values.clone(), args.clone(), ret.clone()),

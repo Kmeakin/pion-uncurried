@@ -148,12 +148,12 @@ impl<'env> ElimCtx<'env> {
                     env.push(scrut);
                     return self.eval_ctx(&mut env).eval_expr(expr);
                 }
-                (Pat::Lit(lit1), scrut) => match scrut.as_ref() {
-                    Value::Lit(lit2) if lit1 == lit2 => {
-                        return self.eval_ctx(&mut env).eval_expr(expr);
-                    }
-                    _ => continue,
-                },
+                (Pat::Lit(lit1), scrut) if scrut.as_ref() == &Value::Lit(lit1.clone()) => {
+                    env.push(scrut);
+                    return self.eval_ctx(&mut env).eval_expr(expr);
+                }
+
+                (Pat::Lit(_), _) => continue,
             }
         }
 

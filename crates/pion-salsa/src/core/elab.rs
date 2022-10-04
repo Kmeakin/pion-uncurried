@@ -100,12 +100,9 @@ impl<'db> ElabCtx<'db> {
 }
 
 #[salsa::tracked]
-pub fn elab_let_def(
-    db: &dyn crate::Db,
-    def: ir::LetDef,
-) -> (Expr, Expr, Vec<Diagnostic<InputFile>>) {
-    let file = def.file(db);
-    let surface = def.surface(db);
+pub fn elab_let_def(db: &dyn crate::Db, let_def: ir::LetDef) -> LetDef {
+    let file = let_def.file(db);
+    let surface = let_def.surface(db);
     let type_expr = &surface.ty;
     let body_expr = &surface.expr;
 
@@ -124,9 +121,13 @@ pub fn elab_let_def(
             let forced_type_value = ctx.elim_ctx().force_value(&type_value);
             let forced_type_expr = ctx.quote_ctx().quote_value(&forced_type_value);
 
-            let errors = ctx.finish();
+            let diagnostics = ctx.finish();
 
-            (forced_body_expr, forced_type_expr, errors)
+            LetDef {
+                body: (forced_body_expr, forced_body_value),
+                ty: (forced_type_expr, forced_type_value),
+                diagnostics,
+            }
         }
         None => {
             let SynthExpr(body_core, body_type) = ctx.synth_expr(body_expr);
@@ -138,9 +139,13 @@ pub fn elab_let_def(
             let forced_type_value = ctx.elim_ctx().force_value(&body_type);
             let forced_type_expr = ctx.quote_ctx().quote_value(&forced_type_value);
 
-            let errors = ctx.finish();
+            let diagnostics = ctx.finish();
 
-            (forced_body_expr, forced_type_expr, errors)
+            LetDef {
+                body: (forced_body_expr, forced_body_value),
+                ty: (forced_type_expr, forced_type_value),
+                diagnostics,
+            }
         }
     }
 }
@@ -198,7 +203,6 @@ impl ElabCtx<'_> {
         let file = self.file;
         match expr {
             surface::Expr::Error(_) => self.synth_error_expr(),
-            surface::Expr::Paren(_, expr) => self.synth_expr(expr),
             surface::Expr::Lit(_, lit) => {
                 let (lit, ty) = self.synth_lit(lit);
                 SynthExpr(Expr::Lit(lit), ty)
@@ -434,7 +438,7 @@ impl ElabCtx<'_> {
     ) -> CheckExpr {
         // TODO: check for exhaustivity and report unreachable patterns
 
-        // FIXME: update `expected` with defintions introduced by `check_match_pat`
+        // FIXME: update `expected` with defintions introduced by `check_pat`
         // without having to quote `expected` back to `Expr`
 
         let SynthExpr(scrut_core, scrut_type) = self.synth_expr(scrut);
@@ -478,7 +482,6 @@ impl ElabCtx<'_> {
         };
 
         match pat {
-            surface::Pat::Paren(_, pat) => self.synth_pat(pat),
             surface::Pat::Error(_) => SynthPat(Pat::Name(VarName::Underscore), meta()),
             surface::Pat::Wildcard(_) => SynthPat(Pat::Name(VarName::Underscore), meta()),
             surface::Pat::Name(_, name) => {
@@ -496,7 +499,6 @@ impl ElabCtx<'_> {
     fn check_pat(&mut self, pat: &surface::Pat<Span>, expected: &Arc<Value>) -> CheckPat {
         let expected = self.elim_ctx().force_value(expected);
         match pat {
-            surface::Pat::Paren(_, pat) => self.check_pat(pat, &expected),
             surface::Pat::Error(_) => CheckPat(Pat::Name(VarName::Underscore)),
             surface::Pat::Wildcard(_) => CheckPat(Pat::Name(VarName::Underscore)),
             surface::Pat::Name(_, name) => {

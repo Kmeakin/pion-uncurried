@@ -10,7 +10,7 @@ pub struct QuoteCtx<'env> {
     local_values: EnvLen,
     item_values: &'env UniqueEnv<Rc<Value>>,
     meta_values: &'env UniqueEnv<Option<Rc<Value>>>,
-    name_source: &'env mut NameSource,
+    _name_source: &'env mut NameSource,
 }
 
 impl<'env> QuoteCtx<'env> {
@@ -18,13 +18,13 @@ impl<'env> QuoteCtx<'env> {
         local_values: EnvLen,
         item_values: &'env UniqueEnv<Rc<Value>>,
         meta_values: &'env UniqueEnv<Option<Rc<Value>>>,
-        name_source: &'env mut NameSource,
+        _name_source: &'env mut NameSource,
     ) -> Self {
         Self {
             local_values,
             item_values,
             meta_values,
-            name_source,
+            _name_source,
         }
     }
 
