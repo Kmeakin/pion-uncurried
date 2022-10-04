@@ -47,6 +47,10 @@ impl<'a> UnelabCtx<'a> {
                 };
                 surface::Expr::Name((), name)
             }
+            Expr::LetDef(def) => {
+                let def = crate::core::elab::elab_let_def(self.db, *def);
+                self.unelab_expr(&def.body.0)
+            }
             Expr::Meta(level) => {
                 let name = match self.meta_names.get(*level) {
                     Some(VarName::User(name)) => name.contents(self.db).clone(),

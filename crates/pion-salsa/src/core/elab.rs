@@ -174,13 +174,13 @@ pub fn elab_let_def(db: &dyn crate::Db, let_def: ir::LetDef) -> LetDef {
 
 impl ElabCtx<'_> {
     pub fn eval_ctx(&mut self) -> EvalCtx {
-        EvalCtx::new(&mut self.local_env.values, &self.meta_env.values)
+        EvalCtx::new(&mut self.local_env.values, &self.meta_env.values, self.db)
     }
 
-    pub fn elim_ctx(&self) -> ElimCtx { ElimCtx::new(&self.meta_env.values) }
+    pub fn elim_ctx(&self) -> ElimCtx { ElimCtx::new(&self.meta_env.values, self.db) }
 
     pub fn quote_ctx(&mut self) -> QuoteCtx {
-        QuoteCtx::new(self.local_env.values.len(), &self.meta_env.values)
+        QuoteCtx::new(self.local_env.values.len(), &self.meta_env.values, self.db)
     }
 
     pub fn unify_ctx(&mut self) -> UnifyCtx {
@@ -188,6 +188,7 @@ impl ElabCtx<'_> {
             self.local_env.values.len(),
             &mut self.meta_env.values,
             &mut self.renaming,
+            self.db,
         )
     }
 
@@ -240,8 +241,19 @@ impl ElabCtx<'_> {
             }
             surface::Expr::Name(span, name) => {
                 let symbol = Symbol::intern(self.db, name);
+
                 if let Some((index, ty)) = self.local_env.lookup(symbol) {
                     return SynthExpr(Expr::Local(index), ty);
+                }
+
+                if let Some(item) = crate::ir::lookup_item(self.db, self.file, symbol) {
+                    match item {
+                        ir::Item::Enum(_) => todo!(),
+                        ir::Item::Let(def) => {
+                            let def_core = elab_let_def(self.db, def);
+                            return SynthExpr(Expr::LetDef(def), def_core.ty.1);
+                        }
+                    }
                 }
 
                 match name.as_str() {

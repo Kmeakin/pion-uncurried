@@ -10,6 +10,7 @@ pub struct UnifyCtx<'env> {
     local_env: EnvLen,
     meta_values: &'env mut UniqueEnv<Option<Arc<Value>>>,
     renaming: &'env mut PartialRenaming,
+    db: &'env dyn crate::Db,
 }
 
 impl<'env> UnifyCtx<'env> {
@@ -17,15 +18,17 @@ impl<'env> UnifyCtx<'env> {
         local_env: EnvLen,
         meta_values: &'env mut UniqueEnv<Option<Arc<Value>>>,
         renaming: &'env mut PartialRenaming,
+        db: &'env dyn crate::Db,
     ) -> Self {
         Self {
             local_env,
             meta_values,
             renaming,
+            db,
         }
     }
 
-    fn elim_ctx(&self) -> ElimCtx<'_> { ElimCtx::new(self.meta_values) }
+    fn elim_ctx(&self) -> ElimCtx<'_> { ElimCtx::new(self.meta_values, self.db) }
 
     #[debug_ensures(self.local_env == old(self.local_env))]
     pub fn unify_values(

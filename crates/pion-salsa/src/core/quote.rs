@@ -9,17 +9,23 @@ use super::syntax::*;
 pub struct QuoteCtx<'env> {
     local_env: EnvLen,
     meta_env: &'env UniqueEnv<Option<Arc<Value>>>,
+    db: &'env dyn crate::Db,
 }
 
 impl<'env> QuoteCtx<'env> {
-    pub fn new(local_env: EnvLen, meta_env: &'env UniqueEnv<Option<Arc<Value>>>) -> Self {
+    pub fn new(
+        local_env: EnvLen,
+        meta_env: &'env UniqueEnv<Option<Arc<Value>>>,
+        db: &'env dyn crate::Db,
+    ) -> Self {
         Self {
             local_env,
             meta_env,
+            db,
         }
     }
 
-    fn elim_ctx(&self) -> ElimCtx { ElimCtx::new(self.meta_env) }
+    fn elim_ctx(&self) -> ElimCtx { ElimCtx::new(self.meta_env, self.db) }
 
     #[debug_ensures(self.local_env == old(self.local_env))]
     pub fn quote_value(&mut self, value: &Arc<Value>) -> Expr {

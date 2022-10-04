@@ -5,6 +5,7 @@ use codespan_reporting::diagnostic::Diagnostic;
 use super::env::{LocalSource, SharedEnv, VarIndex, VarLevel};
 use crate::ir::input_file::InputFile;
 use crate::ir::symbol::Symbol;
+use crate::ir::syntax as ir;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Module {
@@ -30,6 +31,7 @@ pub enum Expr {
     Type,
     BoolType,
     Lit(Lit),
+    LetDef(ir::LetDef),
     Local(VarIndex),
     Meta(VarLevel),
     MetaInsertion(VarLevel, SharedEnv<LocalSource>),

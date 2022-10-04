@@ -8,20 +8,23 @@ use super::syntax::*;
 pub struct EvalCtx<'env> {
     local_env: &'env mut SharedEnv<Arc<Value>>,
     meta_env: &'env UniqueEnv<Option<Arc<Value>>>,
+    db: &'env dyn crate::Db,
 }
 
 impl<'env> EvalCtx<'env> {
     pub fn new(
         local_env: &'env mut SharedEnv<Arc<Value>>,
         meta_env: &'env UniqueEnv<Option<Arc<Value>>>,
+        db: &'env dyn crate::Db,
     ) -> Self {
         Self {
             local_env,
             meta_env,
+            db,
         }
     }
 
-    fn elim_ctx(&self) -> ElimCtx { ElimCtx::new(self.meta_env) }
+    fn elim_ctx(&self) -> ElimCtx { ElimCtx::new(self.meta_env, self.db) }
 
     #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
     pub fn eval_expr(&mut self, expr: &Expr) -> Arc<Value> {
@@ -30,6 +33,10 @@ impl<'env> EvalCtx<'env> {
             Expr::Type => Arc::new(Value::Type),
             Expr::BoolType => Arc::new(Value::BoolType),
             Expr::Lit(lit) => Arc::new(Value::Lit(lit.clone())),
+            Expr::LetDef(def) => {
+                let def = crate::core::elab::elab_let_def(self.db, *def);
+                def.body.1
+            }
             Expr::Local(index) => match self.local_env.get(*index) {
                 Some(value) => value.clone(),
                 None => unreachable!("Unbound local variable: {index:?}"),
@@ -84,13 +91,16 @@ impl<'env> EvalCtx<'env> {
 
 pub struct ElimCtx<'env> {
     meta_env: &'env UniqueEnv<Option<Arc<Value>>>,
+    db: &'env dyn crate::Db,
 }
 
 impl<'env> ElimCtx<'env> {
-    pub fn new(meta_env: &'env UniqueEnv<Option<Arc<Value>>>) -> Self { Self { meta_env } }
+    pub fn new(meta_env: &'env UniqueEnv<Option<Arc<Value>>>, db: &'env dyn crate::Db) -> Self {
+        Self { meta_env, db }
+    }
 
     pub fn eval_ctx(&self, local_values: &'env mut SharedEnv<Arc<Value>>) -> EvalCtx<'env> {
-        EvalCtx::new(local_values, self.meta_env)
+        EvalCtx::new(local_values, self.meta_env, self.db)
     }
 
     pub fn force_value(&self, value: &Arc<Value>) -> Arc<Value> {

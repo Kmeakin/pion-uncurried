@@ -10,22 +10,35 @@ pub mod symbol;
 pub mod syntax;
 
 #[salsa::tracked]
-pub fn lower_file(db: &dyn crate::Db, input_file: InputFile) -> Module {
-    let (module, errors) = parse_input_file(db, input_file);
+pub fn lower_file(db: &dyn crate::Db, file: InputFile) -> Module {
+    let (module, errors) = parse_input_file(db, file);
     let items = module
         .items
         .iter()
         .map(|item| match item {
             surface::syntax::Item::Let(surface) => {
                 let name = Symbol::new(db, surface.name.clone());
-                Item::Let(LetDef::new(db, name, input_file, surface.clone()))
+                Item::Let(LetDef::new(db, name, file, surface.clone()))
             }
             surface::syntax::Item::Enum(surface) => {
                 let name = Symbol::new(db, surface.name.clone());
-                Item::Enum(EnumDef::new(db, name, input_file, surface.clone()))
+                Item::Enum(EnumDef::new(db, name, file, surface.clone()))
             }
         })
         .collect();
     assert_eq!(errors, &[]);
     Module::new(db, items)
+}
+
+pub fn lookup_item(db: &dyn crate::Db, file: InputFile, name: Symbol) -> Option<Item> {
+    let module = lower_file(db, file);
+    let items = module.items(db);
+    for item in items {
+        match item {
+            crate::ir::Item::Enum(_) => todo!(),
+            crate::ir::Item::Let(def) if def.name(db) == name => return Some(item),
+            _ => {}
+        }
+    }
+    None
 }
