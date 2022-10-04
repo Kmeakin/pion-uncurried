@@ -7,6 +7,7 @@ use super::env::{LocalEnv, MetaEnv, MetaSource, NameSource};
 use super::eval::{ElimCtx, EvalCtx};
 use super::quote::QuoteCtx;
 use super::syntax::*;
+use super::unelab::UnelabCtx;
 use super::unify::{PartialRenaming, RenameError, SpineError, UnifyCtx, UnifyError};
 use crate::ir::input_file::InputFile;
 use crate::ir::span::Span;
@@ -49,6 +50,8 @@ impl<'db> ElabCtx<'db> {
                 let (span, name) = match it {
                     (Some(_), _) => return None,
                     (None, MetaSource::Error) => return None,
+                    (None, MetaSource::HoleType(span)) => (*span, "type of hole"),
+                    (None, MetaSource::HoleExpr(span)) => (*span, "expr of hole"),
                     (None, MetaSource::PatType(span)) => (*span, "type of pattern"),
                     (None, MetaSource::MatchType(span)) => (*span, "type of `match` expression"),
                 };
@@ -169,6 +172,15 @@ impl ElabCtx<'_> {
         )
     }
 
+    pub fn unelab_ctx(&mut self) -> UnelabCtx<'_> {
+        UnelabCtx::new(
+            &mut self.local_env.names,
+            &self.meta_env.names,
+            &mut self.name_source,
+            self.db,
+        )
+    }
+
     fn push_meta_expr(&mut self, name: VarName, source: MetaSource, ty: Arc<Value>) -> Expr {
         let var = self.meta_env.push(name, source, ty);
         Expr::MetaInsertion(var, self.local_env.sources.clone())
@@ -185,9 +197,9 @@ pub struct SynthExpr(Expr, Arc<Value>);
 pub struct CheckExpr(Expr);
 
 impl ElabCtx<'_> {
-    fn synth_lit(&mut self, lit: &surface::Lit) -> (Lit, Arc<Value>) {
+    fn synth_lit(&mut self, lit: &surface::Lit<Span>) -> (Lit, Arc<Value>) {
         match lit {
-            surface::Lit::Bool(b) => (Lit::Bool(*b), Arc::new(Value::BoolType)),
+            surface::Lit::Bool(_, b) => (Lit::Bool(*b), Arc::new(Value::BoolType)),
         }
     }
 
@@ -226,6 +238,18 @@ impl ElabCtx<'_> {
                 );
 
                 self.synth_error_expr()
+            }
+            surface::Expr::Hole(span, hole) => {
+                let expr_name = match hole {
+                    surface::Hole::Underscore => self.name_source.fresh(),
+                    surface::Hole::Name(name) => VarName::User(Symbol::new(self.db, name.clone())),
+                };
+                let type_name = self.name_source.fresh();
+                let type_source = MetaSource::HoleType(*span);
+                let expr_source = MetaSource::HoleExpr(*span);
+                let ty = self.push_meta_value(expr_name, type_source, Arc::new(Value::Type));
+                let expr = self.push_meta_expr(type_name, expr_source, ty.clone());
+                SynthExpr(expr, ty)
             }
             surface::Expr::FunType(_, pats, ret) => {
                 let initial_len = self.local_env.len();
@@ -311,10 +335,10 @@ impl ElabCtx<'_> {
                 let mut arg_values = Vec::with_capacity(args.len());
                 let mut args = args.iter();
 
-                while let Some((arg, (FunArg { pat, ty: expected }, cont))) =
+                while let Some((arg, (FunArg { ty, .. }, cont))) =
                     Option::zip(args.next(), self.elim_ctx().split_fun_closure(closure))
                 {
-                    let CheckExpr(arg_core) = self.check_expr(arg, &expected);
+                    let CheckExpr(arg_core) = self.check_expr(arg, &ty);
                     let arg_value = self.eval_ctx().eval_expr(&arg_core);
                     closure = cont(arg_value.clone());
                     arg_cores.push(arg_core);

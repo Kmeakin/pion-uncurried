@@ -7,10 +7,10 @@ use crate::ir::span::Span;
 use crate::ir::symbol::Symbol;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct VarIndex(usize);
+pub struct VarIndex(pub usize);
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct VarLevel(usize);
+pub struct VarLevel(pub usize);
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub struct EnvLen(pub usize);
@@ -276,6 +276,8 @@ pub enum LocalSource {
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum MetaSource {
     Error,
+    HoleType(Span),
+    HoleExpr(Span),
     PatType(Span),
     MatchType(Span),
 }

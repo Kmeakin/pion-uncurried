@@ -82,8 +82,8 @@ AnnPat: AnnPat<Span> = {
     <pat: Pat> <ty: (":" <Expr>)?> => AnnPat {pat, ty},
 }
 
-pub Lit: Lit = {
-    <b: Bool> => Lit::Bool(b),
+pub Lit: Lit<Span> = {
+    <start: @L> <b: Bool> <end: @R> => Lit::Bool(Span::new(start, end), b),
 }
 
 Bool: bool = {

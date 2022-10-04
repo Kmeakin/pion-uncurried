@@ -37,13 +37,20 @@ pub struct EnumVariant<Span> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Expr<Span> {
     Error(Span),
-    Lit(Span, Lit),
+    Lit(Span, Lit<Span>),
     Name(Span, String),
+    Hole(Span, Hole),
     FunType(Span, Vec<AnnPat<Span>>, Arc<Self>),
     FunExpr(Span, Vec<AnnPat<Span>>, Arc<Self>),
     FunCall(Span, Arc<Self>, Vec<Self>),
     Let(Span, Arc<AnnPat<Span>>, Arc<Self>, Arc<Self>),
     Match(Span, Arc<Self>, Vec<(Pat<Span>, Self)>),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Hole {
+    Underscore,
+    Name(String),
 }
 
 impl<Span> Expr<Span> {
@@ -55,6 +62,7 @@ impl<Span> Expr<Span> {
             Self::Error(span, ..)
             | Self::Lit(span, ..)
             | Self::Name(span, ..)
+            | Self::Hole(span, ..)
             | Self::FunType(span, ..)
             | Self::FunExpr(span, ..)
             | Self::FunCall(span, ..)
@@ -68,7 +76,7 @@ impl<Span> Expr<Span> {
 pub enum Pat<Span> {
     Error(Span),
     Wildcard(Span),
-    Lit(Span, Lit),
+    Lit(Span, Lit<Span>),
     Name(Span, String),
 }
 
@@ -93,6 +101,6 @@ pub struct AnnPat<Span> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Lit {
-    Bool(bool),
+pub enum Lit<Span> {
+    Bool(Span, bool),
 }
