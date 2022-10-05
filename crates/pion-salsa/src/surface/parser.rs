@@ -16,11 +16,8 @@ lalrpop_mod!(
 );
 
 #[salsa::tracked(return_ref)]
-pub fn parse_input_file(
-    db: &dyn crate::Db,
-    input_file: InputFile,
-) -> (Module<Span>, Vec<ParseError>) {
-    let contents = input_file.contents(db);
+pub fn parse_input_file(db: &dyn crate::Db, file: InputFile) -> Module<Span> {
+    let contents = file.contents(db);
     let (tokens, errors) = lexer::lex(contents);
     let mut errors: Vec<ParseError> = errors
         .iter()
@@ -35,5 +32,9 @@ pub fn parse_input_file(
         }
     };
 
-    (module, errors)
+    for error in errors {
+        error.to_diagnostic(file).emit(db);
+    }
+
+    module
 }

@@ -12,7 +12,7 @@ pub mod syntax;
 
 #[salsa::tracked]
 pub fn lower_file(db: &dyn crate::Db, file: InputFile) -> Module {
-    let (module, errors) = parse_input_file(db, file);
+    let module = parse_input_file(db, file);
     let items = module
         .items
         .iter()
@@ -27,7 +27,6 @@ pub fn lower_file(db: &dyn crate::Db, file: InputFile) -> Module {
             }
         })
         .collect();
-    assert_eq!(errors, &[]);
     Module::new(db, items)
 }
 
