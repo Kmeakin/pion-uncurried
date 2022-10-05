@@ -150,10 +150,13 @@ pub fn elab_module(db: &dyn crate::Db, module: ir::Module) -> Module {
     let items = items
         .iter()
         .map(|item| match item {
-            ir::Item::Enum(_) => todo!(),
             ir::Item::Let(let_def) => {
                 let let_def = elab_let_def(db, *let_def);
                 Item::Let(let_def)
+            }
+            ir::Item::Enum(enum_def) => {
+                let enum_def = elab_enum_def(db, *enum_def);
+                Item::Enum(enum_def)
             }
         })
         .collect();
@@ -199,6 +202,81 @@ pub fn elab_let_def(db: &dyn crate::Db, let_def: ir::LetDef) -> LetDef {
         name,
         body: (forced_body_expr, forced_body_value),
         ty: (forced_type_expr, forced_type_value),
+    }
+}
+
+#[salsa::tracked]
+pub fn elab_enum_def(db: &dyn crate::Db, enum_def: ir::EnumDef) -> EnumDef {
+    let file = enum_def.file(db);
+    let surface::EnumDef {
+        name,
+        args,
+        ty,
+        variants,
+    } = enum_def.surface(db);
+
+    let mut ctx = ElabCtx::new(db, file);
+
+    let name = Symbol::new(db, name.to_owned());
+    let args = args
+        .iter()
+        .map(|pat| {
+            let SynthPat(pat_core, type_value) = ctx.synth_ann_pat(pat);
+            let type_core = ctx.quote_ctx().quote_value(&type_value);
+            ctx.subst_pat(&pat_core, type_value.clone(), None);
+            FunArg {
+                pat: pat_core,
+                ty: (type_core, type_value),
+            }
+        })
+        .collect();
+    let (type_core, type_value) = match &ty {
+        Some(ty) => {
+            let CheckExpr(type_core) = ctx.check_expr_is_type(&ty);
+            let type_value = ctx.eval_ctx().eval_expr(&type_core);
+            let expected = Arc::new(Value::Type);
+            if let Err(error) = ctx.unify_ctx().unify_values(&type_value, &expected) {
+                ctx.report_type_mismatch(ty.span(), &expected, &type_value, error);
+            }
+            (type_core, type_value)
+        }
+        None => (Expr::Type, Arc::new(Value::Type)),
+    };
+
+    let variants = variants
+        .iter()
+        .map(|variant| {
+            let initial_len = ctx.local_env.len();
+            let surface::EnumVariant { name, args, ty } = variant;
+            let name = Symbol::new(db, name.to_owned());
+            let args = args
+                .iter()
+                .map(|arg| {
+                    let SynthPat(pat_core, type_value) = ctx.synth_ann_pat(arg);
+                    let type_core = ctx.quote_ctx().quote_value(&type_value);
+                    ctx.subst_pat(&pat_core, type_value.clone(), None);
+                    FunArg {
+                        pat: pat_core,
+                        ty: (type_core, type_value),
+                    }
+                })
+                .collect();
+            let ty = match ty {
+                Some(_) => todo!(),
+                None => (Expr::Error, Arc::new(Value::Error)),
+            };
+            ctx.local_env.truncate(initial_len);
+            EnumVariant { name, args, ty }
+        })
+        .collect();
+
+    ctx.finish();
+
+    EnumDef {
+        name,
+        args,
+        ty: (type_core, type_value),
+        variants,
     }
 }
 

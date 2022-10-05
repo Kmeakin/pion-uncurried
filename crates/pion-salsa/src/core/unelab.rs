@@ -196,6 +196,7 @@ pub fn unelab_module(db: &dyn crate::Db, module: &Module) -> surface::Module<()>
 pub fn unelab_item(db: &dyn crate::Db, item: &Item) -> surface::Item<()> {
     match item {
         Item::Let(let_def) => surface::Item::Let(unelab_let_def(db, let_def)),
+        Item::Enum(enum_def) => surface::Item::Enum(unelab_enum_def(db, enum_def)),
     }
 }
 
@@ -214,5 +215,70 @@ pub fn unelab_let_def(db: &dyn crate::Db, let_def: &LetDef) -> surface::LetDef<(
         name,
         ty: Some(ty),
         body,
+    }
+}
+
+pub fn unelab_enum_def(db: &dyn crate::Db, enum_def: &EnumDef) -> surface::EnumDef<()> {
+    let mut local_names = UniqueEnv::new();
+    let meta_names = UniqueEnv::new();
+    let mut name_source = NameSource::new(0);
+    let mut ctx = UnelabCtx::new(&mut local_names, &meta_names, &mut name_source, db);
+
+    let EnumDef {
+        name,
+        args,
+        ty,
+        variants,
+    } = enum_def;
+
+    let name = name.contents(db).clone();
+
+    let args = args
+        .iter()
+        .map(|FunArg { pat, ty }| {
+            let pat_surface = ctx.unelab_pat(pat);
+            let type_surface = ctx.unelab_expr(&ty.0);
+            ctx.subst_pat(pat);
+            surface::AnnPat {
+                pat: pat_surface,
+                ty: Some(type_surface),
+            }
+        })
+        .collect();
+
+    let ty = ctx.unelab_expr(&ty.0);
+
+    let variants = variants
+        .iter()
+        .map(|EnumVariant { name, args, ty }| {
+            let initial_len = ctx.local_names.len();
+            let name = name.contents(db).to_owned();
+            let args = args
+                .iter()
+                .map(|FunArg { pat, ty }| {
+                    let pat_surface = ctx.unelab_pat(pat);
+                    let type_surface = ctx.unelab_expr(&ty.0);
+                    ctx.subst_pat(pat);
+                    surface::AnnPat {
+                        pat: pat_surface,
+                        ty: Some(type_surface),
+                    }
+                })
+                .collect();
+            let ty = ctx.unelab_expr(&ty.0);
+            ctx.local_names.truncate(initial_len);
+            surface::EnumVariant {
+                name,
+                args,
+                ty: Some(ty),
+            }
+        })
+        .collect();
+
+    surface::EnumDef {
+        name,
+        args,
+        ty: Some(ty),
+        variants,
     }
 }

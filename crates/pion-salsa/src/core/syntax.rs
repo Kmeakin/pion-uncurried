@@ -12,12 +12,28 @@ pub struct Module {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Item {
     Let(LetDef),
+    Enum(EnumDef),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LetDef {
     pub name: Symbol,
     pub body: (Expr, Arc<Value>),
+    pub ty: (Expr, Arc<Value>),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EnumDef {
+    pub name: Symbol,
+    pub args: Vec<FunArg<(Expr, Arc<Value>)>>,
+    pub ty: (Expr, Arc<Value>),
+    pub variants: Vec<EnumVariant>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EnumVariant {
+    pub name: Symbol,
+    pub args: Vec<FunArg<(Expr, Arc<Value>)>>,
     pub ty: (Expr, Arc<Value>),
 }
 
