@@ -8,3 +8,10 @@ pub struct FileSpan {
     pub file: InputFile,
     pub span: Span,
 }
+
+impl ariadne::Span for FileSpan {
+    type SourceId = InputFile;
+    fn source(&self) -> &Self::SourceId { &self.file }
+    fn start(&self) -> usize { self.span.start().into() }
+    fn end(&self) -> usize { self.span.start().into() }
+}

@@ -70,7 +70,8 @@ impl<'db> ElabCtx<'db> {
         let actual = self.pretty_value(actual);
         let filespan = span.into_file_span(self.file);
         let builder = crate::error!(filespan, "Type mismatch")
-            .with_secondary_label(filespan, format!("Help: expected {expected}, got {actual}"));
+            .skip_primary_label()
+            .with_secondary_label(span, format!("Help: expected {expected}, got {actual}"));
         let builder =
             match error {
                 UnifyError::Mismatch => builder,

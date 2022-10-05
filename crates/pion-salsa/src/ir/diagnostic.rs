@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use super::input_file::InputFile;
 use super::span::{FileSpan, Span};
 
@@ -10,7 +12,7 @@ pub struct ErrorReported;
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct Diagnostic {
     pub severity: Severity,
-    pub span: FileSpan,
+    pub file_span: FileSpan,
     pub message: String,
     pub labels: Vec<Label>,
     pub children: Vec<Diagnostic>,
@@ -177,7 +179,7 @@ impl DiagnosticBuilder {
 
         Diagnostic {
             severity: self.severity,
-            span: self.span,
+            file_span: self.span,
             message: self.message,
             labels: self.labels,
             children: self.children,
@@ -202,5 +204,36 @@ impl IntoFileSpan for Span {
             file: default_file,
             span: self,
         }
+    }
+}
+
+pub struct SourceCache<'db> {
+    db: &'db dyn crate::Db,
+    map: HashMap<InputFile, ariadne::Source>, // TODO: more efficient data structure
+}
+
+impl<'db> SourceCache<'db> {
+    pub fn new(db: &'db dyn crate::Db) -> Self {
+        Self {
+            db,
+            map: HashMap::new(),
+        }
+    }
+}
+
+impl<'db> ariadne::Cache<InputFile> for SourceCache<'db> {
+    fn fetch(
+        &mut self,
+        file: &InputFile,
+    ) -> Result<&ariadne::Source, Box<dyn std::fmt::Debug + '_>> {
+        Ok(self.map.entry(*file).or_insert_with(|| {
+            let source_text = file.contents(self.db);
+            ariadne::Source::from(source_text)
+        }))
+    }
+
+    fn display<'a>(&self, file: &'a InputFile) -> Option<Box<dyn std::fmt::Display + 'a>> {
+        let s = file.name(self.db).as_str(self.db).to_string();
+        Some(Box::new(s))
     }
 }
