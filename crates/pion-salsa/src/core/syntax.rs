@@ -82,7 +82,7 @@ pub enum Value {
 impl Value {
     pub fn local(level: VarLevel) -> Self { Self::Stuck(Head::Local(level), Vec::new()) }
     pub fn meta(level: VarLevel) -> Self { Self::Stuck(Head::Meta(level), Vec::new()) }
-    pub fn enum_def(enum_def: ir::EnumDef) -> Value {
+    pub fn enum_def(enum_def: ir::EnumDef) -> Self {
         Self::Stuck(Head::EnumDef(enum_def), Vec::new())
     }
 }

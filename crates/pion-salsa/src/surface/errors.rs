@@ -56,7 +56,7 @@ impl<'src> From<LalrpopRecovery<'src>> for ParseError {
 impl ParseError {
     pub fn to_diagnostic(self, file: InputFile) -> Diagnostic {
         match self {
-            ParseError::Lexer(error) => match error {
+            Self::Lexer(error) => match error {
                 LexError::TooLong(len) => crate::error!(
                     Span::default().into_file_span(file),
                     "Parse error: input is too long"
@@ -73,15 +73,15 @@ impl ParseError {
                     crate::error!(span.into_file_span(file), "Unclosed block comment")
                 }
             },
-            ParseError::InvalidToken(span) => {
+            Self::InvalidToken(span) => {
                 crate::error!(span.into_file_span(file), "Parse error: invalid token")
             }
-            ParseError::UnrecognizedEOF(span, expected) => crate::error!(
+            Self::UnrecognizedEOF(span, expected) => crate::error!(
                 span.into_file_span(file),
                 "Parse error: unexpected end of input"
             )
             .with_primary_label(format!("Help: expected on of {}", expected.join(", "))),
-            ParseError::UnrecognizedToken(span, unexpected, expected) => {
+            Self::UnrecognizedToken(span, unexpected, expected) => {
                 crate::error!(span.into_file_span(file), "Parse error: unexpected token")
                     .with_primary_label(format!(
                         "Help: got {}, expected one of {}",
@@ -89,7 +89,7 @@ impl ParseError {
                         expected.join(", ")
                     ))
             }
-            ParseError::ExtraToken(span, unexpected) => {
+            Self::ExtraToken(span, unexpected) => {
                 crate::error!(span.into_file_span(file), "Parse error: unexpected token")
                     .with_primary_label(format!("Help: got {}", unexpected,))
             }

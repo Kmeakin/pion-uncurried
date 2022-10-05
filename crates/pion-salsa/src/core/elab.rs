@@ -250,13 +250,13 @@ impl ElabCtx<'_> {
                 let CheckExpr(type_core) = self.check_expr_is_type(ty);
                 let type_value = self.eval_ctx().eval_expr(&type_core);
 
-                let CheckExpr(body_core) = self.check_expr(&body, &type_value);
+                let CheckExpr(body_core) = self.check_expr(body, &type_value);
                 let body_value = self.eval_ctx().eval_expr(&body_core);
 
                 (body_value, type_value)
             }
             None => {
-                let SynthExpr(body_core, body_type) = self.synth_expr(&body);
+                let SynthExpr(body_core, body_type) = self.synth_expr(body);
                 let body_value = self.eval_ctx().eval_expr(&body_core);
                 (body_value, body_type)
             }
