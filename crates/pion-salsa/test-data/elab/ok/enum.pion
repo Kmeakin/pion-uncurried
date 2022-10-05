@@ -8,4 +8,7 @@ enum Either(A: Type, B: Type) {
     Right(y: B),
 }
 
-let x = Either(Bool, Type);
+enum Result(T: Type, E: Type) {
+    Ok(t: T): Result(T, E),
+    Err(e: E): Result(T, E),
+}

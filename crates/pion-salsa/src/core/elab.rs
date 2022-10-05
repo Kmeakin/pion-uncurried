@@ -3,7 +3,7 @@ use std::sync::Arc;
 use contracts::debug_ensures;
 use text_size::TextRange;
 
-use super::env::{LocalEnv, MetaEnv, MetaSource, NameSource, SharedEnv, VarIndex};
+use super::env::{LocalEnv, MetaEnv, MetaSource, NameSource, SharedEnv};
 use super::eval::{ElimCtx, EvalCtx};
 use super::quote::QuoteCtx;
 use super::syntax::*;
@@ -298,24 +298,23 @@ impl ElabCtx<'_> {
                 let SynthPat(pat_core, type_value) = self.synth_ann_pat(pat);
                 let type_core = self.quote_ctx().quote_value(&type_value);
                 self_args.push(Arc::new(Value::local(self.local_env.len().to_level())));
-                self.subst_pat(&pat_core, type_value.clone(), None);
+                self.subst_pat(&pat_core, type_value, None);
                 FunArg {
                     pat: pat_core,
-                    ty: (type_core, type_value),
+                    ty: (type_core),
                 }
             })
             .collect();
 
-        let self_type_head = Head::EnumDef(enum_def);
-        let self_type_value = Value::Stuck(
-            self_type_head,
+        let self_type = Value::Stuck(
+            Head::EnumDef(enum_def),
             if args.len() == 0 {
                 vec![]
             } else {
                 vec![Elim::FunCall(self_args)]
             },
         );
-        let self_type_value = Arc::new(self_type_value);
+        let self_type = Arc::new(self_type);
 
         let ret_type = match ret_type {
             Some(ret_type) => {
@@ -325,20 +324,20 @@ impl ElabCtx<'_> {
                 match self.unify_ctx().unify_values(&ret_value, &expected) {
                     Ok(_) => {
                         let type_core = self.quote_ctx().quote_value(&ret_value);
-                        (type_core, ret_value)
+                        type_core
                     }
                     Err(error) => {
                         self.report_type_mismatch(ret_type.span(), &expected, &ret_value, error);
-                        (Expr::Error, Arc::new(Value::Error))
+                        Expr::Error
                     }
                 }
             }
-            None => (Expr::Type, Arc::new(Value::Type)),
+            None => Expr::Type,
         };
 
         let variants = variants
             .iter()
-            .map(|variant| self.elab_enum_variant(variant, self_type_value.clone()))
+            .map(|variant| self.elab_enum_variant(variant, self_type.clone()))
             .collect();
         self.local_env.truncate(initial_len);
 
@@ -368,10 +367,10 @@ impl ElabCtx<'_> {
             .map(|pat| {
                 let SynthPat(pat_core, type_value) = self.synth_ann_pat(pat);
                 let type_core = self.quote_ctx().quote_value(&type_value);
-                self.subst_pat(&pat_core, type_value.clone(), None);
+                self.subst_pat(&pat_core, type_value, None);
                 FunArg {
                     pat: pat_core,
-                    ty: (type_core, type_value),
+                    ty: (type_core),
                 }
             })
             .collect();
@@ -380,12 +379,9 @@ impl ElabCtx<'_> {
             Some(ty) => {
                 let CheckExpr(ret_core) = self.check_expr_is_type(ty);
                 let ret_value = self.eval_ctx().eval_expr(&ret_core);
-                (ret_core, ret_value)
+                self.quote_ctx().quote_value(&ret_value)
             }
-            None => {
-                let self_type_core = self.quote_ctx().quote_value(&self_type);
-                (self_type_core, self_type)
-            }
+            None => self.quote_ctx().quote_value(&self_type),
         };
         self.local_env.truncate(initial_len);
 
@@ -442,15 +438,8 @@ impl ElabCtx<'_> {
                         }
                         ir::Item::Enum(def) => {
                             let def_core = elab_enum_def(self.db, def);
-                            let args = def_core
-                                .args
-                                .iter()
-                                .map(|arg| FunArg {
-                                    pat: arg.pat.clone(),
-                                    ty: arg.ty.0.clone(),
-                                })
-                                .collect();
-                            let ret_type = def_core.ret_type.0;
+                            let args = def_core.args;
+                            let ret_type = def_core.ret_type;
                             let fun_type = Value::FunType(FunClosure::new(
                                 SharedEnv::new(),
                                 args,
