@@ -638,9 +638,10 @@ impl ElabCtx<'_> {
             Pat::Name(name) => {
                 self.local_env.push(*name, ty, value);
             }
-            Pat::Lit(_) => {
+            Pat::Lit(lit) => {
+                let pat_value = Arc::new(Value::Lit(lit.clone()));
                 let name = self.name_source.fresh();
-                self.local_env.push(name, ty, value);
+                self.local_env.push(name, ty, Some(pat_value));
             }
         }
     }
