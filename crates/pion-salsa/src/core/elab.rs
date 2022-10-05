@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use codespan_reporting::diagnostic::{Diagnostic, Label};
 use contracts::debug_ensures;
 
 use super::env::{LocalEnv, MetaEnv, MetaSource, NameSource};
@@ -9,6 +8,7 @@ use super::quote::QuoteCtx;
 use super::syntax::*;
 use super::unelab::UnelabCtx;
 use super::unify::{PartialRenaming, RenameError, SpineError, UnifyCtx, UnifyError};
+use crate::ir::diagnostic::IntoFileSpan;
 use crate::ir::input_file::InputFile;
 use crate::ir::span::Span;
 use crate::ir::symbol::Symbol;
@@ -16,12 +16,12 @@ use crate::ir::syntax as ir;
 use crate::surface::pretty::PrettyCtx;
 use crate::surface::syntax as surface;
 
+#[must_use = "Call `.finish()` to report unsolved metas"]
 pub struct ElabCtx<'db> {
     local_env: LocalEnv,
     meta_env: MetaEnv,
     renaming: PartialRenaming,
     name_source: NameSource,
-    diagnostics: Vec<Diagnostic<InputFile>>,
 
     db: &'db dyn crate::Db,
     file: InputFile,
@@ -34,36 +34,29 @@ impl<'db> ElabCtx<'db> {
             meta_env: MetaEnv::new(),
             renaming: PartialRenaming::default(),
             name_source: NameSource::default(),
-            diagnostics: Vec::new(),
 
             db,
             file,
         }
     }
 
-    pub fn finish(mut self) -> Vec<Diagnostic<InputFile>> {
-        let unsolved_metas = self
+    pub fn finish(self) {
+        for it in self
             .meta_env
             .values
             .iter()
             .zip(self.meta_env.sources.iter())
-            .filter_map(move |it| {
-                let (span, name) = match it {
-                    (Some(_), _) => return None,
-                    (None, MetaSource::Error) => return None,
-                    (None, MetaSource::HoleType(span)) => (*span, "type of hole"),
-                    (None, MetaSource::HoleExpr(span)) => (*span, "expr of hole"),
-                    (None, MetaSource::PatType(span)) => (*span, "type of pattern"),
-                    (None, MetaSource::MatchType(span)) => (*span, "type of `match` expression"),
-                };
-                Some(
-                    Diagnostic::error()
-                        .with_message(format!("Unable to infer {name}"))
-                        .with_labels(vec![Label::primary(self.file, span)]),
-                )
-            });
-        self.diagnostics.extend(unsolved_metas);
-        self.diagnostics
+        {
+            let (span, name) = match it {
+                (Some(_), _) => continue,
+                (None, MetaSource::Error) => continue,
+                (None, MetaSource::HoleType(span)) => (*span, "type of hole"),
+                (None, MetaSource::HoleExpr(span)) => (*span, "expr of hole"),
+                (None, MetaSource::PatType(span)) => (*span, "type of pattern"),
+                (None, MetaSource::MatchType(span)) => (*span, "type of `match` expression"),
+            };
+            crate::error!(span.into_file_span(self.file), "Unable to infer {name}").emit(self.db);
+        }
     }
 
     fn report_type_mismatch(
@@ -75,34 +68,78 @@ impl<'db> ElabCtx<'db> {
     ) {
         let expected = self.pretty_value(expected);
         let actual = self.pretty_value(actual);
-        let diag = match error {
-            UnifyError::Mismatch => Diagnostic::error()
-                .with_message("Type mismatch")
-                .with_labels(vec![Label::primary(self.file, span)]),
-            UnifyError::Spine(error) => match error {
-                SpineError::NonLinearSpine(_) => Diagnostic::error()
-                    .with_message(
-                        "Unification error: variable appeared more than once in problem spine",
-                    )
-                    .with_labels(vec![Label::primary(self.file, span)]),
-                SpineError::NonRigidSpine => Diagnostic::error()
-                    .with_message("Unification error: meta variable found in problem spine")
-                    .with_labels(vec![Label::primary(self.file, span)]),
-                SpineError::Match => Diagnostic::error()
-                    .with_message("Unification error: match-expression found in problem spine")
-                    .with_labels(vec![Label::primary(self.file, span)]),
-            },
-            UnifyError::Rename(error) => match error {
-                RenameError::EscapingLocalVar(_) => Diagnostic::error()
-                    .with_message("Unification error: local variable escapes solution")
-                    .with_labels(vec![Label::primary(self.file, span)]),
-                RenameError::InfiniteSolution => Diagnostic::error()
-                    .with_message("Unification error: attempted to construct infinite solution")
-                    .with_labels(vec![Label::primary(self.file, span)]),
-            },
-        }
-        .with_notes(vec![format!("Help: expected {expected}, got {actual}")]);
-        self.diagnostics.push(diag);
+        let filespan = span.into_file_span(self.file);
+        let builder = crate::error!(filespan, "Type mismatch")
+            .with_secondary_label(filespan, format!("Help: expected {expected}, got {actual}"));
+        let builder =
+            match error {
+                UnifyError::Mismatch => builder,
+                UnifyError::Spine(error) => match error {
+                    SpineError::NonLinearSpine(_) => builder.with_secondary_label(
+                        span,
+                        "variable appeared more than once in problem spine",
+                    ),
+                    SpineError::NonRigidSpine => {
+                        builder.with_secondary_label(span, "meta variable found in problem spine")
+                    }
+                    SpineError::Match => builder
+                        .with_secondary_label(span, "`match` expression found in problem spine"),
+                },
+                UnifyError::Rename(error) => match error {
+                    RenameError::EscapingLocalVar(_) => {
+                        builder.with_secondary_label(span, "local variable escapes solution")
+                    }
+                    RenameError::InfiniteSolution => builder
+                        .with_secondary_label(span, "attempted to construct infinite solution"),
+                },
+            };
+        builder.emit(self.db);
+    }
+
+    fn report_non_fun_call(&mut self, call_span: Span, fun_span: Span, fun_type: &Arc<Value>) {
+        let fun_span = fun_span.into_file_span(self.file);
+        let call_span = call_span.into_file_span(self.file);
+        let fun_type = self.pretty_value(fun_type);
+        crate::error!(call_span, "Called non-function expression")
+            .with_secondary_label(
+                fun_span,
+                format!("Help: type of this expression is `{fun_type}`"),
+            )
+            .emit(self.db);
+    }
+
+    fn report_arity_mismatch(
+        &mut self,
+        call_span: Span,
+        fun_span: Span,
+        actual_arity: usize,
+        expected_arity: usize,
+        fun_type: &Arc<Value>,
+    ) {
+        let fun_span = fun_span.into_file_span(self.file);
+        let call_span = call_span.into_file_span(self.file);
+        let fun_type = self.pretty_value(fun_type);
+        let few_or_many = if actual_arity < expected_arity {
+            "few"
+        } else {
+            "many"
+        };
+        crate::error!(
+            call_span,
+            "Called function with too {few_or_many} arguments"
+        )
+        .with_secondary_label(
+            fun_span,
+            format!(
+                "Help: this function expects {expected_arity} arguments but you gave it \
+                 {actual_arity} arguments"
+            ),
+        )
+        .with_secondary_label(
+            fun_span,
+            format!("Help: type of this function is `{fun_type}`"),
+        )
+        .emit(self.db);
     }
 }
 
@@ -132,49 +169,35 @@ pub fn elab_let_def(db: &dyn crate::Db, let_def: ir::LetDef) -> LetDef {
 
     let mut ctx = ElabCtx::new(db, file);
 
-    match type_expr {
+    let (body_value, type_value) = match type_expr {
         Some(type_expr) => {
             let CheckExpr(type_core) = ctx.check_expr_is_type(type_expr);
             let type_value = ctx.eval_ctx().eval_expr(&type_core);
 
             let CheckExpr(body_core) = ctx.check_expr(body_expr, &type_value);
             let body_value = ctx.eval_ctx().eval_expr(&body_core);
-            let forced_body_value = ctx.elim_ctx().force_value(&body_value);
-            let forced_body_expr = ctx.quote_ctx().quote_value(&forced_body_value);
 
-            let forced_type_value = ctx.elim_ctx().force_value(&type_value);
-            let forced_type_expr = ctx.quote_ctx().quote_value(&forced_type_value);
-
-            let diagnostics = ctx.finish();
-            assert_eq!(diagnostics, &[]);
-
-            LetDef {
-                name,
-                body: (forced_body_expr, forced_body_value),
-                ty: (forced_type_expr, forced_type_value),
-                diagnostics,
-            }
+            (body_value, type_value)
         }
         None => {
             let SynthExpr(body_core, body_type) = ctx.synth_expr(body_expr);
             let body_value = ctx.eval_ctx().eval_expr(&body_core);
-
-            let forced_body_value = ctx.elim_ctx().force_value(&body_value);
-            let forced_body_expr = ctx.quote_ctx().quote_value(&forced_body_value);
-
-            let forced_type_value = ctx.elim_ctx().force_value(&body_type);
-            let forced_type_expr = ctx.quote_ctx().quote_value(&forced_type_value);
-
-            let diagnostics = ctx.finish();
-            assert_eq!(diagnostics, &[]);
-
-            LetDef {
-                name,
-                body: (forced_body_expr, forced_body_value),
-                ty: (forced_type_expr, forced_type_value),
-                diagnostics,
-            }
+            (body_value, body_type)
         }
+    };
+
+    let forced_body_value = ctx.elim_ctx().force_value(&body_value);
+    let forced_body_expr = ctx.quote_ctx().quote_value(&forced_body_value);
+
+    let forced_type_value = ctx.elim_ctx().force_value(&type_value);
+    let forced_type_expr = ctx.quote_ctx().quote_value(&forced_type_value);
+
+    ctx.finish();
+
+    LetDef {
+        name,
+        body: (forced_body_expr, forced_body_value),
+        ty: (forced_type_expr, forced_type_value),
     }
 }
 
@@ -262,7 +285,7 @@ impl ElabCtx<'_> {
                     return SynthExpr(Expr::Local(index), ty);
                 }
 
-                if let Some(item) = crate::ir::lookup_item(self.db, self.file, symbol) {
+                if let Some(item) = crate::ir::lookup_item(self.db, file, symbol) {
                     match item {
                         ir::Item::Enum(_) => todo!(),
                         ir::Item::Let(def) => {
@@ -278,12 +301,8 @@ impl ElabCtx<'_> {
                     _ => {}
                 }
 
-                self.diagnostics.push(
-                    Diagnostic::error()
-                        .with_message(format!("Unbound variable: `{name}`"))
-                        .with_labels(vec![Label::primary(file, *span)]),
-                );
-
+                crate::error!(span.into_file_span(file), "Unbound variable: `{name}`")
+                    .emit(self.db);
                 self.synth_error_expr()
             }
             surface::Expr::Hole(span, hole) => {
@@ -345,22 +364,17 @@ impl ElabCtx<'_> {
                 let fun_type = Value::FunType(closure);
                 SynthExpr(fun_core, Arc::new(fun_type))
             }
-            surface::Expr::FunCall(_, fun, args) => {
+            surface::Expr::FunCall(call_span, fun, args) => {
                 let SynthExpr(fun_core, fun_type) = self.synth_expr(fun);
                 let fun_type = self.elim_ctx().force_value(&fun_type);
                 let closure = match fun_type.as_ref() {
                     Value::FunType(closure) => closure,
                     Value::Error => return self.synth_error_expr(),
                     _ => {
-                        let fun_type = self.pretty_value(&fun_type);
-                        self.diagnostics.push(
-                            Diagnostic::error()
-                                .with_message("Called non-function expression")
-                                .with_labels(vec![Label::primary(file, fun.span())])
-                                .with_notes(vec![format!(
-                                    "Help: type of this expression is `{fun_type}`"
-                                )]),
-                        );
+                        self.report_non_fun_call(*call_span, fun.span(), &fun_type);
+                        for arg in args {
+                            let SynthExpr(..) = self.synth_expr(arg);
+                        }
                         return self.synth_error_expr();
                     }
                 };
@@ -368,17 +382,12 @@ impl ElabCtx<'_> {
                 let expected_arity = closure.arity();
                 let actual_arity = args.len();
                 if actual_arity != expected_arity {
-                    let fun_type = self.pretty_value(&fun_type);
-                    self.diagnostics.push(
-                        Diagnostic::error()
-                            .with_message(format!(
-                                "Function expects {expected_arity} arguments but {actual_arity} \
-                                 arguments were supplied"
-                            ))
-                            .with_labels(vec![Label::primary(file, fun.span())])
-                            .with_notes(vec![format!(
-                                "Help: type of this expression is `{fun_type}`"
-                            )]),
+                    self.report_arity_mismatch(
+                        *call_span,
+                        fun.span(),
+                        actual_arity,
+                        expected_arity,
+                        &fun_type,
                     );
                 }
 
@@ -397,6 +406,13 @@ impl ElabCtx<'_> {
                     closure = cont(arg_value.clone());
                     arg_cores.push(arg_core);
                     arg_values.push(arg_value);
+                }
+
+                // Synth the rest of the arguments, in case too many arguments were passed to
+                // the function. The result is ignored, but we still need to check them for any
+                // errors
+                for arg in args {
+                    let SynthExpr(..) = self.synth_expr(arg);
                 }
 
                 let ret_type = self.elim_ctx().apply_closure(&initial_closure, arg_values);

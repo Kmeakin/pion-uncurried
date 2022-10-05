@@ -22,6 +22,7 @@ mod tests;
 #[salsa::jar(db = Db)]
 pub struct Jar(
     crate::surface::parser::parse_input_file,
+    crate::ir::diagnostic::Diagnostics,
     crate::ir::input_file::InputFile,
     crate::ir::symbol::Symbol,
     crate::ir::syntax::Module,

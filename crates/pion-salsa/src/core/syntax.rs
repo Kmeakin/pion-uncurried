@@ -1,9 +1,6 @@
 use std::sync::Arc;
 
-use codespan_reporting::diagnostic::Diagnostic;
-
 use super::env::{LocalSource, SharedEnv, VarIndex, VarLevel};
-use crate::ir::input_file::InputFile;
 use crate::ir::symbol::Symbol;
 use crate::ir::syntax as ir;
 
@@ -22,7 +19,6 @@ pub struct LetDef {
     pub name: Symbol,
     pub body: (Expr, Arc<Value>),
     pub ty: (Expr, Arc<Value>),
-    pub diagnostics: Vec<Diagnostic<InputFile>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

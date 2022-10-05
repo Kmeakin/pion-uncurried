@@ -4,6 +4,7 @@ use crate::ir::symbol::Symbol;
 use crate::surface;
 use crate::surface::parser::parse_input_file;
 
+pub mod diagnostic;
 pub mod input_file;
 pub mod span;
 pub mod symbol;
