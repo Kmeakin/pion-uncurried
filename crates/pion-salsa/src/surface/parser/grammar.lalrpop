@@ -56,11 +56,11 @@ pub LetDef: LetDef<Span> = {
 }
 
 pub EnumDef: EnumDef<Span> = {
-    "enum" <name: Name> <args: ("(" <List<AnnPat ,",">> ")")?> <ty: (":" <Expr>)?> "{" <variants: List<EnumVariant, ",">> "}" => EnumDef {name, args: args.unwrap_or_default(), ty, variants},
+    "enum" <name: Name> <args: ("(" <List<AnnPat ,",">> ")")?> <ret_type: (":" <Expr>)?> "{" <variants: List<EnumVariant, ",">> "}" => EnumDef {name, args: args.unwrap_or_default(), ret_type, variants},
 }
 
 pub EnumVariant: EnumVariant<Span> = {
-    <name: Name> <args: ("(" <List<AnnPat ,",">> ")")?> <ty: (":" <Expr>)?> => EnumVariant {name, args: args.unwrap_or_default(), ty},
+    <name: Name> <args: ("(" <List<AnnPat ,",">> ")")?> <ret_type: (":" <Expr>)?> => EnumVariant {name, args: args.unwrap_or_default(), ret_type},
 }
 
 pub Expr: Expr<Span> = {

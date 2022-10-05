@@ -25,16 +25,16 @@ pub struct LetDef {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EnumDef {
     pub name: Symbol,
-    pub args: Vec<FunArg<(Expr, Arc<Value>)>>,
-    pub ty: (Expr, Arc<Value>),
+    pub args: Arc<[FunArg<(Expr, Arc<Value>)>]>,
+    pub ret_type: (Expr, Arc<Value>),
     pub variants: Vec<EnumVariant>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EnumVariant {
     pub name: Symbol,
-    pub args: Vec<FunArg<(Expr, Arc<Value>)>>,
-    pub ty: (Expr, Arc<Value>),
+    pub args: Arc<[FunArg<(Expr, Arc<Value>)>]>,
+    pub ret_type: (Expr, Arc<Value>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

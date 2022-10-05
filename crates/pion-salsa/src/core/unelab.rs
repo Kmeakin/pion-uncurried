@@ -231,7 +231,7 @@ pub fn unelab_enum_def(db: &dyn crate::Db, enum_def: &EnumDef) -> surface::EnumD
     let EnumDef {
         name,
         args,
-        ty,
+        ret_type,
         variants,
     } = enum_def;
 
@@ -250,39 +250,45 @@ pub fn unelab_enum_def(db: &dyn crate::Db, enum_def: &EnumDef) -> surface::EnumD
         })
         .collect();
 
-    let ty = ctx.unelab_expr(&ty.0);
+    let ret_type = ctx.unelab_expr(&ret_type.0);
 
     let variants = variants
         .iter()
-        .map(|EnumVariant { name, args, ty }| {
-            let initial_len = ctx.local_names.len();
-            let name = name.contents(db).to_owned();
-            let args = args
-                .iter()
-                .map(|FunArg { pat, ty }| {
-                    let pat_surface = ctx.unelab_pat(pat);
-                    let type_surface = ctx.unelab_expr(&ty.0);
-                    ctx.subst_pat(pat);
-                    surface::AnnPat {
-                        pat: pat_surface,
-                        ty: Some(type_surface),
-                    }
-                })
-                .collect();
-            let ty = ctx.unelab_expr(&ty.0);
-            ctx.local_names.truncate(initial_len);
-            surface::EnumVariant {
-                name,
-                args,
-                ty: Some(ty),
-            }
-        })
+        .map(
+            |EnumVariant {
+                 name,
+                 args,
+                 ret_type,
+             }| {
+                let initial_len = ctx.local_names.len();
+                let name = name.contents(db).to_owned();
+                let args = args
+                    .iter()
+                    .map(|FunArg { pat, ty }| {
+                        let pat_surface = ctx.unelab_pat(pat);
+                        let type_surface = ctx.unelab_expr(&ty.0);
+                        ctx.subst_pat(pat);
+                        surface::AnnPat {
+                            pat: pat_surface,
+                            ty: Some(type_surface),
+                        }
+                    })
+                    .collect();
+                let ret_type = ctx.unelab_expr(&ret_type.0);
+                ctx.local_names.truncate(initial_len);
+                surface::EnumVariant {
+                    name,
+                    args,
+                    ret_type: Some(ret_type),
+                }
+            },
+        )
         .collect();
 
     surface::EnumDef {
         name,
         args,
-        ty: Some(ty),
+        ret_type: Some(ret_type),
         variants,
     }
 }

@@ -27,7 +27,7 @@ pub fn lower_file(db: &dyn crate::Db, file: InputFile) -> Module {
             }
         })
         .collect();
-    Module::new(db, items)
+    Module::new(db, file, items)
 }
 
 #[salsa::tracked]

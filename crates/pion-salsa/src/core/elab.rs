@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use contracts::debug_ensures;
+use text_size::TextRange;
 
 use super::env::{LocalEnv, MetaEnv, MetaSource, NameSource};
 use super::eval::{ElimCtx, EvalCtx};
@@ -146,144 +147,32 @@ impl<'db> ElabCtx<'db> {
 
 #[salsa::tracked]
 pub fn elab_module(db: &dyn crate::Db, module: ir::Module) -> Module {
-    let items = module.items(db);
-    let items = items
-        .iter()
-        .map(|item| match item {
-            ir::Item::Let(let_def) => {
-                let let_def = elab_let_def(db, *let_def);
-                Item::Let(let_def)
-            }
-            ir::Item::Enum(enum_def) => {
-                let enum_def = elab_enum_def(db, *enum_def);
-                Item::Enum(enum_def)
-            }
-        })
-        .collect();
-    Module { items }
+    let file = module.file(db);
+    let mut ctx = ElabCtx::new(db, file);
+    let module = ctx.elab_module(module);
+    ctx.finish();
+    module
 }
 
 #[salsa::tracked]
 pub fn elab_let_def(db: &dyn crate::Db, let_def: ir::LetDef) -> LetDef {
     let file = let_def.file(db);
-    let name = let_def.name(db);
-    let surface = let_def.surface(db);
-    let type_expr = &surface.ty;
-    let body_expr = &surface.body;
-
     let mut ctx = ElabCtx::new(db, file);
-
-    let (body_value, type_value) = match type_expr {
-        Some(type_expr) => {
-            let CheckExpr(type_core) = ctx.check_expr_is_type(type_expr);
-            let type_value = ctx.eval_ctx().eval_expr(&type_core);
-
-            let CheckExpr(body_core) = ctx.check_expr(body_expr, &type_value);
-            let body_value = ctx.eval_ctx().eval_expr(&body_core);
-
-            (body_value, type_value)
-        }
-        None => {
-            let SynthExpr(body_core, body_type) = ctx.synth_expr(body_expr);
-            let body_value = ctx.eval_ctx().eval_expr(&body_core);
-            (body_value, body_type)
-        }
-    };
-
-    let forced_body_value = ctx.elim_ctx().force_value(&body_value);
-    let forced_body_expr = ctx.quote_ctx().quote_value(&forced_body_value);
-
-    let forced_type_value = ctx.elim_ctx().force_value(&type_value);
-    let forced_type_expr = ctx.quote_ctx().quote_value(&forced_type_value);
-
+    let let_def = ctx.elab_let_def(let_def);
     ctx.finish();
-
-    LetDef {
-        name,
-        body: (forced_body_expr, forced_body_value),
-        ty: (forced_type_expr, forced_type_value),
-    }
+    let_def
 }
 
 #[salsa::tracked]
 pub fn elab_enum_def(db: &dyn crate::Db, enum_def: ir::EnumDef) -> EnumDef {
     let file = enum_def.file(db);
-    let surface::EnumDef {
-        name,
-        args,
-        ty,
-        variants,
-    } = enum_def.surface(db);
-
     let mut ctx = ElabCtx::new(db, file);
-
-    let name = Symbol::new(db, name.to_owned());
-    let args = args
-        .iter()
-        .map(|pat| {
-            let SynthPat(pat_core, type_value) = ctx.synth_ann_pat(pat);
-            let type_core = ctx.quote_ctx().quote_value(&type_value);
-            ctx.subst_pat(&pat_core, type_value.clone(), None);
-            FunArg {
-                pat: pat_core,
-                ty: (type_core, type_value),
-            }
-        })
-        .collect();
-    let (type_core, type_value) = match &ty {
-        Some(ty) => {
-            let CheckExpr(type_core) = ctx.check_expr_is_type(&ty);
-            let type_value = ctx.eval_ctx().eval_expr(&type_core);
-            let expected = Arc::new(Value::Type);
-            if let Err(error) = ctx.unify_ctx().unify_values(&type_value, &expected) {
-                ctx.report_type_mismatch(ty.span(), &expected, &type_value, error);
-            }
-            (type_core, type_value)
-        }
-        None => (Expr::Type, Arc::new(Value::Type)),
-    };
-
-    let variants = variants
-        .iter()
-        .map(|variant| {
-            let initial_len = ctx.local_env.len();
-            let surface::EnumVariant { name, args, ty } = variant;
-            let name = Symbol::new(db, name.to_owned());
-            let args = args
-                .iter()
-                .map(|arg| {
-                    let SynthPat(pat_core, type_value) = ctx.synth_ann_pat(arg);
-                    let type_core = ctx.quote_ctx().quote_value(&type_value);
-                    ctx.subst_pat(&pat_core, type_value.clone(), None);
-                    FunArg {
-                        pat: pat_core,
-                        ty: (type_core, type_value),
-                    }
-                })
-                .collect();
-            let ty = match ty {
-                Some(ty) => {
-                    let CheckExpr(type_core) = ctx.check_expr_is_type(ty);
-                    let type_value = ctx.eval_ctx().eval_expr(&type_core);
-                    (type_core, type_value)
-                }
-                None => (Expr::EnumDef(enum_def), Arc::new(Value::enum_def(enum_def))),
-            };
-            ctx.local_env.truncate(initial_len);
-            EnumVariant { name, args, ty }
-        })
-        .collect();
-
+    let enum_def = ctx.elab_enum_def(enum_def);
     ctx.finish();
-
-    EnumDef {
-        name,
-        args,
-        ty: (type_core, type_value),
-        variants,
-    }
+    enum_def
 }
 
+/// Helpers
 impl ElabCtx<'_> {
     pub fn eval_ctx(&mut self) -> EvalCtx {
         EvalCtx::new(&mut self.local_env.values, &self.meta_env.values, self.db)
@@ -332,10 +221,161 @@ impl ElabCtx<'_> {
     }
 }
 
+/// Items
+impl ElabCtx<'_> {
+    fn elab_module(&mut self, module: ir::Module) -> Module {
+        let items = module.items(self.db);
+        let items = items
+            .iter()
+            .map(|item| match item {
+                ir::Item::Let(let_def) => {
+                    let let_def = elab_let_def(self.db, *let_def);
+                    Item::Let(let_def)
+                }
+                ir::Item::Enum(enum_def) => {
+                    let enum_def = elab_enum_def(self.db, *enum_def);
+                    Item::Enum(enum_def)
+                }
+            })
+            .collect();
+        Module { items }
+    }
+
+    fn elab_let_def(&mut self, let_def: ir::LetDef) -> LetDef {
+        let name = let_def.name(self.db);
+        let surface::LetDef { ty, body, .. } = let_def.surface(self.db);
+
+        let (body_value, type_value) = match ty {
+            Some(ty) => {
+                let CheckExpr(type_core) = self.check_expr_is_type(ty);
+                let type_value = self.eval_ctx().eval_expr(&type_core);
+
+                let CheckExpr(body_core) = self.check_expr(&body, &type_value);
+                let body_value = self.eval_ctx().eval_expr(&body_core);
+
+                (body_value, type_value)
+            }
+            None => {
+                let SynthExpr(body_core, body_type) = self.synth_expr(&body);
+                let body_value = self.eval_ctx().eval_expr(&body_core);
+                (body_value, body_type)
+            }
+        };
+
+        let forced_body_value = self.elim_ctx().force_value(&body_value);
+        let forced_body_expr = self.quote_ctx().quote_value(&forced_body_value);
+
+        let forced_type_value = self.elim_ctx().force_value(&type_value);
+        let forced_type_expr = self.quote_ctx().quote_value(&forced_type_value);
+
+        LetDef {
+            name,
+            body: (forced_body_expr, forced_body_value),
+            ty: (forced_type_expr, forced_type_value),
+        }
+    }
+
+    fn elab_enum_def(&mut self, enum_def: ir::EnumDef) -> EnumDef {
+        let initial_len = self.local_env.len();
+        let name = enum_def.name(self.db);
+        let surface::EnumDef {
+            args,
+            ret_type: ty,
+            variants,
+            ..
+        } = enum_def.surface(self.db);
+
+        let args = args
+            .iter()
+            .map(|pat| {
+                let SynthPat(pat_core, type_value) = self.synth_ann_pat(pat);
+                let type_core = self.quote_ctx().quote_value(&type_value);
+                self.subst_pat(&pat_core, type_value.clone(), None);
+                FunArg {
+                    pat: pat_core,
+                    ty: (type_core, type_value),
+                }
+            })
+            .collect();
+
+        let ret_type = match ty {
+            Some(ty) => {
+                let SynthExpr(ret_core, _) = self.synth_expr(ty);
+                let ret_value = self.eval_ctx().eval_expr(&ret_core);
+                let expected = Arc::new(Value::Type);
+                match self.unify_ctx().unify_values(&ret_value, &expected) {
+                    Ok(_) => {
+                        let type_core = self.quote_ctx().quote_value(&ret_value);
+                        (type_core, ret_value)
+                    }
+                    Err(error) => {
+                        self.report_type_mismatch(ty.span(), &expected, &ret_value, error);
+                        (Expr::Error, Arc::new(Value::Error))
+                    }
+                }
+            }
+            None => (Expr::Type, Arc::new(Value::Type)),
+        };
+
+        let variants = variants
+            .iter()
+            .map(|variant| self.elab_enum_variant(variant))
+            .collect();
+        self.local_env.truncate(initial_len);
+
+        EnumDef {
+            name,
+            args,
+            ret_type,
+            variants,
+        }
+    }
+
+    fn elab_enum_variant(&mut self, enum_variant: &surface::EnumVariant<TextRange>) -> EnumVariant {
+        let surface::EnumVariant {
+            name,
+            args,
+            ret_type: ty,
+        } = enum_variant;
+
+        let initial_len = self.local_env.len();
+        let name = Symbol::new(self.db, name.to_owned());
+        let args = args
+            .iter()
+            .map(|pat| {
+                let SynthPat(pat_core, type_value) = self.synth_ann_pat(pat);
+                let type_core = self.quote_ctx().quote_value(&type_value);
+                self.subst_pat(&pat_core, type_value.clone(), None);
+                FunArg {
+                    pat: pat_core,
+                    ty: (type_core, type_value),
+                }
+            })
+            .collect();
+
+        let ret_type = match ty {
+            Some(ty) => {
+                let CheckExpr(ret_core) = self.check_expr_is_type(ty);
+                let ret_value = self.eval_ctx().eval_expr(&ret_core);
+                (ret_core, ret_value)
+            }
+            None => todo!(),
+        };
+        self.local_env.truncate(initial_len);
+
+        EnumVariant {
+            name,
+            args,
+            ret_type,
+        }
+    }
+}
+
 pub struct SynthExpr(Expr, Arc<Value>);
 
 pub struct CheckExpr(Expr);
 
+/// Expressions
 impl ElabCtx<'_> {
     #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
     fn synth_lit(&mut self, lit: &surface::Lit<Span>) -> (Lit, Arc<Value>) {
@@ -376,7 +416,7 @@ impl ElabCtx<'_> {
                         }
                         ir::Item::Enum(def) => {
                             let def_core = elab_enum_def(self.db, def);
-                            return SynthExpr(Expr::EnumDef(def), def_core.ty.1);
+                            return SynthExpr(Expr::EnumDef(def), def_core.ret_type.1);
                         }
                     }
                 }
@@ -540,6 +580,7 @@ impl ElabCtx<'_> {
         }
     }
 
+    #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
     fn check_expr_is_type(&mut self, expr: &surface::Expr<Span>) -> CheckExpr {
         self.check_expr(expr, &Arc::new(Value::Type))
     }
@@ -659,6 +700,7 @@ pub struct SynthPat(Pat, Arc<Value>);
 
 pub struct CheckPat(Pat);
 
+/// Patterns
 impl ElabCtx<'_> {
     #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
     fn synth_pat(&mut self, pat: &surface::Pat<Span>) -> SynthPat {
@@ -741,18 +783,14 @@ impl ElabCtx<'_> {
         }
     }
 
-    fn subst_pat(&mut self, pat: &Pat, ty: Arc<Value>, value: Option<Arc<Value>>) {
+    fn subst_pat(&mut self, pat: &Pat, ty: Arc<Value>, value: Option<Arc<Value>>) -> Arc<Value> {
         match pat {
-            Pat::Error => {
-                self.local_env.push(VarName::Underscore, ty, value);
-            }
-            Pat::Name(name) => {
-                self.local_env.push(*name, ty, value);
-            }
+            Pat::Error => self.local_env.push(VarName::Underscore, ty, value),
+            Pat::Name(name) => self.local_env.push(*name, ty, value),
             Pat::Lit(lit) => {
                 let pat_value = Arc::new(Value::Lit(lit.clone()));
                 let name = self.name_source.fresh();
-                self.local_env.push(name, ty, Some(pat_value));
+                self.local_env.push(name, ty, Some(pat_value))
             }
         }
     }

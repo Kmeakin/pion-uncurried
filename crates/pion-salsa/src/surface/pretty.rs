@@ -69,7 +69,7 @@ impl<'a> PrettyCtx {
         let EnumDef {
             name,
             args,
-            ty,
+            ret_type: ty,
             variants,
         } = enum_def;
         let pats = args.iter().map(|pat| self.pretty_ann_pat(pat));
@@ -101,7 +101,11 @@ impl<'a> PrettyCtx {
     }
 
     pub fn pretty_enum_variant<Span>(&'a self, enum_variant: &EnumVariant<Span>) -> DocBuilder<'a> {
-        let EnumVariant { name, args, ty } = enum_variant;
+        let EnumVariant {
+            name,
+            args,
+            ret_type: ty,
+        } = enum_variant;
         let pats = args.iter().map(|pat| self.pretty_ann_pat(pat));
         let sep = docs!(self, ",", self.space());
         let pats = self.intersperse(pats, sep);

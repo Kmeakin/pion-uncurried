@@ -6,6 +6,7 @@ use crate::surface::syntax as surface;
 #[salsa::tracked]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Module {
+    pub file: InputFile,
     pub items: Vec<Item>,
 }
 

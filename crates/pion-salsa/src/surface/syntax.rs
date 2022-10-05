@@ -24,7 +24,7 @@ pub struct LetDef<Span> {
 pub struct EnumDef<Span> {
     pub name: String,
     pub args: Vec<AnnPat<Span>>,
-    pub ty: Option<Expr<Span>>,
+    pub ret_type: Option<Expr<Span>>,
     pub variants: Vec<EnumVariant<Span>>,
 }
 
@@ -32,7 +32,7 @@ pub struct EnumDef<Span> {
 pub struct EnumVariant<Span> {
     pub name: String,
     pub args: Vec<AnnPat<Span>>,
-    pub ty: Option<Expr<Span>>,
+    pub ret_type: Option<Expr<Span>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
