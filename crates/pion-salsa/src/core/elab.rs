@@ -13,6 +13,7 @@ use crate::ir::input_file::InputFile;
 use crate::ir::span::Span;
 use crate::ir::symbol::Symbol;
 use crate::ir::syntax as ir;
+use crate::surface::pretty::PrettyCtx;
 use crate::surface::syntax as surface;
 
 pub struct ElabCtx<'db> {
@@ -68,10 +69,12 @@ impl<'db> ElabCtx<'db> {
     fn report_type_mismatch(
         &mut self,
         span: Span,
-        _expected: &Value,
-        _actual: &Value,
+        expected: &Arc<Value>,
+        actual: &Arc<Value>,
         error: UnifyError,
     ) {
+        let expected = self.pretty_value(expected);
+        let actual = self.pretty_value(actual);
         let diag = match error {
             UnifyError::Mismatch => Diagnostic::error()
                 .with_message("Type mismatch")
@@ -97,7 +100,8 @@ impl<'db> ElabCtx<'db> {
                     .with_message("Unification error: attempted to construct infinite solution")
                     .with_labels(vec![Label::primary(self.file, span)]),
             },
-        };
+        }
+        .with_notes(vec![format!("Help: expected {expected}, got {actual}")]);
         self.diagnostics.push(diag);
     }
 }
@@ -142,6 +146,7 @@ pub fn elab_let_def(db: &dyn crate::Db, let_def: ir::LetDef) -> LetDef {
             let forced_type_expr = ctx.quote_ctx().quote_value(&forced_type_value);
 
             let diagnostics = ctx.finish();
+            assert_eq!(diagnostics, &[]);
 
             LetDef {
                 name,
@@ -161,6 +166,7 @@ pub fn elab_let_def(db: &dyn crate::Db, let_def: ir::LetDef) -> LetDef {
             let forced_type_expr = ctx.quote_ctx().quote_value(&forced_type_value);
 
             let diagnostics = ctx.finish();
+            assert_eq!(diagnostics, &[]);
 
             LetDef {
                 name,
@@ -209,6 +215,14 @@ impl ElabCtx<'_> {
     fn push_meta_value(&mut self, name: VarName, source: MetaSource, ty: Arc<Value>) -> Arc<Value> {
         let expr = self.push_meta_expr(name, source, ty);
         self.eval_ctx().eval_expr(&expr)
+    }
+
+    pub fn pretty_value(&mut self, value: &Arc<Value>) -> String {
+        let core = self.quote_ctx().quote_value(value);
+        let surface = self.unelab_ctx().unelab_expr(&core);
+        let pretty_ctx = PrettyCtx::new();
+        let doc = pretty_ctx.pretty_expr(&surface).into_doc();
+        doc.pretty(80).to_string()
     }
 }
 
