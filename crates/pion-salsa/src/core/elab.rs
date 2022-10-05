@@ -343,18 +343,21 @@ impl ElabCtx<'_> {
                 let fun_type = Value::FunType(closure);
                 SynthExpr(fun_core, Arc::new(fun_type))
             }
-            surface::Expr::FunCall(span, fun, args) => {
+            surface::Expr::FunCall(_, fun, args) => {
                 let SynthExpr(fun_core, fun_type) = self.synth_expr(fun);
                 let fun_type = self.elim_ctx().force_value(&fun_type);
                 let closure = match fun_type.as_ref() {
                     Value::FunType(closure) => closure,
                     Value::Error => return self.synth_error_expr(),
                     _ => {
-                        let fun_span = fun.span();
+                        let fun_type = self.pretty_value(&fun_type);
                         self.diagnostics.push(
                             Diagnostic::error()
                                 .with_message("Called non-function expression")
-                                .with_labels(vec![Label::primary(file, fun_span)]),
+                                .with_labels(vec![Label::primary(file, fun.span())])
+                                .with_notes(vec![format!(
+                                    "Help: type of this expression is `{fun_type}`"
+                                )]),
                         );
                         return self.synth_error_expr();
                     }
@@ -363,13 +366,17 @@ impl ElabCtx<'_> {
                 let expected_arity = closure.arity();
                 let actual_arity = args.len();
                 if actual_arity != expected_arity {
+                    let fun_type = self.pretty_value(&fun_type);
                     self.diagnostics.push(
                         Diagnostic::error()
                             .with_message(format!(
                                 "Function expects {expected_arity} arguments but {actual_arity} \
                                  arguments were supplied"
                             ))
-                            .with_labels(vec![Label::primary(file, *span)]),
+                            .with_labels(vec![Label::primary(file, fun.span())])
+                            .with_notes(vec![format!(
+                                "Help: type of this expression is `{fun_type}`"
+                            )]),
                     );
                 }
 
