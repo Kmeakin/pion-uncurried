@@ -44,6 +44,7 @@ impl<'env> EvalCtx<'env> {
             Expr::Meta(level) => match self.meta_env.get(*level) {
                 Some(Some(value)) => value.clone(),
                 Some(None) => Arc::new(Value::meta(*level)),
+                None => Arc::new(Value::Error), // TODO: replace with zonking
                 None => unreachable!("Unbound meta variable: {level:?}"),
             },
             Expr::MetaInsertion(level, sources) => {
