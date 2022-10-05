@@ -34,11 +34,19 @@ pub struct EnumDef {
 
     pub file: InputFile,
 
+    pub variants: Vec<EnumVariant>,
+
     #[return_ref]
     pub surface: surface::EnumDef<Span>,
 }
 
+#[salsa::tracked]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EnumVariant {
     pub name: Symbol,
+
+    pub file: InputFile,
+
+    #[return_ref]
+    pub surface: surface::EnumVariant<Span>,
 }

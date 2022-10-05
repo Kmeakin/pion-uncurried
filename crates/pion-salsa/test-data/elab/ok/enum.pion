@@ -1,0 +1,11 @@
+enum YesOrNo {
+    Yes(_: Bool),
+    No(_: Type),
+}
+
+enum Either(A: Type, B: Type) {
+    Left(x: A),
+    Right(y: B),
+}
+
+let x = Either(Bool, Type);

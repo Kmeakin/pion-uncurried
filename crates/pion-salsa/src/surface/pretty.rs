@@ -82,9 +82,10 @@ impl<'a> PrettyCtx {
         };
         let ty = self.pretty_type_annotation(ty);
         let variants_empty = variants.is_empty();
-        let variants = variants
-            .iter()
-            .map(|variant| self.pretty_enum_variant(variant));
+        let variants = variants.iter().map(|variant| {
+            let variant = self.pretty_enum_variant(variant);
+            docs!(self, self.hardline(), variant, ",")
+        });
         docs!(
             self,
             "enum",

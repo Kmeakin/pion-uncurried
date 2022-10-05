@@ -3,7 +3,7 @@ use std::sync::Arc;
 use contracts::debug_ensures;
 use text_size::TextRange;
 
-use super::env::{LocalEnv, MetaEnv, MetaSource, NameSource};
+use super::env::{LocalEnv, MetaEnv, MetaSource, NameSource, SharedEnv, VarIndex};
 use super::eval::{ElimCtx, EvalCtx};
 use super::quote::QuoteCtx;
 use super::syntax::*;
@@ -126,15 +126,21 @@ impl<'db> ElabCtx<'db> {
         } else {
             "many"
         };
+        let expected_args = if expected_arity == 1 {
+            "argument"
+        } else {
+            "arguments"
+        };
         crate::error!(
             call_span,
             "Called function with too {few_or_many} arguments"
         )
+        .skip_primary_label()
         .with_secondary_label(
             fun_span,
             format!(
-                "Help: this function expects {expected_arity} arguments but you gave it \
-                 {actual_arity} arguments"
+                "Help: this function expects {expected_arity} {expected_args} but you gave it  \
+                 {actual_arity}"
             ),
         )
         .with_secondary_label(
@@ -280,16 +286,18 @@ impl ElabCtx<'_> {
         let name = enum_def.name(self.db);
         let surface::EnumDef {
             args,
-            ret_type: ty,
+            ret_type,
             variants,
             ..
         } = enum_def.surface(self.db);
 
-        let args = args
+        let mut self_args = Vec::with_capacity(args.len());
+        let args: Arc<[_]> = args
             .iter()
             .map(|pat| {
                 let SynthPat(pat_core, type_value) = self.synth_ann_pat(pat);
                 let type_core = self.quote_ctx().quote_value(&type_value);
+                self_args.push(Arc::new(Value::local(self.local_env.len().to_level())));
                 self.subst_pat(&pat_core, type_value.clone(), None);
                 FunArg {
                     pat: pat_core,
@@ -298,9 +306,20 @@ impl ElabCtx<'_> {
             })
             .collect();
 
-        let ret_type = match ty {
-            Some(ty) => {
-                let SynthExpr(ret_core, _) = self.synth_expr(ty);
+        let self_type_head = Head::EnumDef(enum_def);
+        let self_type_value = Value::Stuck(
+            self_type_head,
+            if args.len() == 0 {
+                vec![]
+            } else {
+                vec![Elim::FunCall(self_args)]
+            },
+        );
+        let self_type_value = Arc::new(self_type_value);
+
+        let ret_type = match ret_type {
+            Some(ret_type) => {
+                let SynthExpr(ret_core, _) = self.synth_expr(ret_type);
                 let ret_value = self.eval_ctx().eval_expr(&ret_core);
                 let expected = Arc::new(Value::Type);
                 match self.unify_ctx().unify_values(&ret_value, &expected) {
@@ -309,7 +328,7 @@ impl ElabCtx<'_> {
                         (type_core, ret_value)
                     }
                     Err(error) => {
-                        self.report_type_mismatch(ty.span(), &expected, &ret_value, error);
+                        self.report_type_mismatch(ret_type.span(), &expected, &ret_value, error);
                         (Expr::Error, Arc::new(Value::Error))
                     }
                 }
@@ -319,7 +338,7 @@ impl ElabCtx<'_> {
 
         let variants = variants
             .iter()
-            .map(|variant| self.elab_enum_variant(variant))
+            .map(|variant| self.elab_enum_variant(variant, self_type_value.clone()))
             .collect();
         self.local_env.truncate(initial_len);
 
@@ -331,7 +350,11 @@ impl ElabCtx<'_> {
         }
     }
 
-    fn elab_enum_variant(&mut self, enum_variant: &surface::EnumVariant<TextRange>) -> EnumVariant {
+    fn elab_enum_variant(
+        &mut self,
+        enum_variant: &surface::EnumVariant<TextRange>,
+        self_type: Arc<Value>,
+    ) -> EnumVariant {
         let surface::EnumVariant {
             name,
             args,
@@ -340,7 +363,7 @@ impl ElabCtx<'_> {
 
         let initial_len = self.local_env.len();
         let name = Symbol::new(self.db, name.to_owned());
-        let args = args
+        let args: Arc<[_]> = args
             .iter()
             .map(|pat| {
                 let SynthPat(pat_core, type_value) = self.synth_ann_pat(pat);
@@ -359,7 +382,10 @@ impl ElabCtx<'_> {
                 let ret_value = self.eval_ctx().eval_expr(&ret_core);
                 (ret_core, ret_value)
             }
-            None => todo!(),
+            None => {
+                let self_type_core = self.quote_ctx().quote_value(&self_type);
+                (self_type_core, self_type)
+            }
         };
         self.local_env.truncate(initial_len);
 
@@ -386,10 +412,10 @@ impl ElabCtx<'_> {
 
     #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
     fn synth_error_expr(&mut self) -> SynthExpr {
-        let name = self.name_source.fresh();
-        let source = MetaSource::Error;
-        let ty = self.push_meta_value(name, source, Arc::new(Value::Type));
-        SynthExpr(Expr::Error, ty)
+        // let name = self.name_source.fresh();
+        // let source = MetaSource::Error;
+        // let ty = self.push_meta_value(name, source, Arc::new(Value::Type));
+        SynthExpr(Expr::Error, Arc::new(Value::Error))
     }
 
     #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
@@ -416,7 +442,21 @@ impl ElabCtx<'_> {
                         }
                         ir::Item::Enum(def) => {
                             let def_core = elab_enum_def(self.db, def);
-                            return SynthExpr(Expr::EnumDef(def), def_core.ret_type.1);
+                            let args = def_core
+                                .args
+                                .iter()
+                                .map(|arg| FunArg {
+                                    pat: arg.pat.clone(),
+                                    ty: arg.ty.0.clone(),
+                                })
+                                .collect();
+                            let ret_type = def_core.ret_type.0;
+                            let fun_type = Value::FunType(FunClosure::new(
+                                SharedEnv::new(),
+                                args,
+                                Arc::new(ret_type),
+                            ));
+                            return SynthExpr(Expr::EnumDef(def), Arc::new(fun_type));
                         }
                     }
                 }
@@ -515,6 +555,7 @@ impl ElabCtx<'_> {
                         expected_arity,
                         &fun_type,
                     );
+                    return self.synth_error_expr();
                 }
 
                 let initial_closure = closure.clone();

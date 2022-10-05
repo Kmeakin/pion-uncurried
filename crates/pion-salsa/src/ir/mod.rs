@@ -23,7 +23,15 @@ pub fn lower_file(db: &dyn crate::Db, file: InputFile) -> Module {
             }
             surface::syntax::Item::Enum(surface) => {
                 let name = Symbol::new(db, surface.name.clone());
-                Item::Enum(EnumDef::new(db, name, file, surface.clone()))
+                let variants = surface
+                    .variants
+                    .iter()
+                    .map(|surface| {
+                        let name = Symbol::new(db, surface.name.clone());
+                        EnumVariant::new(db, name, file, surface.clone())
+                    })
+                    .collect();
+                Item::Enum(EnumDef::new(db, name, file, variants, surface.clone()))
             }
         })
         .collect();
