@@ -44,6 +44,7 @@ pub enum Expr {
     BoolType,
     Lit(Lit),
     LetDef(ir::LetDef),
+    EnumDef(ir::EnumDef),
     Local(VarIndex),
     Meta(VarLevel),
     MetaInsertion(VarLevel, SharedEnv<LocalSource>),
@@ -81,12 +82,16 @@ pub enum Value {
 impl Value {
     pub fn local(level: VarLevel) -> Self { Self::Stuck(Head::Local(level), Vec::new()) }
     pub fn meta(level: VarLevel) -> Self { Self::Stuck(Head::Meta(level), Vec::new()) }
+    pub fn enum_def(enum_def: ir::EnumDef) -> Value {
+        Self::Stuck(Head::EnumDef(enum_def), Vec::new())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Head {
     Local(VarLevel),
     Meta(VarLevel),
+    EnumDef(ir::EnumDef),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

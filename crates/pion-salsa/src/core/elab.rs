@@ -262,8 +262,12 @@ pub fn elab_enum_def(db: &dyn crate::Db, enum_def: ir::EnumDef) -> EnumDef {
                 })
                 .collect();
             let ty = match ty {
-                Some(_) => todo!(),
-                None => (Expr::Error, Arc::new(Value::Error)),
+                Some(ty) => {
+                    let CheckExpr(type_core) = ctx.check_expr_is_type(ty);
+                    let type_value = ctx.eval_ctx().eval_expr(&type_core);
+                    (type_core, type_value)
+                }
+                None => (Expr::EnumDef(enum_def), Arc::new(Value::enum_def(enum_def))),
             };
             ctx.local_env.truncate(initial_len);
             EnumVariant { name, args, ty }
@@ -366,10 +370,13 @@ impl ElabCtx<'_> {
 
                 if let Some(item) = crate::ir::lookup_item(self.db, file, symbol) {
                     match item {
-                        ir::Item::Enum(_) => todo!(),
                         ir::Item::Let(def) => {
                             let def_core = elab_let_def(self.db, def);
                             return SynthExpr(Expr::LetDef(def), def_core.ty.1);
+                        }
+                        ir::Item::Enum(def) => {
+                            let def_core = elab_enum_def(self.db, def);
+                            return SynthExpr(Expr::EnumDef(def), def_core.ty.1);
                         }
                     }
                 }

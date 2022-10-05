@@ -263,6 +263,7 @@ impl<'env> UnifyCtx<'env> {
                             Expr::Meta(*var)
                         }
                     }
+                    Head::EnumDef(enum_def) => Expr::EnumDef(*enum_def),
                 };
                 spine.iter().fold(Ok(head), |head, elim| {
                     Ok(match elim {

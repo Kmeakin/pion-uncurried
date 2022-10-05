@@ -42,8 +42,8 @@ impl<'a> PrettyCtx {
 
     pub fn pretty_item<Span>(&'a self, item: &Item<Span>) -> DocBuilder<'a> {
         match item {
-            Item::Enum(_) => todo!(),
             Item::Let(let_def) => self.pretty_let_def(let_def),
+            Item::Enum(enum_def) => self.pretty_enum_def(enum_def),
         }
     }
 
@@ -63,6 +63,55 @@ impl<'a> PrettyCtx {
             body,
             ";"
         )
+    }
+
+    pub fn pretty_enum_def<Span>(&'a self, enum_def: &EnumDef<Span>) -> DocBuilder<'a> {
+        let EnumDef {
+            name,
+            args,
+            ty,
+            variants,
+        } = enum_def;
+        let pats = args.iter().map(|pat| self.pretty_ann_pat(pat));
+        let sep = docs!(self, ",", self.space());
+        let pats = self.intersperse(pats, sep);
+        let pats = if args.is_empty() {
+            pats
+        } else {
+            docs!(self, "(", pats, ")")
+        };
+        let ty = self.pretty_type_annotation(ty);
+        let variants_empty = variants.is_empty();
+        let variants = variants
+            .iter()
+            .map(|variant| self.pretty_enum_variant(variant));
+        docs!(
+            self,
+            "enum",
+            self.space(),
+            name.clone(),
+            pats,
+            ty,
+            self.space(),
+            "{",
+            self.concat(variants).nest(INDENT),
+            (!variants_empty).then_some(self.hardline()),
+            "}"
+        )
+    }
+
+    pub fn pretty_enum_variant<Span>(&'a self, enum_variant: &EnumVariant<Span>) -> DocBuilder<'a> {
+        let EnumVariant { name, args, ty } = enum_variant;
+        let pats = args.iter().map(|pat| self.pretty_ann_pat(pat));
+        let sep = docs!(self, ",", self.space());
+        let pats = self.intersperse(pats, sep);
+        let pats = if args.is_empty() {
+            pats
+        } else {
+            docs!(self, "(", pats, ")")
+        };
+        let ty = self.pretty_type_annotation(ty);
+        docs!(self, name.clone(), pats, ty)
     }
 
     pub fn pretty_expr<Span>(&'a self, expr: &Expr<Span>) -> DocBuilder<'a> {

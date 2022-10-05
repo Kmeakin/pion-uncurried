@@ -36,7 +36,7 @@ pub fn lookup_item(db: &dyn crate::Db, file: InputFile, name: Symbol) -> Option<
     let items = module.items(db);
     for item in items {
         match item {
-            crate::ir::Item::Enum(_) => todo!(),
+            crate::ir::Item::Enum(def) if def.name(db) == name => return Some(item),
             crate::ir::Item::Let(def) if def.name(db) == name => return Some(item),
             _ => {}
         }

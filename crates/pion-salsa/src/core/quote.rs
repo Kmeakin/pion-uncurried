@@ -41,6 +41,7 @@ impl<'env> QuoteCtx<'env> {
                         None => unreachable!("Unbound local variable: {level:?}"),
                     },
                     Head::Meta(level) => Expr::Meta(*level),
+                    Head::EnumDef(enum_def) => Expr::EnumDef(*enum_def),
                 };
                 spine.iter().fold(head_core, |head_core, elim| match elim {
                     Elim::FunCall(args) => {

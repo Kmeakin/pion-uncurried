@@ -37,6 +37,7 @@ impl<'env> EvalCtx<'env> {
                 let def = crate::core::elab::elab_let_def(self.db, *def);
                 def.body.1
             }
+            Expr::EnumDef(enum_def) => Arc::new(Value::enum_def(*enum_def)),
             Expr::Local(index) => match self.local_env.get(*index) {
                 Some(value) => value.clone(),
                 None => unreachable!("Unbound local variable: {index:?}"),
