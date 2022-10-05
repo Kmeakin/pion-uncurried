@@ -29,6 +29,7 @@ pub struct Jar(
     crate::ir::syntax::LetDef,
     crate::ir::syntax::EnumDef,
     crate::ir::lower_file,
+    crate::ir::lookup_item,
     crate::core::elab::elab_module,
     crate::core::elab::elab_let_def,
 );

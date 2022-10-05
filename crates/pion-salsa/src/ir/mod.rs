@@ -30,6 +30,7 @@ pub fn lower_file(db: &dyn crate::Db, file: InputFile) -> Module {
     Module::new(db, items)
 }
 
+#[salsa::tracked]
 pub fn lookup_item(db: &dyn crate::Db, file: InputFile, name: Symbol) -> Option<Item> {
     let module = lower_file(db, file);
     let items = module.items(db);
