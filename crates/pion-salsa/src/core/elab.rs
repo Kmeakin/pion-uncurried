@@ -231,12 +231,14 @@ pub struct SynthExpr(Expr, Arc<Value>);
 pub struct CheckExpr(Expr);
 
 impl ElabCtx<'_> {
+    #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
     fn synth_lit(&mut self, lit: &surface::Lit<Span>) -> (Lit, Arc<Value>) {
         match lit {
             surface::Lit::Bool(_, b) => (Lit::Bool(*b), Arc::new(Value::BoolType)),
         }
     }
 
+    #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
     fn synth_error_expr(&mut self) -> SynthExpr {
         let name = self.name_source.fresh();
         let source = MetaSource::Error;
