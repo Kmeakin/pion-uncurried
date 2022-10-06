@@ -4,7 +4,7 @@ use contracts::debug_ensures;
 use text_size::TextRange;
 
 use super::env::{LocalEnv, MetaEnv, MetaSource, NameSource, SharedEnv};
-use super::eval::{ElimCtx, EvalCtx};
+use super::eval::{ElimCtx, EvalCtx, EvalOpts};
 use super::quote::QuoteCtx;
 use super::syntax::*;
 use super::unelab::UnelabCtx;
@@ -190,10 +190,17 @@ pub fn elab_enum_def(db: &dyn crate::Db, enum_def: ir::EnumDef) -> EnumDef {
 /// Helpers
 impl ElabCtx<'_> {
     pub fn eval_ctx(&mut self) -> EvalCtx {
-        EvalCtx::new(&mut self.local_env.values, &self.meta_env.values, self.db)
+        EvalCtx::new(
+            &mut self.local_env.values,
+            &self.meta_env.values,
+            EvalOpts::EVAL_CBV,
+            self.db,
+        )
     }
 
-    pub fn elim_ctx(&self) -> ElimCtx { ElimCtx::new(&self.meta_env.values, self.db) }
+    pub fn elim_ctx(&self) -> ElimCtx {
+        ElimCtx::new(&self.meta_env.values, EvalOpts::EVAL_CBV, self.db)
+    }
 
     pub fn quote_ctx(&mut self) -> QuoteCtx {
         QuoteCtx::new(self.local_env.values.len(), &self.meta_env.values, self.db)
@@ -262,33 +269,45 @@ impl ElabCtx<'_> {
         let name = let_def.name(self.db);
         let surface::LetDef { ty, body, .. } = let_def.surface(self.db);
 
-        let (body_value, type_value) = match ty {
+        let (body_expr, type_value) = match ty {
             Some(ty) => {
-                let CheckExpr(type_core) = self.check_expr_is_type(&ty);
-                let type_value = self.eval_ctx().eval_expr(&type_core);
-
-                let CheckExpr(body_core) = self.check_expr(&body, &type_value);
-                let body_value = self.eval_ctx().eval_expr(&body_core);
-
-                (body_value, type_value)
+                let CheckExpr(type_expr) = self.check_expr_is_type(&ty);
+                let type_value = self.eval_ctx().eval_expr(&type_expr);
+                let CheckExpr(body_expr) = self.check_expr(&body, &type_value);
+                (body_expr, type_value)
             }
             None => {
-                let SynthExpr(body_core, body_type) = self.synth_expr(&body);
-                let body_value = self.eval_ctx().eval_expr(&body_core);
-                (body_value, body_type)
+                let SynthExpr(body_expr, type_value) = self.synth_expr(&body);
+                (body_expr, type_value)
             }
         };
+        let type_expr = self.quote_ctx().quote_value(&type_value);
 
-        let forced_body_value = self.elim_ctx().force_value(&body_value);
-        let forced_body_expr = self.quote_ctx().quote_value(&forced_body_value);
+        let expr_opts = EvalOpts {
+            error_on_unsolved_meta: true,
+            ..EvalOpts::EVAL_CBV
+        };
+        let value_opts = EvalOpts {
+            error_on_unsolved_meta: true,
+            ..EvalOpts::EVAL_CBV
+        };
 
-        let forced_type_value = self.elim_ctx().force_value(&type_value);
-        let forced_type_expr = self.quote_ctx().quote_value(&forced_type_value);
+        let body_value = self.eval_ctx().with_opts(value_opts).eval_expr(&body_expr);
+        let (body_expr, _) = self
+            .eval_ctx()
+            .with_opts(expr_opts)
+            .normalize_expr(&body_expr);
+
+        let type_value = self.eval_ctx().with_opts(value_opts).eval_expr(&type_expr);
+        let (type_expr, _) = self
+            .eval_ctx()
+            .with_opts(expr_opts)
+            .normalize_expr(&type_expr);
 
         LetDef {
             name,
-            body: (forced_body_expr, forced_body_value),
-            ty: (forced_type_expr, forced_type_value),
+            body: (body_expr, body_value),
+            ty: (type_expr, type_value),
         }
     }
 

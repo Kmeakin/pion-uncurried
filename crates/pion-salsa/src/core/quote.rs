@@ -3,7 +3,7 @@ use std::sync::Arc;
 use contracts::debug_ensures;
 
 use super::env::{EnvLen, UniqueEnv};
-use super::eval::ElimCtx;
+use super::eval::{ElimCtx, EvalOpts};
 use super::syntax::*;
 
 pub struct QuoteCtx<'env> {
@@ -25,7 +25,7 @@ impl<'env> QuoteCtx<'env> {
         }
     }
 
-    fn elim_ctx(&self) -> ElimCtx { ElimCtx::new(self.meta_env, self.db) }
+    fn elim_ctx(&self) -> ElimCtx { ElimCtx::new(self.meta_env, EvalOpts::EVAL_CBV, self.db) }
 
     #[debug_ensures(self.local_env == old(self.local_env))]
     pub fn quote_value(&mut self, value: &Arc<Value>) -> Expr {
@@ -42,6 +42,7 @@ impl<'env> QuoteCtx<'env> {
                     },
                     Head::Meta(level) => Expr::Meta(*level),
                     Head::EnumDef(enum_def) => Expr::EnumDef(*enum_def),
+                    Head::LetDef(let_def) => Expr::LetDef(*let_def),
                 };
                 spine.iter().fold(head_core, |head_core, elim| match elim {
                     Elim::FunCall(args) => {

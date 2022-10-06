@@ -3,7 +3,7 @@ use std::sync::Arc;
 use contracts::debug_ensures;
 
 use super::env::{EnvLen, SharedEnv, UniqueEnv, VarIndex, VarLevel};
-use super::eval::ElimCtx;
+use super::eval::{ElimCtx, EvalOpts};
 use super::syntax::*;
 
 pub struct UnifyCtx<'env> {
@@ -28,7 +28,9 @@ impl<'env> UnifyCtx<'env> {
         }
     }
 
-    fn elim_ctx(&self) -> ElimCtx<'_> { ElimCtx::new(self.meta_values, self.db) }
+    fn elim_ctx(&self) -> ElimCtx<'_> {
+        ElimCtx::new(self.meta_values, EvalOpts::EVAL_CBV, self.db)
+    }
 
     #[debug_ensures(self.local_env == old(self.local_env))]
     pub fn unify_values(
@@ -264,6 +266,7 @@ impl<'env> UnifyCtx<'env> {
                         }
                     }
                     Head::EnumDef(enum_def) => Expr::EnumDef(*enum_def),
+                    Head::LetDef(let_def) => Expr::LetDef(*let_def),
                 };
                 spine.iter().fold(Ok(head), |head, elim| {
                     Ok(match elim {

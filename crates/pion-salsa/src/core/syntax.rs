@@ -88,15 +88,15 @@ pub enum Value {
 impl Value {
     pub fn local(level: VarLevel) -> Self { Self::Stuck(Head::Local(level), Vec::new()) }
     pub fn meta(level: VarLevel) -> Self { Self::Stuck(Head::Meta(level), Vec::new()) }
-    pub fn enum_def(enum_def: ir::EnumDef) -> Self {
-        Self::Stuck(Head::EnumDef(enum_def), Vec::new())
-    }
+    pub fn let_def(def: ir::LetDef) -> Self { Self::Stuck(Head::LetDef(def), Vec::new()) }
+    pub fn enum_def(def: ir::EnumDef) -> Self { Self::Stuck(Head::EnumDef(def), Vec::new()) }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Head {
     Local(VarLevel),
     Meta(VarLevel),
+    LetDef(ir::LetDef),
     EnumDef(ir::EnumDef),
 }
 
