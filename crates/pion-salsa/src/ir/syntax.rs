@@ -34,8 +34,6 @@ pub struct EnumDef {
 
     pub file: InputFile,
 
-    pub variants: Vec<EnumVariant>,
-
     #[return_ref]
     pub surface: surface::EnumDef<Span>,
 }
