@@ -33,6 +33,7 @@ pub struct Jar(
     crate::ir::lookup_item,
     crate::core::elab::elab_module,
     crate::core::elab::elab_let_def,
+    crate::core::elab::synth_enum_def,
     crate::core::elab::elab_enum_def,
 );
 

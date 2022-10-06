@@ -170,6 +170,15 @@ pub fn elab_let_def(db: &dyn crate::Db, let_def: ir::LetDef) -> LetDef {
 }
 
 #[salsa::tracked]
+pub fn synth_enum_def(db: &dyn crate::Db, enum_def: ir::EnumDef) -> EnumDefSig {
+    let file = enum_def.file(db);
+    let mut ctx = ElabCtx::new(db, file);
+    let sig = ctx.synth_enum_def(enum_def);
+    ctx.finish();
+    sig
+}
+
+#[salsa::tracked]
 pub fn elab_enum_def(db: &dyn crate::Db, enum_def: ir::EnumDef) -> EnumDef {
     let file = enum_def.file(db);
     let mut ctx = ElabCtx::new(db, file);
@@ -229,6 +238,7 @@ impl ElabCtx<'_> {
 
 /// Items
 impl ElabCtx<'_> {
+    #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
     fn elab_module(&mut self, module: ir::Module) -> Module {
         let items = module.items(self.db);
         let items = items
@@ -247,22 +257,23 @@ impl ElabCtx<'_> {
         Module { items }
     }
 
+    #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
     fn elab_let_def(&mut self, let_def: ir::LetDef) -> LetDef {
         let name = let_def.name(self.db);
         let surface::LetDef { ty, body, .. } = let_def.surface(self.db);
 
         let (body_value, type_value) = match ty {
             Some(ty) => {
-                let CheckExpr(type_core) = self.check_expr_is_type(ty);
+                let CheckExpr(type_core) = self.check_expr_is_type(&ty);
                 let type_value = self.eval_ctx().eval_expr(&type_core);
 
-                let CheckExpr(body_core) = self.check_expr(body, &type_value);
+                let CheckExpr(body_core) = self.check_expr(&body, &type_value);
                 let body_value = self.eval_ctx().eval_expr(&body_core);
 
                 (body_value, type_value)
             }
             None => {
-                let SynthExpr(body_core, body_type) = self.synth_expr(body);
+                let SynthExpr(body_core, body_type) = self.synth_expr(&body);
                 let body_value = self.eval_ctx().eval_expr(&body_core);
                 (body_value, body_type)
             }
@@ -281,7 +292,8 @@ impl ElabCtx<'_> {
         }
     }
 
-    fn elab_enum_def(&mut self, enum_def: ir::EnumDef) -> EnumDef {
+    // NOTE: does not truncate env
+    fn synth_enum_def(&mut self, enum_def: ir::EnumDef) -> EnumDefSig {
         let initial_len = self.local_env.len();
         let name = enum_def.name(self.db);
         let surface::EnumDef {
@@ -318,7 +330,7 @@ impl ElabCtx<'_> {
 
         let ret_type = match ret_type {
             Some(ret_type) => {
-                let SynthExpr(ret_core, _) = self.synth_expr(ret_type);
+                let SynthExpr(ret_core, _) = self.synth_expr(&ret_type);
                 let ret_value = self.eval_ctx().eval_expr(&ret_core);
                 let expected = Arc::new(Value::Type);
                 match self.unify_ctx().unify_values(&ret_value, &expected) {
@@ -335,16 +347,29 @@ impl ElabCtx<'_> {
             None => Expr::Type,
         };
 
+        EnumDefSig {
+            args,
+            ret_type,
+            self_type,
+        }
+    }
+
+    fn elab_enum_def(&mut self, enum_def: ir::EnumDef) -> EnumDef {
+        let initial_len = self.local_env.len();
+        let name = enum_def.name(self.db);
+        let surface::EnumDef { variants, .. } = enum_def.surface(self.db);
+
+        let sig = &self.synth_enum_def(enum_def);
+
         let variants = variants
             .iter()
-            .map(|variant| self.elab_enum_variant(variant, self_type.clone()))
+            .map(|variant| self.elab_enum_variant(variant, &sig))
             .collect();
         self.local_env.truncate(initial_len);
 
         EnumDef {
             name,
-            args,
-            ret_type,
+            sig: sig.clone(),
             variants,
         }
     }
@@ -352,7 +377,7 @@ impl ElabCtx<'_> {
     fn elab_enum_variant(
         &mut self,
         enum_variant: &surface::EnumVariant<TextRange>,
-        self_type: Arc<Value>,
+        sig: &EnumDefSig,
     ) -> EnumVariant {
         let surface::EnumVariant {
             name,
@@ -381,7 +406,7 @@ impl ElabCtx<'_> {
                 let ret_value = self.eval_ctx().eval_expr(&ret_core);
                 self.quote_ctx().quote_value(&ret_value)
             }
-            None => self.quote_ctx().quote_value(&self_type),
+            None => self.quote_ctx().quote_value(&sig.self_type),
         };
         self.local_env.truncate(initial_len);
 
@@ -437,9 +462,9 @@ impl ElabCtx<'_> {
                             return SynthExpr(Expr::LetDef(def), def_core.ty.1);
                         }
                         ir::Item::Enum(def) => {
-                            let def_core = elab_enum_def(self.db, def);
-                            let args = def_core.args;
-                            let ret_type = def_core.ret_type;
+                            let sig = synth_enum_def(self.db, def);
+                            let args = sig.args;
+                            let ret_type = sig.ret_type;
                             let fun_type = Value::FunType(FunClosure::new(
                                 SharedEnv::new(),
                                 args,

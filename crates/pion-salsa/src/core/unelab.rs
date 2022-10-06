@@ -230,8 +230,7 @@ pub fn unelab_enum_def(db: &dyn crate::Db, enum_def: &EnumDef) -> surface::EnumD
 
     let EnumDef {
         name,
-        args,
-        ret_type,
+        sig: EnumDefSig { args, ret_type, .. },
         variants,
     } = enum_def;
 

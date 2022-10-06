@@ -23,10 +23,16 @@ pub struct LetDef {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct EnumDef {
-    pub name: Symbol,
+pub struct EnumDefSig {
     pub args: Arc<[FunArg<Expr>]>,
     pub ret_type: Expr,
+    pub self_type: Arc<Value>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EnumDef {
+    pub name: Symbol,
+    pub sig: EnumDefSig,
     pub variants: Vec<EnumVariant>,
 }
 
