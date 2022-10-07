@@ -172,7 +172,11 @@ impl<'a> UnelabCtx<'a> {
                 VarName::Synth(count) => surface::Pat::Name((), self.gen_name(*count)),
                 VarName::Underscore => surface::Pat::Wildcard(()),
             },
-            Pat::Variant(..) => todo!(),
+            Pat::Variant(variant, pats) => {
+                let name = variant.name(self.db).contents(self.db);
+                let pats = pats.iter().map(|pat| self.unelab_pat(pat)).collect();
+                surface::Pat::Variant((), name.clone(), pats)
+            }
         }
     }
 
@@ -188,7 +192,7 @@ impl<'a> UnelabCtx<'a> {
             Pat::Error => self.local_names.push(VarName::Underscore),
             Pat::Name(name) => self.local_names.push(*name),
             Pat::Lit(_) => self.local_names.push(self.name_source.fresh()),
-            Pat::Variant(..) => todo!(),
+            Pat::Variant(_, pats) => pats.iter().for_each(|pat| self.subst_pat(pat)),
         }
     }
 

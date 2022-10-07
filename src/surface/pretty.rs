@@ -242,7 +242,17 @@ impl<'a> PrettyCtx {
             Pat::Wildcard(_) => self.text("_"),
             Pat::Name(_, name) => self.text(name.to_string()),
             Pat::Lit(_, lit) => self.pretty_lit(lit),
-            Pat::Variant(..) => todo!(),
+            Pat::Variant(_, name, pats) => {
+                let pats_empty = pats.is_empty();
+                let pats = pats.iter().map(|pat| self.pretty_pat(pat));
+                let pats = self.intersperse(pats, docs!(self, ",", self.space()));
+                let pats = if pats_empty {
+                    pats
+                } else {
+                    docs!(self, "(", pats, ")")
+                };
+                docs!(self, name.to_string(), pats)
+            }
         }
     }
 
