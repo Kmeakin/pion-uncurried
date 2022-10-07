@@ -1,0 +1,5 @@
+let f = fn(x: Bool) => x;
+
+let x = f();
+
+let y = f(true, false);

@@ -6,7 +6,7 @@ use walkdir::WalkDir;
 
 fn main() {
     let args = libtest_mimic::Arguments::from_args();
-    let tests = find_source_files("tests/elab/ok").map(elab_ok).collect();
+    let tests = find_source_files("tests/elab").map(elab_ok).collect();
     libtest_mimic::run(&args, tests).exit();
 }
 

@@ -1,0 +1,10 @@
+let x: #error = #error;
+
+====DIAGNOSTICS====
+Error: Unbound variable: `y`
+   ╭─[tests/elab/err/unbound_variable.pion:1:9]
+   │
+ 1 │ let x = y;
+   ·         │ 
+   ·         ╰─ here
+───╯

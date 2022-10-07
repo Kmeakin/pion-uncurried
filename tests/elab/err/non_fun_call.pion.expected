@@ -1,0 +1,12 @@
+let f: Bool = false;
+
+let x: #error = #error;
+
+====DIAGNOSTICS====
+Error: Called non-function expression
+   ╭─[tests/elab/err/non_fun_call.pion:3:9]
+   │
+ 3 │ let x = f(false);
+   ·         │ 
+   ·         ╰─ Help: type of this expression is `Bool`
+───╯
