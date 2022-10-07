@@ -3,3 +3,12 @@ enum Eq(T: Type, x: T, y: T): Type {
 }
 
 let false_eq_false: Eq(Bool, false, false) = Refl(Bool, false, #error);
+
+====DIAGNOSTICS====
+Error: Unable to infer expr of hole
+   ╭─[tests/elab/ok/eq.pion:5:64]
+   │
+ 5 │ let false_eq_false: Eq(Bool, false, false) = Refl(Bool, false, ?_);
+   ·                                                                │ 
+   ·                                                                ╰─ here
+───╯

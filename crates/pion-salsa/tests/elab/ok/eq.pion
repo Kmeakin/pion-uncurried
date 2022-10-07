@@ -2,8 +2,4 @@ enum Eq(T: Type, x: T, y: T) {
     Refl: Eq(T, x, x)
 }
 
-// let r = Refl;
-
-// let true_eq_true: Eq(Bool, true, false) = Refl(Bool, false, ?_);
-
 let false_eq_false: Eq(Bool, false, false) = Refl(Bool, false, ?_);
