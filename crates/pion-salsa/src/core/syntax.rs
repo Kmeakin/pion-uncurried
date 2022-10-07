@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use super::env::{LocalSource, SharedEnv, VarIndex, VarLevel};
+use super::env::{EnvLen, LocalSource, SharedEnv, VarIndex, VarLevel};
 use crate::ir::symbol::Symbol;
 use crate::ir::syntax as ir;
 
@@ -51,6 +51,7 @@ pub enum Expr {
     Lit(Lit),
     LetDef(ir::LetDef),
     EnumDef(ir::EnumDef),
+    EnumVariant(ir::EnumVariant),
     Local(VarIndex),
     Meta(VarLevel),
     MetaInsertion(VarLevel, SharedEnv<LocalSource>),
@@ -59,6 +60,45 @@ pub enum Expr {
     FunCall(Arc<Self>, Arc<[Self]>),
     Let(Arc<Pat>, Arc<Self>, Arc<Self>, Arc<Self>),
     Match(Arc<Self>, Arc<[(Pat, Self)]>),
+}
+
+impl Expr {
+    /// Returns true if `self` is "closed" with respect to `len` - ie `self`
+    /// would not have any unbound local variables when evaluated in an
+    /// environment with length `len`.
+    pub fn is_closed(&self, mut len: EnvLen) -> bool {
+        match self {
+            Self::Error
+            | Self::Type
+            | Self::BoolType
+            | Self::Lit(_)
+            | Self::Meta(_)
+            | Self::MetaInsertion(..)
+            | Self::LetDef(_)
+            | Self::EnumDef(_)
+            | Self::EnumVariant(_) => true,
+            Self::Local(index) => index.0 < len.0,
+            Self::FunType(args, ret) | Self::FunExpr(args, ret) => {
+                args.iter().all(|FunArg { pat, ty }| {
+                    let ret = ty.is_closed(len);
+                    len += pat.num_binders();
+                    ret
+                }) && ret.is_closed(len)
+            }
+            Self::FunCall(fun, args) => {
+                fun.is_closed(len) && args.iter().all(|arg| arg.is_closed(len))
+            }
+            Self::Let(pat, ty, init, body) => {
+                ty.is_closed(len) && init.is_closed(len) && body.is_closed(len + pat.num_binders())
+            }
+            Self::Match(scrut, arms) => {
+                scrut.is_closed(len)
+                    && arms
+                        .iter()
+                        .all(|(pat, expr)| expr.is_closed(len + pat.num_binders()))
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -72,6 +112,16 @@ pub enum Pat {
     Error,
     Lit(Lit),
     Name(VarName),
+}
+
+impl Pat {
+    pub fn num_binders(&self) -> EnvLen {
+        match self {
+            Pat::Error => EnvLen(1),
+            Pat::Lit(_) => EnvLen(1),
+            Pat::Name(_) => EnvLen(1),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -90,6 +140,9 @@ impl Value {
     pub fn meta(level: VarLevel) -> Self { Self::Stuck(Head::Meta(level), Vec::new()) }
     pub fn let_def(def: ir::LetDef) -> Self { Self::Stuck(Head::LetDef(def), Vec::new()) }
     pub fn enum_def(def: ir::EnumDef) -> Self { Self::Stuck(Head::EnumDef(def), Vec::new()) }
+    pub fn enum_variant(def: ir::EnumVariant) -> Self {
+        Self::Stuck(Head::EnumVariant(def), Vec::new())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -98,6 +151,7 @@ pub enum Head {
     Meta(VarLevel),
     LetDef(ir::LetDef),
     EnumDef(ir::EnumDef),
+    EnumVariant(ir::EnumVariant),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

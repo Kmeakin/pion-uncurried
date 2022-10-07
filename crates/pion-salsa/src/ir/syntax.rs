@@ -14,6 +14,7 @@ pub struct Module {
 pub enum Item {
     Let(LetDef),
     Enum(EnumDef),
+    Variant(EnumVariant),
 }
 
 #[salsa::tracked]
@@ -44,6 +45,8 @@ pub struct EnumVariant {
     pub name: Symbol,
 
     pub file: InputFile,
+
+    pub parent: EnumDef,
 
     #[return_ref]
     pub surface: surface::EnumVariant<Span>,

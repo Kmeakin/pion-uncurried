@@ -55,6 +55,10 @@ impl<'a> UnelabCtx<'a> {
                 let name = def.name(self.db).contents(self.db).to_owned();
                 surface::Expr::Name((), name)
             }
+            Expr::EnumVariant(def) => {
+                let name = def.name(self.db).contents(self.db).to_owned();
+                surface::Expr::Name((), name)
+            }
             Expr::Meta(level) => {
                 let name = match self.meta_names.get(*level) {
                     Some(VarName::User(name)) => name.contents(self.db).clone(),

@@ -137,6 +137,7 @@ impl<'env> EvalCtx<'env> {
             }
             Expr::LetDef(def) => Arc::new(Value::let_def(*def)),
             Expr::EnumDef(enum_def) => Arc::new(Value::enum_def(*enum_def)),
+            Expr::EnumVariant(enum_variant) => Arc::new(Value::enum_variant(*enum_variant)),
             Expr::Local(index) if self.opts.delta_reduce => match self.local_env.get(*index) {
                 Some(value) => value.clone(),
                 None => unreachable!("Unbound local variable: {index:?}"),

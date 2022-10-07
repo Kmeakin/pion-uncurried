@@ -35,6 +35,7 @@ pub struct Jar(
     crate::core::elab::elab_let_def,
     crate::core::elab::synth_enum_def,
     crate::core::elab::elab_enum_def,
+    crate::core::elab::elab_enum_variant,
 );
 
 pub trait Db: salsa::DbWithJar<Jar> {}

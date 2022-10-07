@@ -45,6 +45,15 @@ impl EnvLen {
     pub fn clear(&mut self) { self.0 = 0; }
 }
 
+impl std::ops::Add for EnvLen {
+    type Output = Self;
+    fn add(self, rhs: Self) -> Self::Output { Self(self.0 + rhs.0) }
+}
+
+impl std::ops::AddAssign for EnvLen {
+    fn add_assign(&mut self, rhs: Self) { self.0 += rhs.0; }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UniqueEnv<T> {
     entries: Vec<T>,

@@ -187,6 +187,16 @@ pub fn elab_enum_def(db: &dyn crate::Db, enum_def: ir::EnumDef) -> EnumDef {
     enum_def
 }
 
+#[salsa::tracked]
+pub fn elab_enum_variant(db: &dyn crate::Db, variant: ir::EnumVariant) -> EnumVariant {
+    let file = variant.file(db);
+    let mut ctx = ElabCtx::new(db, file);
+    let sig = ctx.synth_enum_def(variant.parent(db));
+    let variant = ctx.elab_enum_variant(variant.surface(db), &sig);
+    ctx.finish();
+    variant
+}
+
 /// Helpers
 impl ElabCtx<'_> {
     pub fn eval_ctx(&mut self) -> EvalCtx {
@@ -250,15 +260,16 @@ impl ElabCtx<'_> {
         let items = module.items(self.db);
         let items = items
             .iter()
-            .map(|item| match item {
+            .filter_map(|item| match item {
                 ir::Item::Let(let_def) => {
                     let let_def = elab_let_def(self.db, *let_def);
-                    Item::Let(let_def)
+                    Some(Item::Let(let_def))
                 }
                 ir::Item::Enum(enum_def) => {
                     let enum_def = elab_enum_def(self.db, *enum_def);
-                    Item::Enum(enum_def)
+                    Some(Item::Enum(enum_def))
                 }
+                ir::Item::Variant(_) => None,
             })
             .collect();
         Module { items }
@@ -452,6 +463,7 @@ impl ElabCtx<'_> {
     }
 
     #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
+    #[debug_ensures(ret.0.is_closed(self.local_env.len()))]
     fn synth_expr(&mut self, expr: &surface::Expr<Span>) -> SynthExpr {
         let file = self.file;
         match expr {
@@ -483,6 +495,26 @@ impl ElabCtx<'_> {
                                 Arc::new(ret_type),
                             ));
                             return SynthExpr(Expr::EnumDef(def), Arc::new(fun_type));
+                        }
+                        ir::Item::Variant(enum_variant) => {
+                            let parent = enum_variant.parent(self.db);
+                            let parent_sig = elab_enum_def(self.db, parent).sig;
+
+                            let variant = elab_enum_variant(self.db, enum_variant);
+                            let args = dbg!(parent_sig.args)
+                                .iter()
+                                .chain(dbg!(variant.args).iter())
+                                .cloned()
+                                .collect();
+
+                            let ret_type = variant.ret_type;
+
+                            let fun_type = Value::FunType(FunClosure::new(
+                                SharedEnv::new(),
+                                args,
+                                Arc::new(ret_type),
+                            ));
+                            return SynthExpr(Expr::EnumVariant(enum_variant), Arc::new(fun_type));
                         }
                     }
                 }

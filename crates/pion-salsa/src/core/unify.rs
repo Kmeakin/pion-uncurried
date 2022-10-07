@@ -265,8 +265,9 @@ impl<'env> UnifyCtx<'env> {
                             Expr::Meta(*var)
                         }
                     }
-                    Head::EnumDef(enum_def) => Expr::EnumDef(*enum_def),
                     Head::LetDef(let_def) => Expr::LetDef(*let_def),
+                    Head::EnumDef(enum_def) => Expr::EnumDef(*enum_def),
+                    Head::EnumVariant(variant) => Expr::EnumVariant(*variant),
                 };
                 spine.iter().fold(Ok(head), |head, elim| {
                     Ok(match elim {

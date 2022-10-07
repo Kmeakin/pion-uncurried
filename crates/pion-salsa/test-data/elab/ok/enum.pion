@@ -3,6 +3,11 @@ enum YesOrNo {
     No(_: Type),
 }
 
+enum Maybe(T: Type) {
+    None,
+    Some(x: T),
+}
+
 enum Either(A: Type, B: Type) {
     Left(x: A),
     Right(y: B),
@@ -12,3 +17,14 @@ enum Result(T: Type, E: Type) {
     Ok(t: T): Result(T, E),
     Err(e: E): Result(T, E),
 }
+
+let yorn = YesOrNo;
+let y = Yes;
+let n = No;
+
+let m = Maybe;
+let n = None;
+let s = Some;
+
+let e = Either;
+let l = Left;
