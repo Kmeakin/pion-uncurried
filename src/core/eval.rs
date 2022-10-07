@@ -332,6 +332,7 @@ impl<'env> ElimCtx<'env> {
                 }
 
                 (Pat::Lit(_), _) => continue,
+                (Pat::Variant(..), _) => todo!(),
             }
         }
 

@@ -39,8 +39,8 @@ pub struct EnumDef {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EnumVariant {
     pub name: Symbol,
-    pub args: Arc<[FunArg<Expr>]>,
-    pub ret_type: Expr,
+    pub args: Arc<[FunArg<(Expr, Arc<Value>)>]>,
+    pub ret_type: (Expr, Arc<Value>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -115,12 +115,14 @@ pub enum Pat {
     Error,
     Lit(Lit),
     Name(VarName),
+    Variant(ir::EnumVariant, Arc<[Self]>),
 }
 
 impl Pat {
     pub fn num_binders(&self) -> EnvLen {
         match self {
             Self::Error | Self::Lit(_) | Self::Name(_) => EnvLen(1),
+            Self::Variant(_, pats) => pats.iter().map(Pat::num_binders).sum(),
         }
     }
 }

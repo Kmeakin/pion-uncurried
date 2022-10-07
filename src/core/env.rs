@@ -54,6 +54,12 @@ impl std::ops::AddAssign for EnvLen {
     fn add_assign(&mut self, rhs: Self) { self.0 += rhs.0; }
 }
 
+impl std::iter::Sum for EnvLen {
+    fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
+        iter.fold(EnvLen(0), |acc, item| acc + item)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UniqueEnv<T> {
     entries: Vec<T>,

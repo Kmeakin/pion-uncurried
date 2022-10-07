@@ -424,10 +424,10 @@ impl ElabCtx<'_> {
             .map(|pat| {
                 let SynthPat(pat_core, type_value) = self.synth_ann_pat(pat);
                 let type_core = self.quote_ctx().quote_value(&type_value);
-                self.subst_pat(&pat_core, type_value, None);
+                self.subst_pat(&pat_core, type_value.clone(), None);
                 FunArg {
                     pat: pat_core,
-                    ty: (type_core),
+                    ty: (type_core, type_value),
                 }
             })
             .collect();
@@ -436,9 +436,12 @@ impl ElabCtx<'_> {
             Some(ty) => {
                 let CheckExpr(ret_core) = self.check_expr_is_type(ty);
                 let ret_value = self.eval_ctx().eval_expr(&ret_core);
-                self.quote_ctx().quote_value(&ret_value)
+                (self.quote_ctx().quote_value(&ret_value), ret_value)
             }
-            None => self.quote_ctx().quote_value(&sig.self_type),
+            None => (
+                self.quote_ctx().quote_value(&sig.self_type),
+                sig.self_type.clone(),
+            ),
         };
         self.local_env.truncate(initial_len);
 
@@ -510,19 +513,18 @@ impl ElabCtx<'_> {
                             let parent_sig = elab_enum_def(self.db, parent).sig;
 
                             let variant = elab_enum_variant(self.db, enum_variant);
-                            let args = parent_sig
-                                .args
-                                .iter()
-                                .chain(variant.args.iter())
-                                .cloned()
-                                .collect();
-
+                            let parent_args = parent_sig.args.iter().cloned();
+                            let variant_args =
+                                variant.args.iter().map(|FunArg { pat, ty }| FunArg {
+                                    pat: pat.clone(),
+                                    ty: ty.0.clone(),
+                                });
+                            let args = parent_args.chain(variant_args).collect();
                             let ret_type = variant.ret_type;
-
                             let fun_type = Value::FunType(FunClosure::new(
                                 SharedEnv::new(),
                                 args,
-                                Arc::new(ret_type),
+                                Arc::new(ret_type.0),
                             ));
                             return SynthExpr(Expr::EnumVariant(enum_variant), Arc::new(fun_type));
                         }
@@ -813,7 +815,16 @@ pub struct CheckPat(Pat);
 /// Patterns
 impl ElabCtx<'_> {
     #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
+    fn synth_error_pat(&mut self) -> SynthPat {
+        // let name = self.name_source.fresh();
+        // let source = MetaSource::Error;
+        // let ty = self.push_meta_value(name, source, Arc::new(Value::Type));
+        SynthPat(Pat::Error, Arc::new(Value::Error))
+    }
+
+    #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
     fn synth_pat(&mut self, pat: &surface::Pat<Span>) -> SynthPat {
+        let file = self.file;
         let db = self.db;
         let mut meta = || {
             let name = self.name_source.fresh();
@@ -833,7 +844,32 @@ impl ElabCtx<'_> {
                 let (lit, ty) = self.synth_lit(lit);
                 SynthPat(Pat::Lit(lit), ty)
             }
-            surface::Pat::Variant(..) => todo!(),
+            surface::Pat::Variant(span, name, pats) => {
+                let symbol = Symbol::intern(self.db, name);
+                match crate::ir::lookup_item(self.db, self.file, symbol) {
+                    Some(ir::Item::Variant(variant)) => {
+                        let EnumVariant { args, ret_type, .. } =
+                            elab_enum_variant(self.db, variant);
+                        let pats = pats
+                            .iter()
+                            .zip(args.iter().map(|FunArg { pat, ty }| FunArg {
+                                pat: pat.clone(),
+                                ty: ty.1.clone(),
+                            }))
+                            .map(|(pat, arg)| {
+                                let CheckPat(pat) = self.check_pat(pat, &arg.ty);
+                                pat
+                            })
+                            .collect();
+                        SynthPat(Pat::Variant(variant, pats), ret_type.1)
+                    }
+                    _ => {
+                        crate::error!(span.into_file_span(file), "Unbound variable: `{name}`")
+                            .emit(db);
+                        self.synth_error_pat()
+                    }
+                }
+            }
         }
     }
 
@@ -894,15 +930,21 @@ impl ElabCtx<'_> {
         }
     }
 
-    fn subst_pat(&mut self, pat: &Pat, ty: Arc<Value>, value: Option<Arc<Value>>) -> Arc<Value> {
-        match pat {
-            Pat::Error => self.local_env.push(VarName::Underscore, ty, value),
-            Pat::Name(name) => self.local_env.push(*name, ty, value),
-            Pat::Lit(lit) => {
+    fn subst_pat(&mut self, pat: &Pat, ty: Arc<Value>, value: Option<Arc<Value>>) {
+        match (pat, ty.as_ref(), value.as_ref()) {
+            (Pat::Error, ..) => {
+                self.local_env.push(VarName::Underscore, ty, value);
+            }
+            (Pat::Name(name), ..) => {
+                self.local_env.push(*name, ty, value);
+            }
+            (Pat::Lit(lit), ..) => {
                 let pat_value = Arc::new(Value::Lit(lit.clone()));
                 let name = self.name_source.fresh();
-                self.local_env.push(name, ty, Some(pat_value))
+                self.local_env.push(name, ty, Some(pat_value));
             }
+            (Pat::Variant(..), ..) => todo!(),
+            _ => unreachable!("Cannot subst {value:#?} with type {ty:#?} into {pat:#?}"),
         }
     }
 }

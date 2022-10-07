@@ -172,6 +172,7 @@ impl<'a> UnelabCtx<'a> {
                 VarName::Synth(count) => surface::Pat::Name((), self.gen_name(*count)),
                 VarName::Underscore => surface::Pat::Wildcard(()),
             },
+            Pat::Variant(..) => todo!(),
         }
     }
 
@@ -187,6 +188,7 @@ impl<'a> UnelabCtx<'a> {
             Pat::Error => self.local_names.push(VarName::Underscore),
             Pat::Name(name) => self.local_names.push(*name),
             Pat::Lit(_) => self.local_names.push(self.name_source.fresh()),
+            Pat::Variant(..) => todo!(),
         }
     }
 
@@ -270,7 +272,7 @@ pub fn unelab_enum_def(db: &dyn crate::Db, enum_def: &EnumDef) -> surface::EnumD
                     .iter()
                     .map(|FunArg { pat, ty }| {
                         let pat_surface = ctx.unelab_pat(pat);
-                        let type_surface = ctx.unelab_expr(ty);
+                        let type_surface = ctx.unelab_expr(&ty.0);
                         ctx.subst_pat(pat);
                         surface::AnnPat {
                             pat: pat_surface,
@@ -278,7 +280,7 @@ pub fn unelab_enum_def(db: &dyn crate::Db, enum_def: &EnumDef) -> surface::EnumD
                         }
                     })
                     .collect();
-                let ret_type = ctx.unelab_expr(ret_type);
+                let ret_type = ctx.unelab_expr(&ret_type.0);
                 ctx.local_names.truncate(initial_len);
                 surface::EnumVariant {
                     name,
