@@ -1,0 +1,12 @@
+let not: fn(b: Bool) -> Bool = fn(b: Bool) -> match b {
+    true => false,
+    false => true,
+};
+
+let not_true: Bool = not(true);
+
+let not_false: Bool = not(false);
+
+let not_not_true: Bool = not(not_true);
+
+let not_not_false: Bool = not(not_false);

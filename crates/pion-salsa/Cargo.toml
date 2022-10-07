@@ -3,6 +3,10 @@ name = "pion-salsa"
 version = "0.1.0"
 edition = "2021"
 
+[[test]]
+name = "test_runner"
+harness = false
+
 [dependencies]
 ariadne = "0.1.5"
 clap = { version = "4.0.8", features = ["derive"] }
@@ -17,5 +21,6 @@ text-size = "1.1.0"
 lalrpop = "0.19.8"
 
 [dev-dependencies]
-datatest = "0.7.1"
 expect-test = "1.3.0"
+libtest-mimic = "0.5.2"
+walkdir = "2.3.2"

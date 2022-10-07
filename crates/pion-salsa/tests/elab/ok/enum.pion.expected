@@ -1,0 +1,35 @@
+enum YesOrNo: Type {
+    Yes(_: Bool): YesOrNo,
+    No(_: Type): YesOrNo,
+}
+
+enum Maybe(T: Type): Type {
+    None: Maybe(T),
+    Some(x: T): Maybe(T),
+}
+
+enum Either(A: Type, B: Type): Type {
+    Left(x: A): Either(A, B),
+    Right(y: B): Either(A, B),
+}
+
+enum Result(T: Type, E: Type): Type {
+    Ok(t: T): Result(T, E),
+    Err(e: E): Result(T, E),
+}
+
+let yorn: fn() -> Type = YesOrNo;
+
+let y: fn(_: Bool) -> YesOrNo = Yes;
+
+let n: fn(_: Type) -> YesOrNo = No;
+
+let m: fn(T: Type) -> Type = Maybe;
+
+let n: fn(T: Type) -> Maybe(T) = None;
+
+let s: fn(T: Type, x: T) -> Maybe(T) = Some;
+
+let e: fn(A: Type, B: Type) -> Type = Either;
+
+let l: fn(A: Type, B: Type, x: A) -> Either(A, B) = Left;

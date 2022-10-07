@@ -1,0 +1,5 @@
+enum Eq(T: Type, x: T, y: T): Type {
+    Refl: Eq(T, x, x),
+}
+
+let false_eq_false: Eq(Bool, false, false) = Refl(Bool, false, #error);

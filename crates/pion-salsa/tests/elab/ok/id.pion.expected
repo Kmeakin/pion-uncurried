@@ -1,0 +1,1 @@
+let id: fn(A: Type, x: A) -> A = fn(A: Type, x: A) -> x;
