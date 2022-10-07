@@ -1,1 +1,0 @@
-let id = fn(A: Type, x: A) => x;

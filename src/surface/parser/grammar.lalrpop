@@ -102,6 +102,7 @@ pub Pat: Pat<Span> = {
     <start: @L> "_" <end: @R> => Pat::Wildcard(Span::new(start, end)),
     <start: @L> <lit: Lit> <end: @R> => Pat::Lit(Span::new(start, end), lit),
     <start: @L> <name: Name> <end: @R> => Pat::Name(Span::new(start, end), name),
+    <start: @L> <name: Name> "(" <pats: List<Pat, ",">> ")" <end: @R> => Pat::Variant(Span::new(start, end), name, pats),
 }
 
 AnnPat: AnnPat<Span> = {

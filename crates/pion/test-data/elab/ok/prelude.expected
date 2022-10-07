@@ -1,9 +1,0 @@
-let id : fn(A : Type, x : A) -> A = fn(A : Type, x : A) => x;
-
-let always : fn(A : Type, B : Type, x : A, y : B) -> B = fn(A : Type, B : Type, x : A, y : B) => y;
-
-let apply : fn(A : Type, B : Type, f : fn(_ : A) -> B, x : A) -> B = fn(A : Type, B : Type, f : fn(_ : A) -> B, x : A) => f(x);
-
-let compose : fn(A : Type, B : Type, C : Type, f : fn(_ : A) -> B, g : fn(_ : B) -> C) -> fn(x : A) -> C = fn(A : Type, B : Type, C : Type, f : fn(_ : A) -> B, g : fn(_ : B) -> C) => fn(x : A) => g(f(x));
-
-let f : Bool = false;

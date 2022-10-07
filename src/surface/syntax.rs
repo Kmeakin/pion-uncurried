@@ -79,6 +79,7 @@ pub enum Pat<Span> {
     Wildcard(Span),
     Lit(Span, Lit<Span>),
     Name(Span, String),
+    Variant(Span, String, Vec<Self>),
 }
 
 impl<Span> Pat<Span> {
@@ -90,7 +91,8 @@ impl<Span> Pat<Span> {
             Pat::Error(span, ..)
             | Pat::Wildcard(span, ..)
             | Pat::Lit(span, ..)
-            | Pat::Name(span, ..) => span.clone(),
+            | Pat::Name(span, ..)
+            | Pat::Variant(span, ..) => span.clone(),
         }
     }
 }

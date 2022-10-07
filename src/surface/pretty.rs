@@ -1,6 +1,6 @@
 use pretty::{docs, Doc, DocAllocator, RcAllocator, RcDoc};
 
-use super::{EnumVariant, Expr, Hole, Pat, SimplePat};
+use super::syntax::*;
 
 pub struct PrettyCtx {
     alloc: RcAllocator,
@@ -8,7 +8,6 @@ pub struct PrettyCtx {
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Prec {
-    Ann,
     Let,
     Fun,
     Call,
@@ -16,7 +15,7 @@ pub enum Prec {
 }
 
 impl Prec {
-    pub const MAX: Self = Self::Ann;
+    pub const MAX: Self = Self::Let;
     pub const MIN: Self = Self::Atom;
 }
 
@@ -35,127 +34,106 @@ impl<'a> PrettyCtx {
         }
     }
 
-    fn bool(&'a self, b: bool) -> DocBuilder<'a> { self.text(if b { "true" } else { "false" }) }
-
-    pub fn pretty_module<Range>(&'a self, module: &super::Module<Range>) -> DocBuilder<'a> {
-        let decls = module.decls.iter().map(|decl| self.pretty_decl(decl));
+    pub fn pretty_module<Span>(&'a self, module: &Module<Span>) -> DocBuilder<'a> {
+        let items = module.items.iter().map(|decl| self.pretty_item(decl));
         let sep = docs!(self, self.line(), self.line());
-        self.intersperse(decls, sep)
+        self.intersperse(items, sep)
     }
 
-    fn pretty_decl<Range>(&'a self, decl: &super::Decl<Range>) -> DocBuilder<'a> {
-        match decl {
-            super::Decl::Error(_) => self.text("#error"),
-            super::Decl::Let(_, decl) => self.pretty_let_decl(decl),
-            super::Decl::Enum(_, decl) => self.pretty_enum_decl(decl),
+    pub fn pretty_item<Span>(&'a self, item: &Item<Span>) -> DocBuilder<'a> {
+        match item {
+            Item::Let(let_def) => self.pretty_let_def(let_def),
+            Item::Enum(enum_def) => self.pretty_enum_def(enum_def),
         }
     }
 
-    fn pretty_let_decl<Range>(&'a self, decl: &super::LetDecl<Range>) -> DocBuilder<'a> {
-        let super::LetDecl { name, ty, expr } = decl;
-        let name = name.1.as_ref().map_or("_", |name| name.as_ref());
-        let ty = ty
-            .as_ref()
-            .map(|ty| docs!(self, ":", self.space(), self.pretty_expr(ty), self.space()));
-        let expr = self.pretty_expr(expr);
+    pub fn pretty_let_def<Span>(&'a self, let_def: &LetDef<Span>) -> DocBuilder<'a> {
+        let LetDef { name, ty, body } = let_def;
+        let ty = self.pretty_type_annotation(ty);
+        let body = self.pretty_expr(body);
         docs!(
             self,
             "let",
             self.space(),
-            self.text(name.to_owned()),
-            self.space(),
+            name.clone(),
             ty,
+            self.space(),
             "=",
             self.space(),
-            expr,
+            body,
             ";"
         )
     }
 
-    fn pretty_enum_decl<Range>(&'a self, decl: &super::EnumDecl<Range>) -> DocBuilder<'a> {
-        let super::EnumDecl {
+    pub fn pretty_enum_def<Span>(&'a self, enum_def: &EnumDef<Span>) -> DocBuilder<'a> {
+        let EnumDef {
             name,
             args,
+            ret_type: ty,
             variants,
-        } = decl;
-
-        let (_, name) = name;
-
-        let args = if args.len() > 0 {
-            let args = args.iter().map(|pat| self.pretty_simple_pat(pat));
-            let sep = docs!(self, ",", self.space());
-            let args = self.intersperse(args, sep);
-            Some(docs!(self, "(", args, ")"))
+        } = enum_def;
+        let pats = args.iter().map(|pat| self.pretty_ann_pat(pat));
+        let sep = docs!(self, ",", self.space());
+        let pats = self.intersperse(pats, sep);
+        let pats = if args.is_empty() {
+            pats
         } else {
-            None
+            docs!(self, "(", pats, ")")
         };
-
-        let is_empty = variants.is_empty();
+        let ty = self.pretty_type_annotation(ty);
+        let variants_empty = variants.is_empty();
         let variants = variants.iter().map(|variant| {
-            let EnumVariant {
-                name,
-                args,
-                ret_type,
-            } = variant;
-
-            let (_, name) = name;
-
-            let args = if args.len() > 0 {
-                let args = args.iter().map(|pat| self.pretty_simple_pat(pat));
-                let sep = docs!(self, ",", self.space());
-                let args = self.intersperse(args, sep);
-                Some(docs!(self, "(", args, ")"))
-            } else {
-                None
-            };
-
-            let ret_type = match ret_type {
-                Some(ret_type) => {
-                    let expr = self.pretty_expr(ret_type);
-                    Some(docs!(self, self.space(), ":", self.space(), expr))
-                }
-                None => None,
-            };
-
-            docs!(
-                self,
-                self.hardline(),
-                self.text(name.to_string()),
-                args,
-                ret_type,
-                ",",
-            )
+            let variant = self.pretty_enum_variant(variant);
+            docs!(self, self.hardline(), variant, ",")
         });
-
         docs!(
             self,
             "enum",
             self.space(),
-            self.text(name.to_string()),
-            args,
+            name.clone(),
+            pats,
+            ty,
             self.space(),
             "{",
             self.concat(variants).nest(INDENT),
-            (!is_empty).then_some(self.hardline()),
+            (!variants_empty).then_some(self.hardline()),
             "}"
         )
     }
 
-    pub fn pretty_expr<Range>(&'a self, expr: &Expr<Range>) -> DocBuilder<'a> {
+    pub fn pretty_enum_variant<Span>(&'a self, enum_variant: &EnumVariant<Span>) -> DocBuilder<'a> {
+        let EnumVariant {
+            name,
+            args,
+            ret_type: ty,
+        } = enum_variant;
+        let pats = args.iter().map(|pat| self.pretty_ann_pat(pat));
+        let sep = docs!(self, ",", self.space());
+        let pats = self.intersperse(pats, sep);
+        let pats = if args.is_empty() {
+            pats
+        } else {
+            docs!(self, "(", pats, ")")
+        };
+        let ty = self.pretty_type_annotation(ty);
+        docs!(self, name.clone(), pats, ty)
+    }
+
+    pub fn pretty_expr<Span>(&'a self, expr: &Expr<Span>) -> DocBuilder<'a> {
         self.pretty_expr_prec(Prec::MAX, expr)
     }
 
-    pub fn pretty_expr_prec<Range>(&'a self, prec: Prec, expr: &Expr<Range>) -> DocBuilder<'a> {
+    pub fn pretty_expr_prec<Span>(&'a self, prec: Prec, expr: &Expr<Span>) -> DocBuilder<'a> {
         match expr {
             Expr::Error(_) => self.text("#error"),
             Expr::Hole(_, Hole::Underscore) => self.text("?_"),
-            Expr::Hole(_, Hole::Name(name)) => self.text(name.to_string()),
+            Expr::Hole(_, Hole::Name(name)) => self.text(format!("?{}", name)),
             Expr::Name(_, name) => self.text(name.to_string()),
-            Expr::Bool(_, b) => self.bool(*b),
-            Expr::FunType(_, args, ret) => {
-                let args = args.iter().map(|pat| self.pretty_simple_pat(pat));
+            Expr::Lit(_, lit) => self.pretty_lit(lit),
+            Expr::FunType(_, pats, ret) => {
+                let pats = pats.iter().map(|pat| self.pretty_ann_pat(pat));
                 let sep = docs!(self, ",", self.space());
-                let args = self.intersperse(args, sep);
+                let pats = self.intersperse(pats, sep);
                 let ret = self.pretty_expr_prec(Prec::Fun, ret);
                 self.parens(
                     prec > Prec::Fun,
@@ -163,7 +141,7 @@ impl<'a> PrettyCtx {
                         self,
                         "fn",
                         "(",
-                        args,
+                        pats,
                         ")",
                         self.space(),
                         "->",
@@ -173,7 +151,7 @@ impl<'a> PrettyCtx {
                 )
             }
             Expr::FunExpr(_, args, body) => {
-                let args = args.iter().map(|pat| self.pretty_simple_pat(pat));
+                let args = args.iter().map(|pat| self.pretty_ann_pat(pat));
                 let sep = docs!(self, ",", self.space());
                 let args = self.intersperse(args, sep);
                 let body = self.pretty_expr_prec(Prec::Fun, body);
@@ -200,7 +178,7 @@ impl<'a> PrettyCtx {
                 self.parens(prec > Prec::Call, docs!(self, fun, "(", args, ")"))
             }
             Expr::Let(_, pat, init, body) => {
-                let pat = self.pretty_simple_pat(pat);
+                let pat = self.pretty_ann_pat(pat);
                 let init = self.pretty_expr_prec(Prec::MAX, init);
                 let body = self.pretty_expr_prec(Prec::Let, body);
                 self.parens(
@@ -223,7 +201,7 @@ impl<'a> PrettyCtx {
             }
             Expr::Match(_, scrut, arms) => {
                 let scrut = self.pretty_expr(scrut);
-                let is_empty = arms.len() == 0;
+                let is_empty = arms.is_empty();
                 let arms = arms.iter().map(|(pat, expr)| {
                     let pat = self.pretty_pat(pat);
                     let expr = self.pretty_expr(expr);
@@ -251,49 +229,41 @@ impl<'a> PrettyCtx {
                 )
                 .group()
             }
-            Expr::Ann(_, expr, ty) => {
-                let expr = self.pretty_expr_prec(Prec::Call, expr);
-                let ty = self.pretty_expr_prec(Prec::Fun, ty);
-                self.parens(
-                    prec > Prec::Ann,
-                    docs!(self, expr, self.space(), ":", self.space(), ty),
-                )
-            }
         }
     }
 
-    fn pretty_simple_pat<Range>(&self, pat: &SimplePat<Range>) -> DocBuilder {
-        let SimplePat { name, ty } = pat;
-        let (_, name) = name;
-        let name = match name {
-            Some(name) => self.text(name.to_string()),
-            None => self.text("_"),
-        };
-        let ty = ty.as_ref().map(|ty| {
-            let ty = self.pretty_expr_prec(Prec::Fun, ty);
-            docs!(self, self.space(), ":", self.space(), ty)
-        });
-        docs!(self, name, ty)
-    }
-
-    fn pretty_pat<Range>(&self, pat: &Pat<Range>) -> DocBuilder {
+    pub fn pretty_pat<Span>(&self, pat: &Pat<Span>) -> DocBuilder {
         self.pretty_pat_prec(Prec::MAX, pat)
     }
 
-    fn pretty_pat_prec<Range>(&self, prec: Prec, pat: &Pat<Range>) -> DocBuilder {
+    pub fn pretty_pat_prec<Span>(&self, _prec: Prec, pat: &Pat<Span>) -> DocBuilder {
         match pat {
             Pat::Error(_) => self.text("#error"),
             Pat::Wildcard(_) => self.text("_"),
             Pat::Name(_, name) => self.text(name.to_string()),
-            Pat::Bool(_, b) => self.bool(*b),
-            Pat::Ann(_, pat, ty) => {
-                let pat = self.pretty_pat_prec(Prec::Ann, pat);
-                let ty = self.pretty_expr_prec(Prec::Fun, ty);
-                self.parens(
-                    prec > Prec::Ann,
-                    docs!(self, pat, self.space(), ":", self.space(), ty),
-                )
-            }
+            Pat::Lit(_, lit) => self.pretty_lit(lit),
+            Pat::Variant(..) => todo!(),
+        }
+    }
+
+    pub fn pretty_ann_pat<Span>(&self, pat: &AnnPat<Span>) -> DocBuilder {
+        let AnnPat { pat, ty } = pat;
+        let pat = self.pretty_pat(pat);
+        let ty = self.pretty_type_annotation(ty);
+        docs!(self, pat, ty)
+    }
+
+    fn pretty_type_annotation<Span>(&'a self, ty: &Option<Expr<Span>>) -> DocBuilder {
+        let ty = ty
+            .as_ref()
+            .map(|ty| docs!(self, ":", self.space(), self.pretty_expr(ty)));
+        docs!(self, ty)
+    }
+
+    pub fn pretty_lit<Span>(&'a self, lit: &Lit<Span>) -> DocBuilder<'a> {
+        match lit {
+            Lit::Bool(_, true) => self.text("true"),
+            Lit::Bool(_, false) => self.text("false"),
         }
     }
 }
