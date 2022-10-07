@@ -271,13 +271,13 @@ impl ElabCtx<'_> {
 
         let (body_expr, type_value) = match ty {
             Some(ty) => {
-                let CheckExpr(type_expr) = self.check_expr_is_type(&ty);
+                let CheckExpr(type_expr) = self.check_expr_is_type(ty);
                 let type_value = self.eval_ctx().eval_expr(&type_expr);
-                let CheckExpr(body_expr) = self.check_expr(&body, &type_value);
+                let CheckExpr(body_expr) = self.check_expr(body, &type_value);
                 (body_expr, type_value)
             }
             None => {
-                let SynthExpr(body_expr, type_value) = self.synth_expr(&body);
+                let SynthExpr(body_expr, type_value) = self.synth_expr(body);
                 (body_expr, type_value)
             }
         };
@@ -313,14 +313,7 @@ impl ElabCtx<'_> {
 
     // NOTE: does not truncate env
     fn synth_enum_def(&mut self, enum_def: ir::EnumDef) -> EnumDefSig {
-        let initial_len = self.local_env.len();
-        let name = enum_def.name(self.db);
-        let surface::EnumDef {
-            args,
-            ret_type,
-            variants,
-            ..
-        } = enum_def.surface(self.db);
+        let surface::EnumDef { args, ret_type, .. } = enum_def.surface(self.db);
 
         let mut self_args = Vec::with_capacity(args.len());
         let args: Arc<[_]> = args
@@ -349,7 +342,7 @@ impl ElabCtx<'_> {
 
         let ret_type = match ret_type {
             Some(ret_type) => {
-                let SynthExpr(ret_core, _) = self.synth_expr(&ret_type);
+                let SynthExpr(ret_core, _) = self.synth_expr(ret_type);
                 let ret_value = self.eval_ctx().eval_expr(&ret_core);
                 let expected = Arc::new(Value::Type);
                 match self.unify_ctx().unify_values(&ret_value, &expected) {
@@ -382,7 +375,7 @@ impl ElabCtx<'_> {
 
         let variants = variants
             .iter()
-            .map(|variant| self.elab_enum_variant(variant, &sig))
+            .map(|variant| self.elab_enum_variant(variant, sig))
             .collect();
         self.local_env.truncate(initial_len);
 

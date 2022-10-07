@@ -235,7 +235,7 @@ impl<'env> EvalCtx<'env> {
                 let args = args.iter().map(|arg| self.eval_expr(arg)).collect();
                 self.elim_ctx().do_fun_call(fun, args)
             }
-            Expr::FunCall(fun, args) => todo!(),
+            Expr::FunCall(..) => todo!(),
             Expr::Let(_, _, init, body) if self.opts.zeta_reduce => {
                 let init_value = self.eval_expr(init);
                 self.local_env.push(init_value);
@@ -243,13 +243,13 @@ impl<'env> EvalCtx<'env> {
                 self.local_env.pop();
                 body_value
             }
-            Expr::Let(_, _, init, body) => todo!(),
+            Expr::Let(..) => todo!(),
             Expr::Match(scrut, arms) if self.opts.beta_reduce => {
                 let scrut = self.eval_expr(scrut);
                 let arms = MatchArms::new(self.local_env.clone(), arms.clone());
                 self.elim_ctx().do_match(scrut, arms)
             }
-            Expr::Match(scrut, arms) => todo!(),
+            Expr::Match(..) => todo!(),
         }
     }
 }

@@ -265,7 +265,7 @@ pub fn unelab_enum_def(db: &dyn crate::Db, enum_def: &EnumDef) -> surface::EnumD
                     .iter()
                     .map(|FunArg { pat, ty }| {
                         let pat_surface = ctx.unelab_pat(pat);
-                        let type_surface = ctx.unelab_expr(&ty);
+                        let type_surface = ctx.unelab_expr(ty);
                         ctx.subst_pat(pat);
                         surface::AnnPat {
                             pat: pat_surface,
@@ -273,7 +273,7 @@ pub fn unelab_enum_def(db: &dyn crate::Db, enum_def: &EnumDef) -> surface::EnumD
                         }
                     })
                     .collect();
-                let ret_type = ctx.unelab_expr(&ret_type);
+                let ret_type = ctx.unelab_expr(ret_type);
                 ctx.local_names.truncate(initial_len);
                 surface::EnumVariant {
                     name,
