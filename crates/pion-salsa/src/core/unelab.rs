@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use contracts::debug_ensures;
+use contracts::{debug_ensures, debug_requires};
 
 use super::env::{LocalSource, NameSource, UniqueEnv, VarLevel};
 use super::syntax::*;
@@ -29,6 +29,7 @@ impl<'a> UnelabCtx<'a> {
         }
     }
 
+    #[debug_requires(expr.is_closed(self.local_names.len(), self.meta_names.len()))]
     #[debug_ensures(self.local_names.len() == old(self.local_names.len()))]
     pub fn unelab_expr(&mut self, expr: &Expr) -> surface::Expr<()> {
         match expr {

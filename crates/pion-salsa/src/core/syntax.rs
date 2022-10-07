@@ -63,39 +63,42 @@ pub enum Expr {
 }
 
 impl Expr {
-    /// Returns true if `self` is "closed" with respect to `len` - ie `self`
-    /// would not have any unbound local variables when evaluated in an
-    /// environment with length `len`.
-    pub fn is_closed(&self, mut len: EnvLen) -> bool {
+    /// Returns true if `self` is "closed" with respect to `local_len` and
+    /// `meta_len` - ie `self` would not have any unbound local or meta
+    /// variables when evaluated in a local environment of length `local_len`
+    /// and a meta environment of length `local_len`.
+    pub fn is_closed(&self, mut local_len: EnvLen, meta_len: EnvLen) -> bool {
         match self {
             Self::Error
             | Self::Type
             | Self::BoolType
             | Self::Lit(_)
-            | Self::Meta(_)
-            | Self::MetaInsertion(..)
             | Self::LetDef(_)
             | Self::EnumDef(_)
             | Self::EnumVariant(_) => true,
-            Self::Local(index) => index.0 < len.0,
+            Self::Local(index) => index.0 < local_len.0,
+            Self::Meta(level) | Self::MetaInsertion(level, ..) => level.0 < meta_len.0,
             Self::FunType(args, ret) | Self::FunExpr(args, ret) => {
                 args.iter().all(|FunArg { pat, ty }| {
-                    let ret = ty.is_closed(len);
-                    len += pat.num_binders();
+                    let ret = ty.is_closed(local_len, meta_len);
+                    local_len += pat.num_binders();
                     ret
-                }) && ret.is_closed(len)
+                }) && ret.is_closed(local_len, meta_len)
             }
             Self::FunCall(fun, args) => {
-                fun.is_closed(len) && args.iter().all(|arg| arg.is_closed(len))
+                fun.is_closed(local_len, meta_len)
+                    && args.iter().all(|arg| arg.is_closed(local_len, meta_len))
             }
             Self::Let(pat, ty, init, body) => {
-                ty.is_closed(len) && init.is_closed(len) && body.is_closed(len + pat.num_binders())
+                ty.is_closed(local_len, meta_len)
+                    && init.is_closed(local_len, meta_len)
+                    && body.is_closed(local_len + pat.num_binders(), meta_len)
             }
             Self::Match(scrut, arms) => {
-                scrut.is_closed(len)
+                scrut.is_closed(local_len, meta_len)
                     && arms
                         .iter()
-                        .all(|(pat, expr)| expr.is_closed(len + pat.num_binders()))
+                        .all(|(pat, expr)| expr.is_closed(local_len + pat.num_binders(), meta_len))
             }
         }
     }

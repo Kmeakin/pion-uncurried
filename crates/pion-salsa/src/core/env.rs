@@ -274,6 +274,8 @@ impl MetaEnv {
         self.values.push(None);
         var
     }
+
+    pub fn len(&self) -> EnvLen { self.names.len() }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]

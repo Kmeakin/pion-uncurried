@@ -15,7 +15,6 @@ pub struct EvalOpts {
     pub beta_reduce: bool,
 
     /// * Replace `Expr::Local` with its value from the local environment
-    /// * Replace `Expr::Meta` with its value from the meta environment
     /// * Replace `Expr::LetDef` with its value from the global environment
     pub delta_reduce: bool,
 
@@ -148,14 +147,12 @@ impl<'env> EvalCtx<'env> {
                     .index_to_level(*index)
                     .unwrap_or_else(|| unreachable!("Unbound local variable: {index:?}")),
             )),
-            Expr::Meta(level) if self.opts.delta_reduce => match self.meta_env.get(*level) {
+            Expr::Meta(level) => match self.meta_env.get(*level) {
                 Some(Some(value)) => value.clone(),
                 Some(None) if self.opts.error_on_unsolved_meta => Arc::new(Value::Error),
                 Some(None) => Arc::new(Value::meta(*level)),
                 None => unreachable!("Unbound meta variable: {level:?}"),
             },
-            Expr::Meta(level) => Arc::new(Value::meta(*level)),
-
             Expr::MetaInsertion(level, sources) => {
                 let mut head = self.eval_expr(&Expr::Meta(*level));
                 for (source, value) in sources.iter().zip(self.local_env.iter()) {

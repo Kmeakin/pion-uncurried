@@ -3,7 +3,7 @@ use std::sync::Arc;
 use contracts::debug_ensures;
 use text_size::TextRange;
 
-use super::env::{LocalEnv, MetaEnv, MetaSource, NameSource, SharedEnv};
+use super::env::{EnvLen, LocalEnv, MetaEnv, MetaSource, NameSource, SharedEnv};
 use super::eval::{ElimCtx, EvalCtx, EvalOpts};
 use super::quote::QuoteCtx;
 use super::syntax::*;
@@ -315,6 +315,15 @@ impl ElabCtx<'_> {
             .with_opts(expr_opts)
             .normalize_expr(&type_expr);
 
+        debug_assert!(
+            body_expr.is_closed(EnvLen(0), EnvLen(0)),
+            "free variables in `body_expr`: {body_expr:#?}"
+        );
+        debug_assert!(
+            body_expr.is_closed(EnvLen(0), EnvLen(0)),
+            "free variables in `type_expr`: {type_expr:#?}"
+        );
+
         LetDef {
             name,
             body: (body_expr, body_value),
@@ -463,7 +472,7 @@ impl ElabCtx<'_> {
     }
 
     #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
-    #[debug_ensures(ret.0.is_closed(self.local_env.len()))]
+    #[debug_ensures(ret.0.is_closed(self.local_env.len(), self.meta_env.len()))]
     fn synth_expr(&mut self, expr: &surface::Expr<Span>) -> SynthExpr {
         let file = self.file;
         match expr {
@@ -501,9 +510,10 @@ impl ElabCtx<'_> {
                             let parent_sig = elab_enum_def(self.db, parent).sig;
 
                             let variant = elab_enum_variant(self.db, enum_variant);
-                            let args = dbg!(parent_sig.args)
+                            let args = parent_sig
+                                .args
                                 .iter()
-                                .chain(dbg!(variant.args).iter())
+                                .chain(variant.args.iter())
                                 .cloned()
                                 .collect();
 
@@ -685,6 +695,7 @@ impl ElabCtx<'_> {
     }
 
     #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
+    #[debug_ensures(ret.0.is_closed(self.local_env.len(), self.meta_env.len()))]
     fn check_expr(&mut self, expr: &surface::Expr<Span>, expected: &Arc<Value>) -> CheckExpr {
         match (expr, expected.as_ref()) {
             (surface::Expr::Error(_), _) => CheckExpr(Expr::Error),

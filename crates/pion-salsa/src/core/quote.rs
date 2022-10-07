@@ -28,6 +28,7 @@ impl<'env> QuoteCtx<'env> {
     fn elim_ctx(&self) -> ElimCtx { ElimCtx::new(self.meta_env, EvalOpts::EVAL_CBV, self.db) }
 
     #[debug_ensures(self.local_env == old(self.local_env))]
+    #[debug_ensures(ret.is_closed(self.local_env, self.meta_env.len()))]
     pub fn quote_value(&mut self, value: &Arc<Value>) -> Expr {
         match value.as_ref() {
             Value::Error => Expr::Error,
