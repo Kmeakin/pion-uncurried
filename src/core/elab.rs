@@ -103,6 +103,7 @@ impl<'db> ElabCtx<'db> {
         let call_span = call_span.into_file_span(self.file);
         let fun_type = self.pretty_value(fun_type);
         crate::error!(call_span, "Called non-function expression")
+            .skip_primary_label()
             .with_secondary_label(
                 fun_span,
                 format!("Help: type of this expression is `{fun_type}`"),
@@ -139,7 +140,7 @@ impl<'db> ElabCtx<'db> {
         .with_secondary_label(
             fun_span,
             format!(
-                "Help: this function expects {expected_arity} {expected_args} but you gave it  \
+                "Help: this function expects {expected_arity} {expected_args} but you gave it \
                  {actual_arity}"
             ),
         )
@@ -792,9 +793,7 @@ impl ElabCtx<'_> {
             .iter()
             .map(|(pat, expr)| {
                 let initial_len = self.local_env.len();
-
                 let CheckPat(pat_core) = self.check_pat(pat, &scrut_type);
-
                 self.subst_pat(&pat_core, scrut_type.clone(), Some(scrut_value.clone()));
                 let expected = &self.eval_ctx().eval_expr(&expected_core);
                 let CheckExpr(expr_core) = self.check_expr(expr, expected);
@@ -943,7 +942,6 @@ impl ElabCtx<'_> {
                 let name = self.name_source.fresh();
                 self.local_env.push(name, ty, Some(pat_value));
             }
-            (Pat::Variant(..), ..) => todo!(),
             _ => unreachable!("Cannot subst {value:#?} with type {ty:#?} into {pat:#?}"),
         }
     }
