@@ -120,9 +120,7 @@ pub enum Pat {
 impl Pat {
     pub fn num_binders(&self) -> EnvLen {
         match self {
-            Pat::Error => EnvLen(1),
-            Pat::Lit(_) => EnvLen(1),
-            Pat::Name(_) => EnvLen(1),
+            Self::Error | Self::Lit(_) | Self::Name(_) => EnvLen(1),
         }
     }
 }
