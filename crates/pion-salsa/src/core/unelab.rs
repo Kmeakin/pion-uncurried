@@ -48,8 +48,8 @@ impl<'a> UnelabCtx<'a> {
                 surface::Expr::Name((), name)
             }
             Expr::LetDef(def) => {
-                let def = crate::core::elab::elab_let_def(self.db, *def);
-                self.unelab_expr(&def.body.0)
+                let name = def.name(self.db).contents(self.db).to_owned();
+                surface::Expr::Name((), name)
             }
             Expr::EnumDef(def) => {
                 let name = def.name(self.db).contents(self.db).to_owned();

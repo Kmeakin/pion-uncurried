@@ -284,8 +284,8 @@ impl ElabCtx<'_> {
         let type_expr = self.quote_ctx().quote_value(&type_value);
 
         let expr_opts = EvalOpts {
-            error_on_unsolved_meta: true,
-            ..EvalOpts::EVAL_CBV
+            beta_reduce: true, // TODO: disable beta reduction
+            ..EvalOpts::ZONK
         };
         let value_opts = EvalOpts {
             error_on_unsolved_meta: true,
