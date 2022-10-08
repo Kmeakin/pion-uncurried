@@ -67,28 +67,11 @@ pub fn elab_let_def(db: &dyn crate::Db, ir: ir::LetDef) -> LetDef {
     ctx.renaming = subst.2;
 
     let CheckExpr(body_expr) = ctx.check_expr(&body, &type_value);
-    ctx.report_unsolved_metas();
 
-    let expr_opts = EvalOpts {
-        beta_reduce: true, // TODO: disable beta reduction
-        ..EvalOpts::ZONK
-    };
-    let value_opts = EvalOpts {
-        error_on_unsolved_meta: true,
-        ..EvalOpts::EVAL_CBV
-    };
-
-    let body_value = ctx.eval_ctx().with_opts(value_opts).eval_expr(&body_expr);
-    let (body_expr, _) = ctx
-        .eval_ctx()
-        .with_opts(expr_opts)
-        .normalize_expr(&body_expr);
-
-    let type_value = ctx.eval_ctx().with_opts(value_opts).eval_expr(&type_expr);
-    let (type_expr, _) = ctx
-        .eval_ctx()
-        .with_opts(expr_opts)
-        .normalize_expr(&type_expr);
+    let type_expr = ctx.eval_ctx().zonk_expr(&type_expr);
+    let body_expr = ctx.eval_ctx().zonk_expr(&body_expr);
+    let type_value = ctx.eval_ctx().eval_expr(&type_expr);
+    let body_value = ctx.eval_ctx().eval_expr(&body_expr);
 
     debug_assert!(
         body_expr.is_closed(EnvLen(0), EnvLen(0)),

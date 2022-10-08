@@ -1,94 +1,16 @@
 use std::sync::Arc;
 
 use contracts::debug_ensures;
+use either::Either;
+use either::Either::{Left, Right};
 
-use super::env::{LocalSource, SharedEnv, UniqueEnv};
+use super::env::{EnvLen, LocalSource, SharedEnv, UniqueEnv};
 use super::quote::QuoteCtx;
 use super::syntax::*;
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub struct EvalOpts {
-    /// TODO: the case where `beta_reduce == false` (embed Expr in Value?)
-    /// * Replace `Expr::FunCall` with the result of applying the arguments to
-    ///   the function
-    /// * Replace `Expr::Match` with the result of pattern matching
-    pub beta_reduce: bool,
-
-    /// * Replace `Expr::Local` with its value from the local environment
-    /// * Replace `Expr::LetDef` with its value from the global environment
-    pub delta_reduce: bool,
-
-    /// Replace unsoled `Expr::Meta`s with `Value::Error` instead of
-    /// `Value::Meta`
-    pub error_on_unsolved_meta: bool,
-
-    /// TODO: the case where `zeta_reduce == false` (embed Expr in Value?)
-    /// Replace `Expr::Let` with the result of evaluating the `body` expression
-    /// in an environment extended with the `init` expression
-    pub zeta_reduce: bool,
-
-    /// Reduce the body of an `Expr::FunType`/`Expr::FunExpr` when creating a
-    /// closure
-    pub reduce_under_lambda: bool,
-
-    /// Reduce type annotations that do not exist "at runtime" but should still
-    /// be fully reduced when doing tasks such as zonking
-    pub reduce_annotations: bool,
-
-    /// TODO: the case where `strict == false`
-    /// Reduce an expression as far as possible when:
-    /// * Binding the pattern in an `Expr::Let`
-    /// * Calling the function in an `Expr::FunCall`
-    /// * Applying the arguments in an `Expr::FunCall`
-    /// * Reducing the scrutinee of an `Expr::Match`
-    /// Otherwise, capture the enclosing environment in a `LazyClosure` and
-    /// reduce only when demanded by an `Expr::Match` branch.
-    pub strict: bool,
-}
-
-impl EvalOpts {
-    pub const EVAL_CBV: Self = Self {
-        delta_reduce: true,
-        zeta_reduce: true,
-        error_on_unsolved_meta: false,
-        beta_reduce: true,
-        reduce_under_lambda: false,
-        reduce_annotations: false,
-        strict: true,
-    };
-    pub const EVAL_CBN: Self = Self {
-        delta_reduce: true,
-        zeta_reduce: true,
-        error_on_unsolved_meta: false,
-        beta_reduce: true,
-        reduce_under_lambda: false,
-        reduce_annotations: false,
-        strict: false,
-    };
-    pub const ZONK: Self = Self {
-        delta_reduce: false,
-        zeta_reduce: false,
-        error_on_unsolved_meta: true,
-        beta_reduce: false,
-        reduce_under_lambda: true,
-        reduce_annotations: true,
-        strict: true,
-    };
-    pub const PARTIAL_EVAL: Self = Self {
-        delta_reduce: true,
-        zeta_reduce: true,
-        error_on_unsolved_meta: true,
-        beta_reduce: true,
-        reduce_under_lambda: true,
-        reduce_annotations: false,
-        strict: true,
-    };
-}
 
 pub struct EvalCtx<'env> {
     local_env: &'env mut SharedEnv<Arc<Value>>,
     meta_env: &'env UniqueEnv<Option<Arc<Value>>>,
-    opts: EvalOpts,
     db: &'env dyn crate::Db,
 }
 
@@ -96,23 +18,16 @@ impl<'env> EvalCtx<'env> {
     pub fn new(
         local_env: &'env mut SharedEnv<Arc<Value>>,
         meta_env: &'env UniqueEnv<Option<Arc<Value>>>,
-        opts: EvalOpts,
         db: &'env dyn crate::Db,
     ) -> Self {
         Self {
             local_env,
             meta_env,
-            opts,
             db,
         }
     }
 
-    pub fn with_opts(mut self, opts: EvalOpts) -> Self {
-        self.opts = opts;
-        self
-    }
-
-    fn elim_ctx(&self) -> ElimCtx { ElimCtx::new(self.meta_env, self.opts, self.db) }
+    fn elim_ctx(&self) -> ElimCtx { ElimCtx::new(self.meta_env, self.db) }
 
     fn quote_ctx(&self) -> QuoteCtx { QuoteCtx::new(self.local_env.len(), self.meta_env, self.db) }
 
@@ -130,144 +45,200 @@ impl<'env> EvalCtx<'env> {
             Expr::Type => Arc::new(Value::Type),
             Expr::BoolType => Arc::new(Value::BoolType),
             Expr::Lit(lit) => Arc::new(Value::Lit(lit.clone())),
-            Expr::LetDef(ir) if self.opts.delta_reduce => {
-                super::elab::eval_let_def_expr(self.db, *ir)
-            }
-            Expr::LetDef(def) => Arc::new(Value::let_def(*def)),
+            Expr::LetDef(ir) => super::elab::eval_let_def_expr(self.db, *ir),
             Expr::EnumDef(enum_def) => Arc::new(Value::enum_def(*enum_def)),
             Expr::EnumVariant(enum_variant) => Arc::new(Value::enum_variant(*enum_variant)),
-            Expr::Local(index) if self.opts.delta_reduce => match self.local_env.get(*index) {
+            Expr::Local(index) => match self.local_env.get(*index) {
                 Some(value) => value.clone(),
                 None => unreachable!("Unbound local variable: {index:?}"),
             },
-            Expr::Local(index) => Arc::new(Value::local(
-                self.local_env
-                    .len()
-                    .index_to_level(*index)
-                    .unwrap_or_else(|| unreachable!("Unbound local variable: {index:?}")),
-            )),
             Expr::Meta(level) => match self.meta_env.get(*level) {
                 Some(Some(value)) => value.clone(),
-                Some(None) if self.opts.error_on_unsolved_meta => Arc::new(Value::Error),
                 Some(None) => Arc::new(Value::meta(*level)),
                 None => unreachable!("Unbound meta variable: {level:?}"),
             },
             Expr::MetaInsertion(level, sources) => {
                 let mut head = self.eval_expr(&Expr::Meta(*level));
-                for (source, value) in sources.iter().zip(self.local_env.iter()) {
-                    head = match source {
-                        LocalSource::Def => head,
-                        LocalSource::Param => {
-                            self.elim_ctx().do_fun_call(head, vec![value.clone()])
-                        }
-                    };
-                }
-                head
-            }
-            Expr::FunType(args, ret) if self.opts.reduce_under_lambda => {
-                let initial_len = self.local_env.len();
-                let args = args
-                    .iter()
-                    .map(|FunArg { pat, ty }| {
-                        let ty = self.eval_expr(ty);
-                        let ty = self.quote_ctx().quote_value(&ty);
-                        let arg = Arc::new(Value::local(self.local_env.len().to_level()));
-                        self.local_env.push(arg);
-                        FunArg {
-                            pat: pat.clone(),
-                            ty,
-                        }
-                    })
-                    .collect();
-                let ret = self.eval_expr(ret);
-                let ret = self.quote_ctx().quote_value(&ret);
-                self.local_env.truncate(initial_len);
-                Arc::new(Value::FunType(FunClosure::new(
-                    self.local_env.clone(),
-                    args,
-                    Arc::new(ret),
-                )))
+                self.fold_local_sources(head, sources.iter().copied())
             }
             Expr::FunType(args, ret) => Arc::new(Value::FunType(FunClosure::new(
                 self.local_env.clone(),
                 args.clone(),
                 ret.clone(),
             ))),
-            Expr::FunExpr(args, ret) if self.opts.reduce_under_lambda => {
-                let initial_len = self.local_env.len();
-                let args = args
-                    .iter()
-                    .map(|FunArg { pat, ty }| {
-                        let ty = if self.opts.reduce_annotations {
-                            let ty = self.eval_expr(ty);
-                            let ty = self.quote_ctx().quote_value(&ty);
-                            ty
-                        } else {
-                            ty.clone()
-                        };
-                        let arg = Arc::new(Value::local(self.local_env.len().to_level()));
-                        self.local_env.push(arg);
-                        FunArg {
-                            pat: pat.clone(),
-                            ty,
-                        }
-                    })
-                    .collect();
-                let ret = self.eval_expr(ret);
-                let ret = self.quote_ctx().quote_value(&ret);
-                self.local_env.truncate(initial_len);
-                Arc::new(Value::FunValue(FunClosure::new(
-                    self.local_env.clone(),
-                    args,
-                    Arc::new(ret),
-                )))
-            }
             Expr::FunExpr(args, body) => Arc::new(Value::FunValue(FunClosure::new(
                 self.local_env.clone(),
                 args.clone(),
                 body.clone(),
             ))),
-            Expr::FunCall(fun, args) if self.opts.beta_reduce => {
+            Expr::FunCall(fun, args) => {
                 let fun = self.eval_expr(fun);
                 let args = args.iter().map(|arg| self.eval_expr(arg)).collect();
                 self.elim_ctx().do_fun_call(fun, args)
             }
-            Expr::FunCall(..) => todo!(),
-            Expr::Let(_, _, init, body) if self.opts.zeta_reduce => {
+            Expr::Let(_, _, init, body) => {
                 let init_value = self.eval_expr(init);
                 self.local_env.push(init_value);
                 let body_value = self.eval_expr(body);
                 self.local_env.pop();
                 body_value
             }
-            Expr::Let(..) => todo!(),
-            Expr::Match(scrut, arms) if self.opts.beta_reduce => {
+            Expr::Match(scrut, arms) => {
                 let scrut = self.eval_expr(scrut);
                 let arms = MatchArms::new(self.local_env.clone(), arms.clone());
                 self.elim_ctx().do_match(scrut, arms)
             }
-            Expr::Match(..) => todo!(),
+        }
+    }
+
+    fn fold_local_sources(
+        &mut self,
+        mut head: Arc<Value>,
+        sources: impl IntoIterator<Item = LocalSource>,
+    ) -> Arc<Value> {
+        for (source, value) in sources.into_iter().zip(self.local_env.iter()) {
+            head = match source {
+                LocalSource::Def => head,
+                LocalSource::Param => self.elim_ctx().do_fun_call(head, vec![value.clone()]),
+            };
+        }
+        head
+    }
+
+    #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
+    #[debug_ensures(ret.is_closed(self.local_env.len(), EnvLen(0)))]
+    pub fn zonk_expr(&mut self, expr: &Expr) -> Expr {
+        match expr {
+            Expr::Error
+            | Expr::Type
+            | Expr::BoolType
+            | Expr::Lit(_)
+            | Expr::LetDef(_)
+            | Expr::EnumDef(_)
+            | Expr::EnumVariant(_)
+            | Expr::Local(_) => expr.clone(),
+
+            Expr::Meta(_) | Expr::FunCall(..) | Expr::Match(..) => match self.zonk_spine(expr) {
+                Left(expr) => expr,
+                Right(value) => self.quote_ctx().quote_value(&value),
+            },
+
+            Expr::MetaInsertion(var, sources) => match self.meta_env.get(*var) {
+                Some(Some(value)) => {
+                    let value = self.fold_local_sources(value.clone(), sources.iter().copied());
+                    self.quote_ctx().quote_value(&value)
+                }
+                Some(None) => Expr::Error,
+                None => unreachable!("Unbound meta variable {var:#?}"),
+            },
+
+            Expr::FunType(args, ret) => {
+                let initial_len = self.local_env.len();
+                let args = args
+                    .iter()
+                    .map(|FunArg { pat, ty }| {
+                        let pat = pat.clone();
+                        let ty = self.zonk_expr(ty);
+                        self.subst_pat(&pat);
+                        FunArg { pat, ty }
+                    })
+                    .collect();
+                let ret = self.zonk_expr(ret);
+                self.local_env.truncate(initial_len);
+                Expr::FunType(args, Arc::new(ret))
+            }
+            Expr::FunExpr(args, body) => {
+                let initial_len = self.local_env.len();
+                let args = args
+                    .iter()
+                    .map(|FunArg { pat, ty }| {
+                        let pat = pat.clone();
+                        let ty = self.zonk_expr(ty);
+                        self.subst_pat(&pat);
+                        FunArg { pat, ty }
+                    })
+                    .collect();
+                let body = self.zonk_expr(body);
+                self.local_env.truncate(initial_len);
+                Expr::FunExpr(args, Arc::new(body))
+            }
+            Expr::Let(pat, ty, init, body) => {
+                let ty = self.zonk_expr(ty);
+                let init = self.zonk_expr(init);
+                let initial_len = self.local_env.len();
+                let body = self.zonk_expr(body);
+                self.subst_pat(pat);
+                self.local_env.truncate(initial_len);
+                Expr::Let(pat.clone(), Arc::new(ty), Arc::new(init), Arc::new(body))
+            }
+        }
+    }
+
+    fn zonk_spine(&mut self, expr: &Expr) -> Either<Expr, Arc<Value>> {
+        match expr {
+            Expr::Meta(var) => match self.meta_env.get(*var) {
+                Some(Some(value)) => Right(value.clone()),
+                Some(None) => Left(Expr::Error),
+                None => unreachable!("Unbound meta variable"),
+            },
+            Expr::MetaInsertion(var, sources) => match self.meta_env.get(*var) {
+                Some(Some(value)) => {
+                    Right(self.fold_local_sources(value.clone(), sources.iter().copied()))
+                }
+                Some(None) => Left(Expr::Error),
+                None => unreachable!("Unbound meta variable"),
+            },
+            Expr::FunCall(fun, args) => match self.zonk_spine(fun) {
+                Left(fun) => {
+                    let args = args.iter().map(|arg| self.zonk_expr(arg)).collect();
+                    Left(Expr::FunCall(Arc::new(fun), args))
+                }
+                Right(fun) => {
+                    let args = args.iter().map(|arg| self.eval_expr(arg)).collect();
+                    Right(self.elim_ctx().do_fun_call(fun, args))
+                }
+            },
+            Expr::Match(scrut, arms) => match self.zonk_spine(scrut) {
+                Left(scrut) => {
+                    let arms = arms
+                        .iter()
+                        .map(|(pat, expr)| {
+                            let expr = self.zonk_expr(expr);
+                            (pat.clone(), expr)
+                        })
+                        .collect();
+                    Left(Expr::Match(Arc::new(scrut), arms))
+                }
+                Right(scrut) => {
+                    let arms = MatchArms::new(self.local_env.clone(), arms.clone());
+                    Right(self.elim_ctx().do_match(scrut, arms))
+                }
+            },
+            expr => Left(self.zonk_expr(expr)),
+        }
+    }
+
+    pub fn subst_pat(&mut self, pat: &Pat) {
+        let var = || Arc::new(Value::local(self.local_env.len().to_level()));
+        match pat {
+            Pat::Error | Pat::Lit(_) | Pat::Name(_) => self.local_env.push(var()),
+            Pat::Variant(_, pats) => pats.iter().for_each(|pat| self.subst_pat(pat)),
         }
     }
 }
 
 pub struct ElimCtx<'env> {
     meta_env: &'env UniqueEnv<Option<Arc<Value>>>,
-    opts: EvalOpts,
     db: &'env dyn crate::Db,
 }
 
 impl<'env> ElimCtx<'env> {
-    pub fn new(
-        meta_env: &'env UniqueEnv<Option<Arc<Value>>>,
-        opts: EvalOpts,
-        db: &'env dyn crate::Db,
-    ) -> Self {
-        Self { meta_env, opts, db }
+    pub fn new(meta_env: &'env UniqueEnv<Option<Arc<Value>>>, db: &'env dyn crate::Db) -> Self {
+        Self { meta_env, db }
     }
 
     pub fn eval_ctx(&self, local_values: &'env mut SharedEnv<Arc<Value>>) -> EvalCtx<'env> {
-        EvalCtx::new(local_values, self.meta_env, self.opts, self.db)
+        EvalCtx::new(local_values, self.meta_env, self.db)
     }
 
     pub fn force_value(&self, value: &Arc<Value>) -> Arc<Value> {

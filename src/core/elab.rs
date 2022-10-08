@@ -3,7 +3,7 @@ use std::sync::Arc;
 use contracts::debug_ensures;
 
 use super::env::{EnvLen, LocalEnv, MetaEnv, MetaSource, NameSource, SharedEnv};
-use super::eval::{ElimCtx, EvalCtx, EvalOpts};
+use super::eval::{ElimCtx, EvalCtx};
 use super::quote::QuoteCtx;
 use super::syntax::*;
 use super::unelab::UnelabCtx;
@@ -201,17 +201,10 @@ pub fn elab_enum_variant(db: &dyn crate::Db, variant: ir::EnumVariant) -> EnumVa
 /// Helpers
 impl ElabCtx<'_> {
     pub fn eval_ctx(&mut self) -> EvalCtx {
-        EvalCtx::new(
-            &mut self.local_env.values,
-            &self.meta_env.values,
-            EvalOpts::EVAL_CBV,
-            self.db,
-        )
+        EvalCtx::new(&mut self.local_env.values, &self.meta_env.values, self.db)
     }
 
-    pub fn elim_ctx(&self) -> ElimCtx {
-        ElimCtx::new(&self.meta_env.values, EvalOpts::EVAL_CBV, self.db)
-    }
+    pub fn elim_ctx(&self) -> ElimCtx { ElimCtx::new(&self.meta_env.values, self.db) }
 
     pub fn quote_ctx(&mut self) -> QuoteCtx {
         QuoteCtx::new(self.local_env.values.len(), &self.meta_env.values, self.db)
