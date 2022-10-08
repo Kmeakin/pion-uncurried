@@ -15,7 +15,6 @@ impl ElabCtx<'_> {
 
     #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
     pub fn synth_pat(&mut self, pat: &surface::Pat<Span>) -> SynthPat {
-        let file = self.file;
         let db = self.db;
         let mut meta = || {
             let name = self.name_source.fresh();
@@ -35,32 +34,7 @@ impl ElabCtx<'_> {
                 let (lit, ty) = self.synth_lit(lit);
                 SynthPat(Pat::Lit(lit), ty)
             }
-            surface::Pat::Variant(span, name, pats) => {
-                let symbol = Symbol::intern(self.db, name);
-                match crate::ir::lookup_item(self.db, self.file, symbol) {
-                    Some(ir::Item::Variant(variant)) => {
-                        let EnumVariant { args, ret_type, .. } =
-                            elab_enum_variant(self.db, variant);
-                        let pats = pats
-                            .iter()
-                            .zip(args.iter().map(|FunArg { pat, ty }| FunArg {
-                                pat: pat.clone(),
-                                ty: ty.1.clone(),
-                            }))
-                            .map(|(pat, arg)| {
-                                let CheckPat(pat) = self.check_pat(pat, &arg.ty);
-                                pat
-                            })
-                            .collect();
-                        SynthPat(Pat::Variant(variant, pats), ret_type.1)
-                    }
-                    _ => {
-                        crate::error!(span.into_file_span(file), "Unbound variable: `{name}`")
-                            .emit(db);
-                        self.synth_error_pat()
-                    }
-                }
-            }
+            surface::Pat::Variant(..) => todo!(),
         }
     }
 

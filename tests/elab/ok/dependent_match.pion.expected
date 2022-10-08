@@ -1,7 +1,7 @@
 let f: fn(b: Bool) -> match b {
     false => Type,
     true => Bool,
-} = fn(x: Bool) -> match x {
+} = fn(x: Bool) => match x {
     false => Type,
     true => false,
 };

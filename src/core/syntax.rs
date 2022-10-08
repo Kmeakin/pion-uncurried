@@ -18,28 +18,22 @@ pub enum Item {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LetDef {
     pub name: Symbol,
-    pub body: (Expr, Arc<Value>),
     pub ty: (Expr, Arc<Value>),
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct EnumDefSig {
-    pub args: Arc<[FunArg<Expr>]>,
-    pub ret_type: Expr,
-    pub self_type: Arc<Value>,
+    pub body: (Expr, Arc<Value>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EnumDef {
     pub name: Symbol,
-    pub sig: EnumDefSig,
+    pub args: Arc<[FunArg<Expr>]>,
+    pub ret_type: (Expr, Arc<Value>),
     pub variants: Vec<EnumVariant>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EnumVariant {
     pub name: Symbol,
-    pub args: Arc<[FunArg<(Expr, Arc<Value>)>]>,
+    pub args: Arc<[FunArg<Expr>]>,
     pub ret_type: (Expr, Arc<Value>),
 }
 
@@ -122,7 +116,7 @@ impl Pat {
     pub fn num_binders(&self) -> EnvLen {
         match self {
             Self::Error | Self::Lit(_) | Self::Name(_) => EnvLen(1),
-            Self::Variant(_, pats) => pats.iter().map(Pat::num_binders).sum(),
+            Self::Variant(_, pats) => pats.iter().map(Self::num_binders).sum(),
         }
     }
 }

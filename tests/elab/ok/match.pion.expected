@@ -1,4 +1,4 @@
-let not: fn(b: Bool) -> Bool = fn(b: Bool) -> match b {
+let not: fn(b: Bool) -> Bool = fn(b: Bool) => match b {
     true => false,
     false => true,
 };

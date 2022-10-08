@@ -130,10 +130,7 @@ impl<'env> EvalCtx<'env> {
             Expr::Type => Arc::new(Value::Type),
             Expr::BoolType => Arc::new(Value::BoolType),
             Expr::Lit(lit) => Arc::new(Value::Lit(lit.clone())),
-            Expr::LetDef(def) if self.opts.delta_reduce => {
-                let def = crate::core::elab::elab_let_def(self.db, *def);
-                def.body.1
-            }
+            Expr::LetDef(ir) if self.opts.delta_reduce => super::elab::eval_let_def(self.db, *ir),
             Expr::LetDef(def) => Arc::new(Value::let_def(*def)),
             Expr::EnumDef(enum_def) => Arc::new(Value::enum_def(*enum_def)),
             Expr::EnumVariant(enum_variant) => Arc::new(Value::enum_variant(*enum_variant)),
@@ -217,7 +214,7 @@ impl<'env> EvalCtx<'env> {
                 let ret = self.eval_expr(ret);
                 let ret = self.quote_ctx().quote_value(&ret);
                 self.local_env.truncate(initial_len);
-                Arc::new(Value::FunType(FunClosure::new(
+                Arc::new(Value::FunValue(FunClosure::new(
                     self.local_env.clone(),
                     args,
                     Arc::new(ret),

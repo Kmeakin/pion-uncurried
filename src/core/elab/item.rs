@@ -1,201 +1,262 @@
 use super::*;
+use crate::ir::lower_file;
 
-/// Items
-impl ElabCtx<'_> {
-    #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
-    pub fn elab_module(&mut self, module: ir::Module) -> Module {
-        let items = module.items(self.db);
-        let items = items
-            .iter()
-            .filter_map(|item| match item {
-                ir::Item::Let(let_def) => {
-                    let let_def = elab_let_def(self.db, *let_def);
-                    Some(Item::Let(let_def))
-                }
-                ir::Item::Enum(enum_def) => {
-                    let enum_def = elab_enum_def(self.db, *enum_def);
-                    Some(Item::Enum(enum_def))
-                }
-                ir::Item::Variant(_) => None,
-            })
-            .collect();
-        Module { items }
-    }
+#[salsa::tracked]
+pub fn elab_module(db: &dyn crate::Db, ir: ir::Module) -> Module {
+    let file = ir.file(db);
+    let module = lower_file(db, file);
+    let items = module
+        .items(db)
+        .iter()
+        .filter_map(|item| match item {
+            ir::Item::Let(ir) => Some(Item::Let(elab_let_def(db, *ir))),
+            ir::Item::Enum(ir) => Some(Item::Enum(elab_enum_def(db, *ir))),
+            ir::Item::Variant(_) => None,
+        })
+        .collect();
+    Module { items }
+}
 
-    #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
-    pub fn elab_let_def(&mut self, let_def: ir::LetDef) -> LetDef {
-        let name = let_def.name(self.db);
-        let surface::LetDef { ty, body, .. } = let_def.surface(self.db);
+#[salsa::tracked]
+#[allow(clippy::needless_borrow)]
+pub fn elab_let_def(db: &dyn crate::Db, ir: ir::LetDef) -> LetDef {
+    let mut ctx = ElabCtx::new(db, ir.file(db));
+    let name = ir.name(ctx.db);
+    let surface::LetDef { ty, body, .. } = ir.surface(ctx.db);
 
-        let (body_expr, type_value) = match ty {
-            Some(ty) => {
-                let CheckExpr(type_expr) = self.check_expr_is_type(ty);
-                let type_value = self.eval_ctx().eval_expr(&type_expr);
-                let CheckExpr(body_expr) = self.check_expr(body, &type_value);
-                (body_expr, type_value)
-            }
-            None => {
-                let SynthExpr(body_expr, type_value) = self.synth_expr(body);
-                (body_expr, type_value)
-            }
-        };
-        let type_expr = self.quote_ctx().quote_value(&type_value);
-
-        let expr_opts = EvalOpts {
-            beta_reduce: true, // TODO: disable beta reduction
-            ..EvalOpts::ZONK
-        };
-        let value_opts = EvalOpts {
-            error_on_unsolved_meta: true,
-            ..EvalOpts::EVAL_CBV
-        };
-
-        let body_value = self.eval_ctx().with_opts(value_opts).eval_expr(&body_expr);
-        let (body_expr, _) = self
-            .eval_ctx()
-            .with_opts(expr_opts)
-            .normalize_expr(&body_expr);
-
-        let type_value = self.eval_ctx().with_opts(value_opts).eval_expr(&type_expr);
-        let (type_expr, _) = self
-            .eval_ctx()
-            .with_opts(expr_opts)
-            .normalize_expr(&type_expr);
-
-        debug_assert!(
-            body_expr.is_closed(EnvLen(0), EnvLen(0)),
-            "free variables in `body_expr`: {body_expr:#?}"
-        );
-        debug_assert!(
-            body_expr.is_closed(EnvLen(0), EnvLen(0)),
-            "free variables in `type_expr`: {type_expr:#?}"
-        );
-
-        LetDef {
-            name,
-            body: (body_expr, body_value),
-            ty: (type_expr, type_value),
+    let (body_expr, type_value) = match ty {
+        Some(ty) => {
+            let CheckExpr(type_expr) = ctx.check_expr_is_type(&ty);
+            let type_value = ctx.eval_ctx().eval_expr(&type_expr);
+            let CheckExpr(body_expr) = ctx.check_expr(&body, &type_value);
+            (body_expr, type_value)
         }
+        None => {
+            let SynthExpr(body_expr, type_value) = ctx.synth_expr(&body);
+            (body_expr, type_value)
+        }
+    };
+    let type_expr = ctx.quote_ctx().quote_value(&type_value);
+
+    let expr_opts = EvalOpts {
+        beta_reduce: true, // TODO: disable beta reduction
+        ..EvalOpts::ZONK
+    };
+    let value_opts = EvalOpts {
+        error_on_unsolved_meta: true,
+        ..EvalOpts::EVAL_CBV
+    };
+
+    let body_value = ctx.eval_ctx().with_opts(value_opts).eval_expr(&body_expr);
+    let (body_expr, _) = ctx
+        .eval_ctx()
+        .with_opts(expr_opts)
+        .normalize_expr(&body_expr);
+
+    let type_value = ctx.eval_ctx().with_opts(value_opts).eval_expr(&type_expr);
+    let (type_expr, _) = ctx
+        .eval_ctx()
+        .with_opts(expr_opts)
+        .normalize_expr(&type_expr);
+
+    debug_assert!(
+        body_expr.is_closed(EnvLen(0), EnvLen(0)),
+        "free variables in `body_expr`: {body_expr:#?}"
+    );
+    debug_assert!(
+        body_expr.is_closed(EnvLen(0), EnvLen(0)),
+        "free variables in `type_expr`: {type_expr:#?}"
+    );
+
+    LetDef {
+        name,
+        body: (body_expr, body_value),
+        ty: (type_expr, type_value),
     }
+}
 
-    // NOTE: does not truncate env
-    pub fn synth_enum_def(&mut self, enum_def: ir::EnumDef) -> EnumDefSig {
-        let surface::EnumDef { args, ret_type, .. } = enum_def.surface(self.db);
+#[salsa::tracked]
+/// Synthesise the type of an `Expr::EnumDef(ir)`
+pub fn synth_let_def(db: &dyn crate::Db, ir: ir::LetDef) -> Arc<Value> {
+    let LetDef { ty, .. } = elab_let_def(db, ir);
+    ty.1
+}
 
-        let mut self_args = Vec::with_capacity(args.len());
-        let args: Arc<[_]> = args
-            .iter()
-            .map(|pat| {
-                let SynthPat(pat_core, type_value) = self.synth_ann_pat(pat);
-                let type_core = self.quote_ctx().quote_value(&type_value);
-                self_args.push(Arc::new(Value::local(self.local_env.len().to_level())));
-                self.subst_pat(&pat_core, type_value, None);
-                FunArg {
-                    pat: pat_core,
-                    ty: (type_core),
+#[salsa::tracked]
+pub fn eval_let_def(db: &dyn crate::Db, ir: ir::LetDef) -> Arc<Value> {
+    let LetDef { body, .. } = elab_let_def(db, ir);
+    ElabCtx::new(db, ir.file(db)).eval_ctx().eval_expr(&body.0)
+}
+
+#[salsa::tracked]
+#[allow(clippy::needless_borrow)]
+pub fn elab_enum_def(db: &dyn crate::Db, ir: ir::EnumDef) -> EnumDef {
+    let mut ctx = ElabCtx::new(db, ir.file(db));
+    let surface::EnumDef {
+        name,
+        args,
+        ret_type,
+        variants,
+    } = ir.surface(db);
+    let name = Symbol::new(db, name.to_owned());
+
+    let mut variant_type_args = Vec::with_capacity(args.len());
+    let args: Arc<[_]> = args
+        .iter()
+        .map(|pat| {
+            let SynthPat(pat_core, type_value) = ctx.synth_ann_pat(pat);
+            let type_core = ctx.quote_ctx().quote_value(&type_value);
+            variant_type_args.push(Arc::new(Value::local(ctx.local_env.len().to_level())));
+            ctx.subst_pat(&pat_core, type_value, None);
+            FunArg {
+                pat: pat_core,
+                ty: type_core,
+            }
+        })
+        .collect();
+
+    let (ret_type_expr, ret_type_value) = match ret_type {
+        None => (Expr::Type, Arc::new(Value::Type)),
+        Some(ret_type_surface) => {
+            let SynthExpr(ret_type_expr, _) = ctx.synth_expr(&ret_type_surface);
+            let ret_type_value = ctx.eval_ctx().eval_expr(&ret_type_expr);
+            let expected = Arc::new(Value::Type);
+            match ctx.unify_ctx().unify_values(&ret_type_value, &expected) {
+                Ok(_) => (ret_type_expr, ret_type_value),
+                Err(error) => {
+                    ctx.report_type_mismatch(
+                        ret_type_surface.span(),
+                        &expected,
+                        &ret_type_value,
+                        error,
+                    );
+                    (Expr::Error, Arc::new(Value::Error))
                 }
-            })
-            .collect();
+            }
+        }
+    };
 
-        let self_type = Value::Stuck(
-            Head::EnumDef(enum_def),
-            if args.len() == 0 {
-                vec![]
-            } else {
-                vec![Elim::FunCall(self_args)]
-            },
-        );
-        let self_type = Arc::new(self_type);
+    let self_type = (Expr::EnumDef(ir), Arc::new(Value::enum_def(ir)));
 
-        let ret_type = match ret_type {
-            Some(ret_type) => {
-                let SynthExpr(ret_core, _) = self.synth_expr(&ret_type);
-                let ret_value = self.eval_ctx().eval_expr(&ret_core);
-                let expected = Arc::new(Value::Type);
-                match self.unify_ctx().unify_values(&ret_value, &expected) {
-                    Ok(_) => {
-                        let type_core = self.quote_ctx().quote_value(&ret_value);
-                        type_core
+    let variants = variants
+        .iter()
+        .map(|surface| {
+            let initial_len = ctx.local_env.len();
+            let surface::EnumVariant {
+                name,
+                args,
+                ret_type,
+            } = surface;
+            let name = Symbol::new(db, name.to_owned());
+
+            let args = args
+                .iter()
+                .map(|pat| {
+                    let SynthPat(pat_core, type_value) = ctx.synth_ann_pat(pat);
+                    let type_core = ctx.quote_ctx().quote_value(&type_value);
+                    variant_type_args.push(Arc::new(Value::local(ctx.local_env.len().to_level())));
+                    FunArg {
+                        pat: pat_core,
+                        ty: type_core,
                     }
-                    Err(error) => {
-                        self.report_type_mismatch(ret_type.span(), &expected, &ret_value, error);
-                        Expr::Error
-                    }
+                })
+                .collect();
+
+            let ret_type = match ret_type {
+                None => self_type.clone(),
+                Some(ret_type_surface) => {
+                    let SynthExpr(ret_type_expr, _) = ctx.synth_expr(ret_type_surface);
+                    let ret_type_value = ctx.eval_ctx().eval_expr(&ret_type_expr);
+                    // TODO: check it makes sense
+                    (ret_type_expr, ret_type_value)
                 }
+            };
+
+            ctx.local_env.truncate(initial_len);
+            EnumVariant {
+                name,
+                args,
+                ret_type,
             }
-            None => Expr::Type,
-        };
+        })
+        .collect();
 
-        EnumDefSig {
-            args,
-            ret_type,
-            self_type,
-        }
+    ctx.report_unsolved_metas();
+    EnumDef {
+        name,
+        args,
+        ret_type: (ret_type_expr, ret_type_value),
+        variants,
     }
+}
 
-    pub fn elab_enum_def(&mut self, enum_def: ir::EnumDef) -> EnumDef {
-        let initial_len = self.local_env.len();
-        let name = enum_def.name(self.db);
-        let surface::EnumDef { variants, .. } = enum_def.surface(self.db);
-
-        let sig = &self.synth_enum_def(enum_def);
-
-        let variants = variants
-            .iter()
-            .map(|variant| self.elab_enum_variant(variant, sig))
-            .collect();
-        self.local_env.truncate(initial_len);
-
-        EnumDef {
-            name,
-            sig: sig.clone(),
-            variants,
-        }
+#[salsa::tracked]
+/// Synthesise the type of an `Expr::EnumDef(ir)`
+pub fn synth_enum_def(db: &dyn crate::Db, ir: ir::EnumDef) -> Arc<Value> {
+    let EnumDef { args, ret_type, .. } = elab_enum_def(db, ir);
+    match args.len() {
+        0 => ret_type.1,
+        _ => Arc::new(Value::FunType(FunClosure::new(
+            SharedEnv::new(),
+            args,
+            Arc::new(ret_type.0),
+        ))),
     }
+}
 
-    pub fn elab_enum_variant(
-        &mut self,
-        enum_variant: &surface::EnumVariant<TextRange>,
-        sig: &EnumDefSig,
-    ) -> EnumVariant {
-        let surface::EnumVariant {
-            name,
-            args,
-            ret_type: ty,
-        } = enum_variant;
+#[salsa::tracked]
+pub fn elab_enum_variant(db: &dyn crate::Db, ir: ir::EnumVariant) -> EnumVariant {
+    let enum_def = elab_enum_def(db, ir.parent(db));
+    let name = ir.name(db);
+    enum_def
+        .variants
+        .iter()
+        .find(|variant| variant.name == name)
+        .unwrap_or_else(|| {
+            unreachable!(
+                "Cannot find enum variant `{}` in enum `{}`",
+                name.contents(db),
+                enum_def.name.contents(db)
+            )
+        })
+        .clone()
+}
 
-        let initial_len = self.local_env.len();
-        let name = Symbol::new(self.db, name.to_owned());
-        let args: Arc<[_]> = args
-            .iter()
-            .map(|pat| {
-                let SynthPat(pat_core, type_value) = self.synth_ann_pat(pat);
-                let type_core = self.quote_ctx().quote_value(&type_value);
-                self.subst_pat(&pat_core, type_value.clone(), None);
-                FunArg {
-                    pat: pat_core,
-                    ty: (type_core, type_value),
-                }
-            })
-            .collect();
+#[salsa::tracked]
+/// Synthesise the type of an `Expr::EnumDef(ir)`
+pub fn synth_enum_variant(db: &dyn crate::Db, ir: ir::EnumVariant) -> Arc<Value> {
+    let EnumDef {
+        args: parent_args, ..
+    } = elab_enum_def(db, ir.parent(db));
 
-        let ret_type = match ty {
-            Some(ty) => {
-                let CheckExpr(ret_core) = self.check_expr_is_type(ty);
-                let ret_value = self.eval_ctx().eval_expr(&ret_core);
-                (self.quote_ctx().quote_value(&ret_value), ret_value)
-            }
-            None => (
-                self.quote_ctx().quote_value(&sig.self_type),
-                sig.self_type.clone(),
-            ),
-        };
-        self.local_env.truncate(initial_len);
+    let EnumVariant {
+        args: variant_args,
+        ret_type,
+        ..
+    } = elab_enum_variant(db, ir);
 
-        EnumVariant {
-            name,
-            args,
-            ret_type,
-        }
+    // convoluted, but saves some unecessary allocations if one or both of the arg
+    // lists are empty
+    match (parent_args.len(), variant_args.len()) {
+        (0, 0) => ret_type.1,
+        (_, 0) => Arc::new(Value::FunType(FunClosure::new(
+            SharedEnv::new(),
+            parent_args,
+            Arc::new(ret_type.0),
+        ))),
+        (0, _) => Arc::new(Value::FunType(FunClosure::new(
+            SharedEnv::new(),
+            variant_args,
+            Arc::new(ret_type.0),
+        ))),
+        (..) => Arc::new(Value::FunType(FunClosure::new(
+            SharedEnv::new(),
+            parent_args
+                .iter()
+                .chain(variant_args.iter())
+                .cloned()
+                .collect(),
+            Arc::new(ret_type.0),
+        ))),
     }
 }

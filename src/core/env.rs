@@ -55,9 +55,7 @@ impl std::ops::AddAssign for EnvLen {
 }
 
 impl std::iter::Sum for EnvLen {
-    fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
-        iter.fold(EnvLen(0), |acc, item| acc + item)
-    }
+    fn sum<I: Iterator<Item = Self>>(iter: I) -> Self { iter.fold(Self(0), |acc, item| acc + item) }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -175,7 +173,7 @@ impl<T> Default for SharedEnv<T> {
     fn default() -> Self { Self::new() }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LocalEnv {
     pub names: UniqueEnv<VarName>,
     pub sources: SharedEnv<LocalSource>,
@@ -252,6 +250,7 @@ impl LocalEnv {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MetaEnv {
     pub names: UniqueEnv<VarName>,
     pub sources: UniqueEnv<MetaSource>,

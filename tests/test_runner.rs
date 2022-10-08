@@ -1,7 +1,13 @@
 use std::io::Write;
 use std::path::Path;
 
-use pion_salsa::ir::diagnostic::Diagnostics;
+use pion_salsa::core::elab::elab_module;
+use pion_salsa::core::unelab::unelab_module;
+use pion_salsa::diagnostic::{Diagnostics, SourceCache};
+use pion_salsa::file::File;
+use pion_salsa::ir::lower_file;
+use pion_salsa::symbol::Symbol;
+use pion_salsa::Database;
 use walkdir::WalkDir;
 
 fn main() {
@@ -22,14 +28,14 @@ fn find_source_files(root: impl AsRef<Path>) -> impl Iterator<Item = String> {
 
 fn elab_ok(path: String) -> libtest_mimic::Trial {
     libtest_mimic::Trial::test(path.clone(), move || {
-        let db = pion_salsa::Database::default();
-        let name = pion_salsa::ir::symbol::Symbol::new(&db, path.to_owned());
+        let db = Database::default();
+        let name = Symbol::new(&db, path.to_owned());
         let contents = std::fs::read_to_string(&path).unwrap();
-        let file = pion_salsa::ir::file::File::new(&db, name, contents);
+        let file = File::new(&db, name, contents);
 
-        let module_ir = pion_salsa::ir::lower_file(&db, file);
-        let module_core = pion_salsa::core::elab::elab_module(&db, module_ir);
-        let module_surface = pion_salsa::core::unelab::unelab_module(&db, &module_core);
+        let module_ir = lower_file(&db, file);
+        let module_core = elab_module(&db, module_ir);
+        let module_surface = unelab_module(&db, &module_core);
 
         let pretty_ctx = pion_salsa::surface::pretty::PrettyCtx::new();
         let module_pretty = pretty_ctx.pretty_module(&module_surface);
@@ -61,10 +67,7 @@ fn elab_ok(path: String) -> libtest_mimic::Trial {
 
             let report = builder.finish();
             report
-                .write(
-                    pion_salsa::ir::diagnostic::SourceCache::new(&db),
-                    &mut output,
-                )
+                .write(SourceCache::new(&db), &mut output)
                 .expect("Cannot print diagnostic");
         }
         let output = String::from_utf8(output).unwrap();

@@ -1,7 +1,9 @@
 use super::*;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SynthExpr(pub Expr, pub Arc<Value>);
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckExpr(pub Expr);
 
 /// Expressions
@@ -38,21 +40,19 @@ impl ElabCtx<'_> {
 
                 if let Some(item) = crate::ir::lookup_item(self.db, file, symbol) {
                     match item {
-                        ir::Item::Let(def) => {
-                            let def_core = elab_let_def(self.db, def);
-                            return SynthExpr(Expr::LetDef(def), def_core.ty.1);
+                        ir::Item::Let(ir) => {
+                            let type_value = synth_let_def(self.db, ir);
+                            return SynthExpr(Expr::LetDef(ir), type_value);
                         }
-                        ir::Item::Enum(def) => {
-                            let sig = synth_enum_def(self.db, def);
-                            let args = sig.args;
-                            let ret_type = sig.ret_type;
-                            let fun_type = Value::FunType(FunClosure::new(
-                                SharedEnv::new(),
-                                args,
-                                Arc::new(ret_type),
-                            ));
-                            return SynthExpr(Expr::EnumDef(def), Arc::new(fun_type));
+                        ir::Item::Enum(ir) => {
+                            let type_value = synth_enum_def(self.db, ir);
+                            return SynthExpr(Expr::EnumDef(ir), type_value);
                         }
+                        ir::Item::Variant(ir) => {
+                            let type_value = synth_enum_variant(self.db, ir);
+                            return SynthExpr(Expr::EnumVariant(ir), type_value);
+                        }
+                        #[cfg(FALSE)]
                         ir::Item::Variant(enum_variant) => {
                             let parent = enum_variant.parent(self.db);
                             let parent_sig = elab_enum_def(self.db, parent).sig;

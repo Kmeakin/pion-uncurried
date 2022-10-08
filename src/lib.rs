@@ -21,24 +21,32 @@ pub mod symbol;
 
 #[salsa::jar(db = Db)]
 pub struct Jar(
+    // misc
     crate::file::File,
     crate::diagnostic::Diagnostics,
     crate::symbol::Symbol,
-    // surface
+    // surface - parser
     crate::surface::parser::parse_file,
-    // ir
+    // ir - syntax
     crate::ir::syntax::Module,
     crate::ir::syntax::LetDef,
     crate::ir::syntax::EnumDef,
     crate::ir::syntax::EnumVariant,
+    // ir - lowering
     crate::ir::lower_file,
     crate::ir::lookup_item,
-    // core
+    // core - modules
     crate::core::elab::elab_module,
+    // core - lets
     crate::core::elab::elab_let_def,
-    crate::core::elab::synth_enum_def,
+    crate::core::elab::synth_let_def,
+    crate::core::elab::eval_let_def,
+    // core - enum defs
     crate::core::elab::elab_enum_def,
+    crate::core::elab::synth_enum_def,
+    // core - enum variants
     crate::core::elab::elab_enum_variant,
+    crate::core::elab::synth_enum_variant,
 );
 
 pub trait Db: salsa::DbWithJar<Jar> {}
