@@ -38,6 +38,7 @@ pub struct Jar(
     // core - modules
     crate::core::elab::elab_module,
     // core - lets
+    crate::core::elab::let_def_sig,
     crate::core::elab::elab_let_def,
     crate::core::elab::synth_let_def_expr,
     crate::core::elab::eval_let_def_expr,

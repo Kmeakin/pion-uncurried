@@ -19,25 +19,55 @@ pub fn elab_module(db: &dyn crate::Db, ir: ir::Module) -> Module {
     Module { items }
 }
 
-#[salsa::tracked]
-pub fn elab_let_def(db: &dyn crate::Db, ir: ir::LetDef) -> LetDef {
-    let mut ctx = ElabCtx::new(db, ir.file(db));
-    let name = ir.name(ctx.db);
-    let surface::LetDef { ty, body, .. } = ir.surface(ctx.db);
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LetDefSig {
+    ty: (Expr, Arc<Value>),
+    subst: (LocalEnv, MetaEnv, PartialRenaming),
+}
 
-    let (body_expr, type_value) = match ty {
+#[salsa::tracked]
+pub fn let_def_sig(db: &dyn crate::Db, ir: ir::LetDef) -> LetDefSig {
+    let mut ctx = ElabCtx::new(db, ir.file(db));
+    let surface::LetDef { ty, .. } = ir.surface(db);
+
+    let (type_expr, type_value) = match ty {
         Some(ty) => {
             let CheckExpr(type_expr) = ctx.check_expr_is_type(&ty);
             let type_value = ctx.eval_ctx().eval_expr(&type_expr);
-            let CheckExpr(body_expr) = ctx.check_expr(&body, &type_value);
-            (body_expr, type_value)
+            (type_expr, type_value)
         }
         None => {
-            let SynthExpr(body_expr, type_value) = ctx.synth_expr(&body);
-            (body_expr, type_value)
+            let name = ctx.name_source.fresh();
+            let source = MetaSource::Error;
+            let ty = Arc::new(Value::Type);
+            let type_expr = ctx.push_meta_expr(name, source, ty);
+            let type_value = ctx.eval_ctx().eval_expr(&type_expr);
+            (type_expr, type_value)
         }
     };
-    let type_expr = ctx.quote_ctx().quote_value(&type_value);
+
+    LetDefSig {
+        ty: (type_expr, type_value),
+        subst: (ctx.local_env, ctx.meta_env, ctx.renaming),
+    }
+}
+
+#[salsa::tracked]
+pub fn elab_let_def(db: &dyn crate::Db, ir: ir::LetDef) -> LetDef {
+    let surface::LetDef { name, body, .. } = ir.surface(db);
+    let name = Symbol::new(db, name.to_owned());
+
+    let LetDefSig {
+        ty: (type_expr, type_value),
+        subst,
+    } = let_def_sig(db, ir);
+    let mut ctx = ElabCtx::new(db, ir.file(db));
+    ctx.local_env = subst.0;
+    ctx.meta_env = subst.1;
+    ctx.renaming = subst.2;
+
+    let CheckExpr(body_expr) = ctx.check_expr(&body, &type_value);
+    ctx.report_unsolved_metas();
 
     let expr_opts = EvalOpts {
         beta_reduce: true, // TODO: disable beta reduction
