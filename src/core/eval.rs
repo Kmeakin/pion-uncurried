@@ -130,7 +130,9 @@ impl<'env> EvalCtx<'env> {
             Expr::Type => Arc::new(Value::Type),
             Expr::BoolType => Arc::new(Value::BoolType),
             Expr::Lit(lit) => Arc::new(Value::Lit(lit.clone())),
-            Expr::LetDef(ir) if self.opts.delta_reduce => super::elab::eval_let_def(self.db, *ir),
+            Expr::LetDef(ir) if self.opts.delta_reduce => {
+                super::elab::eval_let_def_expr(self.db, *ir)
+            }
             Expr::LetDef(def) => Arc::new(Value::let_def(*def)),
             Expr::EnumDef(enum_def) => Arc::new(Value::enum_def(*enum_def)),
             Expr::EnumVariant(enum_variant) => Arc::new(Value::enum_variant(*enum_variant)),

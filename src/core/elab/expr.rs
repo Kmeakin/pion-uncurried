@@ -41,15 +41,15 @@ impl ElabCtx<'_> {
                 if let Some(item) = crate::ir::lookup_item(self.db, file, symbol) {
                     match item {
                         ir::Item::Let(ir) => {
-                            let type_value = synth_let_def(self.db, ir);
+                            let type_value = synth_let_def_expr(self.db, ir);
                             return SynthExpr(Expr::LetDef(ir), type_value);
                         }
                         ir::Item::Enum(ir) => {
-                            let type_value = synth_enum_def(self.db, ir);
+                            let type_value = synth_enum_def_expr(self.db, ir);
                             return SynthExpr(Expr::EnumDef(ir), type_value);
                         }
                         ir::Item::Variant(ir) => {
-                            let type_value = synth_enum_variant(self.db, ir);
+                            let type_value = synth_enum_variant_expr(self.db, ir);
                             return SynthExpr(Expr::EnumVariant(ir), type_value);
                         }
                         #[cfg(FALSE)]

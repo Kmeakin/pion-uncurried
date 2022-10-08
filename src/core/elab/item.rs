@@ -1,3 +1,5 @@
+#![allow(clippy::needless_borrow)]
+
 use super::*;
 use crate::ir::lower_file;
 
@@ -18,7 +20,6 @@ pub fn elab_module(db: &dyn crate::Db, ir: ir::Module) -> Module {
 }
 
 #[salsa::tracked]
-#[allow(clippy::needless_borrow)]
 pub fn elab_let_def(db: &dyn crate::Db, ir: ir::LetDef) -> LetDef {
     let mut ctx = ElabCtx::new(db, ir.file(db));
     let name = ir.name(ctx.db);
@@ -77,19 +78,18 @@ pub fn elab_let_def(db: &dyn crate::Db, ir: ir::LetDef) -> LetDef {
 
 #[salsa::tracked]
 /// Synthesise the type of an `Expr::EnumDef(ir)`
-pub fn synth_let_def(db: &dyn crate::Db, ir: ir::LetDef) -> Arc<Value> {
+pub fn synth_let_def_expr(db: &dyn crate::Db, ir: ir::LetDef) -> Arc<Value> {
     let LetDef { ty, .. } = elab_let_def(db, ir);
     ty.1
 }
 
 #[salsa::tracked]
-pub fn eval_let_def(db: &dyn crate::Db, ir: ir::LetDef) -> Arc<Value> {
+pub fn eval_let_def_expr(db: &dyn crate::Db, ir: ir::LetDef) -> Arc<Value> {
     let LetDef { body, .. } = elab_let_def(db, ir);
     ElabCtx::new(db, ir.file(db)).eval_ctx().eval_expr(&body.0)
 }
 
 #[salsa::tracked]
-#[allow(clippy::needless_borrow)]
 pub fn elab_enum_def(db: &dyn crate::Db, ir: ir::EnumDef) -> EnumDef {
     let mut ctx = ElabCtx::new(db, ir.file(db));
     let surface::EnumDef {
@@ -197,7 +197,7 @@ pub fn elab_enum_def(db: &dyn crate::Db, ir: ir::EnumDef) -> EnumDef {
 
 #[salsa::tracked]
 /// Synthesise the type of an `Expr::EnumDef(ir)`
-pub fn synth_enum_def(db: &dyn crate::Db, ir: ir::EnumDef) -> Arc<Value> {
+pub fn synth_enum_def_expr(db: &dyn crate::Db, ir: ir::EnumDef) -> Arc<Value> {
     let EnumDef { args, ret_type, .. } = elab_enum_def(db, ir);
     match args.len() {
         0 => ret_type.1,
@@ -228,8 +228,8 @@ pub fn elab_enum_variant(db: &dyn crate::Db, ir: ir::EnumVariant) -> EnumVariant
 }
 
 #[salsa::tracked]
-/// Synthesise the type of an `Expr::EnumDef(ir)`
-pub fn synth_enum_variant(db: &dyn crate::Db, ir: ir::EnumVariant) -> Arc<Value> {
+/// Synthesise the type of an `Expr::EnumVariant(ir)`
+pub fn synth_enum_variant_expr(db: &dyn crate::Db, ir: ir::EnumVariant) -> Arc<Value> {
     let EnumDef {
         args: parent_args, ..
     } = elab_enum_def(db, ir.parent(db));
