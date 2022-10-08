@@ -102,12 +102,7 @@ pub struct EnumDefSig {
 /// recursive enums.
 pub fn enum_def_sig(db: &dyn crate::Db, ir: ir::EnumDef) -> EnumDefSig {
     let mut ctx = ElabCtx::new(db, ir.file(db));
-    let surface::EnumDef {
-        name,
-        args,
-        ret_type,
-        variants,
-    } = ir.surface(db);
+    let surface::EnumDef { args, ret_type, .. } = ir.surface(db);
 
     let mut self_type_args = Vec::with_capacity(args.len());
     let args: Arc<[_]> = args
@@ -163,12 +158,7 @@ pub fn enum_def_sig(db: &dyn crate::Db, ir: ir::EnumDef) -> EnumDefSig {
 
 #[salsa::tracked]
 pub fn elab_enum_def(db: &dyn crate::Db, ir: ir::EnumDef) -> EnumDef {
-    let surface::EnumDef {
-        name,
-        args,
-        ret_type,
-        variants,
-    } = ir.surface(db);
+    let surface::EnumDef { name, variants, .. } = ir.surface(db);
     let name = Symbol::new(db, name.to_owned());
 
     let EnumDefSig {
