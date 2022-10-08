@@ -42,6 +42,7 @@ pub struct Jar(
     crate::core::elab::synth_let_def_expr,
     crate::core::elab::eval_let_def_expr,
     // core - enum defs
+    crate::core::elab::enum_def_sig,
     crate::core::elab::elab_enum_def,
     crate::core::elab::synth_enum_def_expr,
     // core - enum variants

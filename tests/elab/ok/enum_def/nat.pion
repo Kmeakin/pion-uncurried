@@ -1,0 +1,7 @@
+enum Nat {
+    Zero,
+    Succ(n: Nat),
+}
+
+let z = Zero;
+let s = Succ;

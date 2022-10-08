@@ -89,8 +89,18 @@ pub fn eval_let_def_expr(db: &dyn crate::Db, ir: ir::LetDef) -> Arc<Value> {
     ElabCtx::new(db, ir.file(db)).eval_ctx().eval_expr(&body.0)
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EnumDefSig {
+    args: Arc<[FunArg<Expr>]>,
+    ret_type: (Expr, Arc<Value>),
+    self_type: Arc<Value>,
+    subst: (LocalEnv, MetaEnv, PartialRenaming),
+}
+
 #[salsa::tracked]
-pub fn elab_enum_def(db: &dyn crate::Db, ir: ir::EnumDef) -> EnumDef {
+/// The non recursive part of `elab_enum_def`. Crucial for "tying the knot" of
+/// recursive enums.
+pub fn enum_def_sig(db: &dyn crate::Db, ir: ir::EnumDef) -> EnumDefSig {
     let mut ctx = ElabCtx::new(db, ir.file(db));
     let surface::EnumDef {
         name,
@@ -98,7 +108,6 @@ pub fn elab_enum_def(db: &dyn crate::Db, ir: ir::EnumDef) -> EnumDef {
         ret_type,
         variants,
     } = ir.surface(db);
-    let name = Symbol::new(db, name.to_owned());
 
     let mut self_type_args = Vec::with_capacity(args.len());
     let args: Arc<[_]> = args
@@ -143,6 +152,36 @@ pub fn elab_enum_def(db: &dyn crate::Db, ir: ir::EnumDef) -> EnumDef {
             vec![Elim::FunCall(self_type_args)],
         )),
     };
+
+    EnumDefSig {
+        args,
+        ret_type: (ret_type_expr, ret_type_value),
+        self_type,
+        subst: (ctx.local_env, ctx.meta_env, ctx.renaming),
+    }
+}
+
+#[salsa::tracked]
+pub fn elab_enum_def(db: &dyn crate::Db, ir: ir::EnumDef) -> EnumDef {
+    let surface::EnumDef {
+        name,
+        args,
+        ret_type,
+        variants,
+    } = ir.surface(db);
+    let name = Symbol::new(db, name.to_owned());
+
+    let EnumDefSig {
+        args,
+        ret_type,
+        self_type,
+        subst,
+    } = enum_def_sig(db, ir);
+
+    let mut ctx = ElabCtx::new(db, ir.file(db));
+    ctx.local_env = subst.0;
+    ctx.meta_env = subst.1;
+    ctx.renaming = subst.2;
 
     let variants = variants
         .iter()
@@ -190,7 +229,7 @@ pub fn elab_enum_def(db: &dyn crate::Db, ir: ir::EnumDef) -> EnumDef {
     EnumDef {
         name,
         args,
-        ret_type: (ret_type_expr, ret_type_value),
+        ret_type,
         variants,
     }
 }
@@ -198,7 +237,7 @@ pub fn elab_enum_def(db: &dyn crate::Db, ir: ir::EnumDef) -> EnumDef {
 #[salsa::tracked]
 /// Synthesise the type of an `Expr::EnumDef(ir)`
 pub fn synth_enum_def_expr(db: &dyn crate::Db, ir: ir::EnumDef) -> Arc<Value> {
-    let EnumDef { args, ret_type, .. } = elab_enum_def(db, ir);
+    let EnumDefSig { args, ret_type, .. } = enum_def_sig(db, ir);
     match args.len() {
         0 => ret_type.1,
         _ => Arc::new(Value::FunType(FunClosure::new(
@@ -230,9 +269,9 @@ pub fn elab_enum_variant(db: &dyn crate::Db, ir: ir::EnumVariant) -> EnumVariant
 #[salsa::tracked]
 /// Synthesise the type of an `Expr::EnumVariant(ir)`
 pub fn synth_enum_variant_expr(db: &dyn crate::Db, ir: ir::EnumVariant) -> Arc<Value> {
-    let EnumDef {
+    let EnumDefSig {
         args: parent_args, ..
-    } = elab_enum_def(db, ir.parent(db));
+    } = enum_def_sig(db, ir.parent(db));
 
     let EnumVariant {
         args: variant_args,

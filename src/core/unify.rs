@@ -364,7 +364,7 @@ impl<'env> UnifyCtx<'env> {
     }
 }
 
-#[derive(Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct PartialRenaming {
     /// Mapping from rigid variables in the source environment to rigid
     /// variables in the target environment.

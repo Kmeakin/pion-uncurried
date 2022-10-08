@@ -1,0 +1,13 @@
+enum Nat: Type {
+    Zero: Nat,
+    Succ(n: Nat): Nat,
+}
+
+enum Vec(T: Type, N: Nat): Type {
+    Nil: Vec(T, Zero),
+    Cons(head: T, tail: Vec(T, N)): Vec(T, Succ(N)),
+}
+
+let nil: fn(T: Type, N: Nat) -> Vec(T, Zero) = Nil;
+
+let cons: fn(T: Type, N: Nat, head: T, tail: Vec(T, N)) -> Vec(T, Succ(N)) = Cons;

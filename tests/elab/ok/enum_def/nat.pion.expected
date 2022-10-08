@@ -1,0 +1,8 @@
+enum Nat: Type {
+    Zero: Nat,
+    Succ(n: Nat): Nat,
+}
+
+let z: Nat = Zero;
+
+let s: fn(n: Nat) -> Nat = Succ;
