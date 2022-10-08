@@ -6,7 +6,7 @@ use text_size::TextRange;
 use crate::surface::syntax::*;
 use crate::surface::errors::*;
 use crate::surface::parser::lexer::*;
-use crate::ir::span::Span;
+use crate::span::Span;
 
 grammar<'src>(
 );

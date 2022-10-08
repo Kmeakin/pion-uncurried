@@ -28,3 +28,8 @@ let s = Some;
 
 let e = Either;
 let l = Left;
+
+let unwrap_or = fn(T: Type, m: Maybe(T), d: T) => match m {
+    Some(x) => x,
+    None => d,
+};

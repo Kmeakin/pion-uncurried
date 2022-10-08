@@ -14,18 +14,26 @@ pub mod core;
 pub mod ir;
 pub mod surface;
 
+pub mod diagnostic;
+pub mod file;
+pub mod span;
+pub mod symbol;
+
 #[salsa::jar(db = Db)]
 pub struct Jar(
-    crate::surface::parser::parse_input_file,
-    crate::ir::diagnostic::Diagnostics,
-    crate::ir::input_file::InputFile,
-    crate::ir::symbol::Symbol,
+    crate::file::File,
+    crate::diagnostic::Diagnostics,
+    crate::symbol::Symbol,
+    // surface
+    crate::surface::parser::parse_file,
+    // ir
     crate::ir::syntax::Module,
     crate::ir::syntax::LetDef,
     crate::ir::syntax::EnumDef,
     crate::ir::syntax::EnumVariant,
     crate::ir::lower_file,
     crate::ir::lookup_item,
+    // core
     crate::core::elab::elab_module,
     crate::core::elab::elab_let_def,
     crate::core::elab::synth_enum_def,

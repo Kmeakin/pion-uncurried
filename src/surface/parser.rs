@@ -4,8 +4,8 @@ use lalrpop_util::lalrpop_mod;
 
 use super::errors::ParseError;
 use super::syntax::*;
-use crate::ir::input_file::InputFile;
-use crate::ir::span::Span;
+use crate::file::File;
+use crate::span::Span;
 
 pub mod lexer;
 
@@ -15,10 +15,8 @@ lalrpop_mod!(
     "/surface/parser/grammar.rs"
 );
 
-#[salsa::tracked(return_ref)]
-pub fn parse_input_file(db: &dyn crate::Db, file: InputFile) -> Module<Span> {
-    let contents = file.contents(db);
-    let (tokens, errors) = lexer::lex(contents);
+pub fn parse_source(source: &str) -> (Module<Span>, Vec<ParseError>) {
+    let (tokens, errors) = lexer::lex(source);
     let mut errors: Vec<ParseError> = errors
         .iter()
         .map(|error| ParseError::from(*error))
@@ -32,9 +30,15 @@ pub fn parse_input_file(db: &dyn crate::Db, file: InputFile) -> Module<Span> {
         }
     };
 
+    (module, errors)
+}
+
+#[salsa::tracked]
+pub fn parse_file(db: &dyn crate::Db, file: File) -> Module<Span> {
+    let source = file.contents(db);
+    let (module, errors) = parse_source(source);
     for error in errors {
         error.to_diagnostic(file).emit(db);
     }
-
     module
 }

@@ -1,12 +1,12 @@
-use super::input_file::InputFile;
-use super::span::Span;
-use super::symbol::Symbol;
+use crate::file::File;
+use crate::span::Span;
 use crate::surface::syntax as surface;
+use crate::symbol::Symbol;
 
 #[salsa::tracked]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Module {
-    pub file: InputFile,
+    pub file: File,
     pub items: Vec<Item>,
 }
 
@@ -22,7 +22,7 @@ pub enum Item {
 pub struct LetDef {
     pub name: Symbol,
 
-    pub file: InputFile,
+    pub file: File,
 
     #[return_ref]
     pub surface: surface::LetDef<Span>,
@@ -33,7 +33,7 @@ pub struct LetDef {
 pub struct EnumDef {
     pub name: Symbol,
 
-    pub file: InputFile,
+    pub file: File,
 
     #[return_ref]
     pub surface: surface::EnumDef<Span>,
@@ -44,7 +44,7 @@ pub struct EnumDef {
 pub struct EnumVariant {
     pub name: Symbol,
 
-    pub file: InputFile,
+    pub file: File,
 
     pub parent: EnumDef,
 

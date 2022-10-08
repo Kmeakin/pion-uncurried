@@ -2,4 +2,11 @@ enum Eq(T: Type, x: T, y: T) {
     Refl: Eq(T, x, x)
 }
 
-let false_eq_false: Eq(Bool, false, false) = Refl(Bool, false, ?_);
+let false_eq_false: Eq(Bool, false, false) = Refl(Bool, false, false);
+
+let refl: fn(T: Type, x: T) -> Eq(T, x, x) = fn(T, x) => Refl(T, x, x);
+
+let comm: fn(T: Type, x: T, y: T) -> fn(_: Eq(T, x, y)) -> Eq(T, y, x)
+        = fn(T, x, y) => fn(pxy) => match pxy {
+            Refl(T, x, y) => Refl(T, y, x),
+        };

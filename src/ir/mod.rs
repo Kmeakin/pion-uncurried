@@ -1,18 +1,14 @@
-use self::input_file::InputFile;
 use self::syntax::*;
-use crate::ir::symbol::Symbol;
+use crate::file::File;
 use crate::surface;
-use crate::surface::parser::parse_input_file;
+use crate::surface::parser::parse_file;
+use crate::symbol::Symbol;
 
-pub mod diagnostic;
-pub mod input_file;
-pub mod span;
-pub mod symbol;
 pub mod syntax;
 
 #[salsa::tracked]
-pub fn lower_file(db: &dyn crate::Db, file: InputFile) -> Module {
-    let module = parse_input_file(db, file);
+pub fn lower_file(db: &dyn crate::Db, file: File) -> Module {
+    let module = parse_file(db, file);
     let mut items = Vec::with_capacity(module.items.len());
     for item in &module.items {
         match item {
@@ -42,7 +38,7 @@ pub fn lower_file(db: &dyn crate::Db, file: InputFile) -> Module {
 }
 
 #[salsa::tracked]
-pub fn lookup_item(db: &dyn crate::Db, file: InputFile, name: Symbol) -> Option<Item> {
+pub fn lookup_item(db: &dyn crate::Db, file: File, name: Symbol) -> Option<Item> {
     let module = lower_file(db, file);
     let items = module.items(db);
     for item in items {

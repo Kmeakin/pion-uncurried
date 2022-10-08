@@ -9,13 +9,12 @@ use super::quote::QuoteCtx;
 use super::syntax::*;
 use super::unelab::UnelabCtx;
 use super::unify::{PartialRenaming, RenameError, SpineError, UnifyCtx, UnifyError};
-use crate::ir::diagnostic::IntoFileSpan;
-use crate::ir::input_file::InputFile;
-use crate::ir::span::Span;
-use crate::ir::symbol::Symbol;
+use crate::file::File;
 use crate::ir::syntax as ir;
+use crate::span::{IntoFileSpan, Span};
 use crate::surface::pretty::PrettyCtx;
 use crate::surface::syntax as surface;
+use crate::symbol::Symbol;
 
 #[must_use = "Call `.finish()` to report unsolved metas"]
 pub struct ElabCtx<'db> {
@@ -25,11 +24,11 @@ pub struct ElabCtx<'db> {
     name_source: NameSource,
 
     db: &'db dyn crate::Db,
-    file: InputFile,
+    file: File,
 }
 
 impl<'db> ElabCtx<'db> {
-    pub fn new(db: &'db dyn crate::Db, file: InputFile) -> Self {
+    pub fn new(db: &'db dyn crate::Db, file: File) -> Self {
         Self {
             local_env: LocalEnv::new(),
             meta_env: MetaEnv::new(),
@@ -363,7 +362,7 @@ impl ElabCtx<'_> {
 
         let ret_type = match ret_type {
             Some(ret_type) => {
-                let SynthExpr(ret_core, _) = self.synth_expr(ret_type);
+                let SynthExpr(ret_core, _) = self.synth_expr(&ret_type);
                 let ret_value = self.eval_ctx().eval_expr(&ret_core);
                 let expected = Arc::new(Value::Type);
                 match self.unify_ctx().unify_values(&ret_value, &expected) {

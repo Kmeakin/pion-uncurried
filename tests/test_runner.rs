@@ -25,7 +25,7 @@ fn elab_ok(path: String) -> libtest_mimic::Trial {
         let db = pion_salsa::Database::default();
         let name = pion_salsa::ir::symbol::Symbol::new(&db, path.to_owned());
         let contents = std::fs::read_to_string(&path).unwrap();
-        let file = pion_salsa::ir::input_file::InputFile::new(&db, name, contents);
+        let file = pion_salsa::ir::file::File::new(&db, name, contents);
 
         let module_ir = pion_salsa::ir::lower_file(&db, file);
         let module_core = pion_salsa::core::elab::elab_module(&db, module_ir);

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
-use super::input_file::InputFile;
-use super::span::{FileSpan, Span};
+use crate::file::File;
+use crate::span::{FileSpan, IntoFileSpan};
 
 /// Used as the "error" value for a `Result` to indicate that an error was
 /// detected and reported to the user (i.e., pushed onto the [`Diagnostics`]
@@ -39,7 +39,7 @@ pub struct Diagnostics(Diagnostic);
 #[macro_export]
 macro_rules! diag {
     ($severity:expr, $span:expr, $($message:tt)*) => {
-        $crate::ir::diagnostic::Diagnostic::builder($severity, $span, format!($($message)*))
+        $crate::diagnostic::Diagnostic::builder($severity, $span, format!($($message)*))
     }
 }
 
@@ -47,7 +47,7 @@ macro_rules! diag {
 #[macro_export]
 macro_rules! error {
     ($span:expr, $($message:tt)*) => {
-        $crate::ir::diagnostic::Diagnostic::builder($crate::ir::diagnostic::Severity::Error, $span, format!($($message)*))
+        $crate::diagnostic::Diagnostic::builder($crate::diagnostic::Severity::Error, $span, format!($($message)*))
     }
 }
 
@@ -55,7 +55,7 @@ macro_rules! error {
 #[macro_export]
 macro_rules! warning {
     ($span:expr, $($message:tt)*) => {
-        $crate::ir::diagnostic::Diagnostic::builder($crate::ir::diagnostic::Severity::Warning, $span, format!($($message)*))
+        $crate::diagnostic::diagnostic::Diagnostic::builder($crate::diagnostic::Severity::Warning, $span, format!($($message)*))
     }
 }
 
@@ -63,7 +63,7 @@ macro_rules! warning {
 #[macro_export]
 macro_rules! note {
     ($span:expr, $($message:tt)*) => {
-        $crate::ir::diagnostic::Diagnostic::builder($crate::ir::diagnostic::Severity::Note, $span, format!($($message)*))
+        $crate::diagnostic::Diagnostic::builder($crate::diagnostic::Severity::Note, $span, format!($($message)*))
     }
 }
 
@@ -71,7 +71,7 @@ macro_rules! note {
 #[macro_export]
 macro_rules! help {
     ($span:expr, $($message:tt)*) => {
-        $crate::ir::diagnostic::Diagnostic::builder($crate::ir::diagnostic::Severity::Help, $span, format!($($message)*))
+        $crate::diagnostic::Diagnostic::builder($crate::diagnostic::Severity::Help, $span, format!($($message)*))
     }
 }
 
@@ -190,26 +190,9 @@ impl DiagnosticBuilder {
     pub fn emit(self, db: &dyn crate::Db) -> ErrorReported { self.finish().emit(db) }
 }
 
-pub trait IntoFileSpan {
-    fn into_file_span(self, default_file: InputFile) -> FileSpan;
-}
-
-impl IntoFileSpan for FileSpan {
-    fn into_file_span(self, _default_file: InputFile) -> FileSpan { self }
-}
-
-impl IntoFileSpan for Span {
-    fn into_file_span(self, default_file: InputFile) -> FileSpan {
-        FileSpan {
-            file: default_file,
-            span: self,
-        }
-    }
-}
-
 pub struct SourceCache<'db> {
     db: &'db dyn crate::Db,
-    map: HashMap<InputFile, ariadne::Source>, // TODO: more efficient data structure
+    map: HashMap<File, ariadne::Source>, // TODO: more efficient data structure
 }
 
 impl<'db> SourceCache<'db> {
@@ -221,18 +204,15 @@ impl<'db> SourceCache<'db> {
     }
 }
 
-impl<'db> ariadne::Cache<InputFile> for SourceCache<'db> {
-    fn fetch(
-        &mut self,
-        file: &InputFile,
-    ) -> Result<&ariadne::Source, Box<dyn std::fmt::Debug + '_>> {
+impl<'db> ariadne::Cache<File> for SourceCache<'db> {
+    fn fetch(&mut self, file: &File) -> Result<&ariadne::Source, Box<dyn std::fmt::Debug + '_>> {
         Ok(self.map.entry(*file).or_insert_with(|| {
             let source_text = file.contents(self.db);
             ariadne::Source::from(source_text)
         }))
     }
 
-    fn display<'a>(&self, file: &'a InputFile) -> Option<Box<dyn std::fmt::Display + 'a>> {
+    fn display<'a>(&self, file: &'a File) -> Option<Box<dyn std::fmt::Display + 'a>> {
         let s = file.name(self.db).as_str(self.db).to_string();
         Some(Box::new(s))
     }

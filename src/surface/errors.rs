@@ -1,9 +1,9 @@
 use text_size::{TextRange, TextSize};
 
 use super::parser::lexer;
-use crate::ir::diagnostic::{Diagnostic, IntoFileSpan};
-use crate::ir::input_file::InputFile;
-use crate::ir::span::Span;
+use crate::diagnostic::Diagnostic;
+use crate::file::File;
+use crate::span::{IntoFileSpan, Span};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum LexError {
@@ -54,7 +54,7 @@ impl<'src> From<LalrpopRecovery<'src>> for ParseError {
 }
 
 impl ParseError {
-    pub fn to_diagnostic(self, file: InputFile) -> Diagnostic {
+    pub fn to_diagnostic(self, file: File) -> Diagnostic {
         match self {
             Self::Lexer(error) => match error {
                 LexError::TooLong(len) => crate::error!(

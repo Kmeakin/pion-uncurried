@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use super::env::{EnvLen, LocalSource, SharedEnv, VarIndex, VarLevel};
-use crate::ir::symbol::Symbol;
 use crate::ir::syntax as ir;
+use crate::symbol::Symbol;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Module {

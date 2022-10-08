@@ -3,8 +3,8 @@ use std::sync::Arc;
 use contracts::debug_invariant;
 
 use super::syntax::{Value, VarName};
-use crate::ir::span::Span;
-use crate::ir::symbol::Symbol;
+use crate::span::Span;
+use crate::symbol::Symbol;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct VarIndex(pub usize);

@@ -1,8 +1,8 @@
-use super::symbol::Symbol;
+use crate::symbol::Symbol;
 
 #[salsa::input]
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
-pub struct InputFile {
+pub struct File {
     pub name: Symbol,
 
     #[return_ref]

@@ -1,13 +1,13 @@
-use crate::ir::diagnostic::Diagnostics;
-use crate::ir::input_file::InputFile;
-use crate::ir::symbol::Symbol;
+use crate::diagnostic::Diagnostics;
+use crate::file::File;
 use crate::surface::pretty::PrettyCtx;
+use crate::symbol::Symbol;
 
 pub fn elab(path: String) {
     let db = crate::Database::default();
     let contents = std::fs::read_to_string(&path).unwrap();
     let name = Symbol::new(&db, path);
-    let file = InputFile::new(&db, name, contents);
+    let file = File::new(&db, name, contents);
 
     let module_ir = crate::ir::lower_file(&db, file);
     let module_core = crate::core::elab::elab_module(&db, module_ir);
@@ -37,7 +37,7 @@ pub fn elab(path: String) {
 
         let report = builder.finish();
         report
-            .eprint(crate::ir::diagnostic::SourceCache::new(&db))
+            .eprint(crate::diagnostic::SourceCache::new(&db))
             .expect("Cannot print diagnostic");
     }
 }
