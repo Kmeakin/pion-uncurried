@@ -1,0 +1,352 @@
+use super::*;
+
+pub struct SynthExpr(pub Expr, pub Arc<Value>);
+
+pub struct CheckExpr(pub Expr);
+
+/// Expressions
+impl ElabCtx<'_> {
+    #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
+    pub fn synth_lit(&mut self, lit: &surface::Lit<Span>) -> (Lit, Arc<Value>) {
+        match lit {
+            surface::Lit::Bool(_, b) => (Lit::Bool(*b), Arc::new(Value::BoolType)),
+        }
+    }
+
+    #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
+    #[debug_ensures(ret.0.is_closed(self.local_env.len(), self.meta_env.len()))]
+    pub fn synth_error_expr(&mut self) -> SynthExpr {
+        SynthExpr(Expr::Error, Arc::new(Value::Error))
+    }
+
+    #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
+    #[debug_ensures(ret.0.is_closed(self.local_env.len(), self.meta_env.len()))]
+    pub fn synth_expr(&mut self, expr: &surface::Expr<Span>) -> SynthExpr {
+        let file = self.file;
+        match expr {
+            surface::Expr::Error(_) => self.synth_error_expr(),
+            surface::Expr::Lit(_, lit) => {
+                let (lit, ty) = self.synth_lit(lit);
+                SynthExpr(Expr::Lit(lit), ty)
+            }
+            surface::Expr::Name(span, name) => {
+                let symbol = Symbol::intern(self.db, name);
+
+                if let Some((index, ty)) = self.local_env.lookup(symbol) {
+                    return SynthExpr(Expr::Local(index), ty);
+                }
+
+                if let Some(item) = crate::ir::lookup_item(self.db, file, symbol) {
+                    match item {
+                        ir::Item::Let(def) => {
+                            let def_core = elab_let_def(self.db, def);
+                            return SynthExpr(Expr::LetDef(def), def_core.ty.1);
+                        }
+                        ir::Item::Enum(def) => {
+                            let sig = synth_enum_def(self.db, def);
+                            let args = sig.args;
+                            let ret_type = sig.ret_type;
+                            let fun_type = Value::FunType(FunClosure::new(
+                                SharedEnv::new(),
+                                args,
+                                Arc::new(ret_type),
+                            ));
+                            return SynthExpr(Expr::EnumDef(def), Arc::new(fun_type));
+                        }
+                        ir::Item::Variant(enum_variant) => {
+                            let parent = enum_variant.parent(self.db);
+                            let parent_sig = elab_enum_def(self.db, parent).sig;
+
+                            let variant = elab_enum_variant(self.db, enum_variant);
+                            let parent_args = parent_sig.args.iter().cloned();
+                            let variant_args =
+                                variant.args.iter().map(|FunArg { pat, ty }| FunArg {
+                                    pat: pat.clone(),
+                                    ty: ty.0.clone(),
+                                });
+                            let args = parent_args.chain(variant_args).collect();
+                            let ret_type = variant.ret_type;
+                            let fun_type = Value::FunType(FunClosure::new(
+                                SharedEnv::new(),
+                                args,
+                                Arc::new(ret_type.0),
+                            ));
+                            return SynthExpr(Expr::EnumVariant(enum_variant), Arc::new(fun_type));
+                        }
+                    }
+                }
+
+                match name.as_str() {
+                    "Type" => return SynthExpr(Expr::Type, Arc::new(Value::Type)),
+                    "Bool" => return SynthExpr(Expr::BoolType, Arc::new(Value::Type)),
+                    _ => {}
+                }
+
+                crate::error!(span.into_file_span(file), "Unbound variable: `{name}`")
+                    .emit(self.db);
+                self.synth_error_expr()
+            }
+            surface::Expr::Hole(span, hole) => {
+                let expr_name = match hole {
+                    surface::Hole::Underscore => self.name_source.fresh(),
+                    surface::Hole::Name(name) => VarName::User(Symbol::new(self.db, name.clone())),
+                };
+                let type_name = self.name_source.fresh();
+                let type_source = MetaSource::HoleType(*span);
+                let expr_source = MetaSource::HoleExpr(*span);
+                let ty = self.push_meta_value(expr_name, type_source, Arc::new(Value::Type));
+                let expr = self.push_meta_expr(type_name, expr_source, ty.clone());
+                SynthExpr(expr, ty)
+            }
+            surface::Expr::FunType(_, pats, ret) => {
+                let initial_len = self.local_env.len();
+                let fun_args: Vec<_> = pats
+                    .iter()
+                    .map(|pat| {
+                        let SynthPat(pat_core, pat_type) = self.synth_ann_pat(pat);
+                        let type_core = self.quote_ctx().quote_value(&pat_type);
+                        self.subst_pat(&pat_core, pat_type, None);
+                        FunArg {
+                            pat: pat_core,
+                            ty: type_core,
+                        }
+                    })
+                    .collect();
+                let CheckExpr(ret) = self.check_expr_is_type(ret);
+                self.local_env.truncate(initial_len);
+                SynthExpr(
+                    Expr::FunType(Arc::from(fun_args), Arc::new(ret)),
+                    Arc::new(Value::Type),
+                )
+            }
+            surface::Expr::FunExpr(_, pats, body) => {
+                let initial_len = self.local_env.len();
+                let fun_args: Vec<_> = pats
+                    .iter()
+                    .map(|pat| {
+                        let SynthPat(pat_core, pat_type) = self.synth_ann_pat(pat);
+                        let type_core = self.quote_ctx().quote_value(&pat_type);
+                        self.subst_pat(&pat_core, pat_type, None);
+                        FunArg {
+                            pat: pat_core,
+                            ty: type_core,
+                        }
+                    })
+                    .collect();
+                let fun_args: Arc<[_]> = Arc::from(fun_args);
+
+                let SynthExpr(body_core, body_type) = self.synth_expr(body);
+                let ret_type = self.quote_ctx().quote_value(&body_type);
+                self.local_env.truncate(initial_len);
+
+                let fun_core = Expr::FunExpr(fun_args.clone(), Arc::new(body_core));
+                let closure =
+                    FunClosure::new(self.local_env.values.clone(), fun_args, Arc::new(ret_type));
+                let fun_type = Value::FunType(closure);
+                SynthExpr(fun_core, Arc::new(fun_type))
+            }
+            surface::Expr::FunCall(call_span, fun, args) => {
+                let SynthExpr(fun_core, fun_type) = self.synth_expr(fun);
+                let fun_type = self.elim_ctx().force_value(&fun_type);
+                let closure = match fun_type.as_ref() {
+                    Value::FunType(closure) => closure,
+                    Value::Error => return self.synth_error_expr(),
+                    _ => {
+                        self.report_non_fun_call(*call_span, fun.span(), &fun_type);
+                        for arg in args {
+                            let SynthExpr(..) = self.synth_expr(arg);
+                        }
+                        return self.synth_error_expr();
+                    }
+                };
+
+                let expected_arity = closure.arity();
+                let actual_arity = args.len();
+                if actual_arity != expected_arity {
+                    self.report_arity_mismatch(
+                        *call_span,
+                        fun.span(),
+                        actual_arity,
+                        expected_arity,
+                        &fun_type,
+                    );
+                    return self.synth_error_expr();
+                }
+
+                let initial_closure = closure.clone();
+                let mut closure = closure.clone();
+
+                let mut arg_cores = Vec::with_capacity(args.len());
+                let mut arg_values = Vec::with_capacity(args.len());
+                let mut args = args.iter();
+
+                while let Some((arg, (FunArg { ty, .. }, cont))) =
+                    Option::zip(args.next(), self.elim_ctx().split_fun_closure(closure))
+                {
+                    let CheckExpr(arg_core) = self.check_expr(arg, &ty);
+                    let arg_value = self.eval_ctx().eval_expr(&arg_core);
+                    closure = cont(arg_value.clone());
+                    arg_cores.push(arg_core);
+                    arg_values.push(arg_value);
+                }
+
+                // Synth the rest of the arguments, in case too many arguments were passed to
+                // the function. The result is ignored, but we still need to check them for any
+                // errors
+                for arg in args {
+                    let SynthExpr(..) = self.synth_expr(arg);
+                }
+
+                let ret_type = self.elim_ctx().apply_closure(&initial_closure, arg_values);
+                SynthExpr(
+                    Expr::FunCall(Arc::new(fun_core), Arc::from(arg_cores)),
+                    ret_type,
+                )
+            }
+            surface::Expr::Let(_, pat, init, body) => {
+                let initial_len = self.local_env.len();
+                let SynthPat(pat_core, type_value) = self.synth_ann_pat(pat);
+                let type_core = self.quote_ctx().quote_value(&type_value);
+
+                let CheckExpr(init_core) = self.check_expr(init, &type_value);
+                let init_value = self.eval_ctx().eval_expr(&init_core);
+
+                self.subst_pat(&pat_core, type_value, Some(init_value));
+                let SynthExpr(body_core, body_type) = self.synth_expr(body);
+                self.local_env.truncate(initial_len);
+
+                SynthExpr(
+                    Expr::Let(
+                        Arc::new(pat_core),
+                        Arc::new(type_core),
+                        Arc::new(init_core),
+                        Arc::new(body_core),
+                    ),
+                    body_type,
+                )
+            }
+            surface::Expr::Match(span, scrut, arms) => {
+                let name = self.name_source.fresh();
+                let source = MetaSource::MatchType(*span);
+                let match_type = self.push_meta_value(name, source, Arc::new(Value::Type));
+
+                let CheckExpr(match_expr) = self.check_match_expr(scrut, arms, &match_type);
+                SynthExpr(match_expr, match_type)
+            }
+        }
+    }
+
+    #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
+    pub fn check_expr_is_type(&mut self, expr: &surface::Expr<Span>) -> CheckExpr {
+        self.check_expr(expr, &Arc::new(Value::Type))
+    }
+
+    #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
+    #[debug_ensures(ret.0.is_closed(self.local_env.len(), self.meta_env.len()))]
+    pub fn check_expr(&mut self, expr: &surface::Expr<Span>, expected: &Arc<Value>) -> CheckExpr {
+        match (expr, expected.as_ref()) {
+            (surface::Expr::Error(_), _) => CheckExpr(Expr::Error),
+            (surface::Expr::FunExpr(_, pats, body), Value::FunType(closure))
+                if pats.len() == closure.arity() =>
+            {
+                let initial_len = self.local_env.len();
+                let initial_closure = closure.clone();
+                let mut closure = closure.clone();
+
+                let mut args_values = Vec::with_capacity(pats.len());
+                let mut fun_args = Vec::with_capacity(pats.len());
+
+                let mut pats = pats.iter();
+                while let Some((pat, (FunArg { ty: expected, .. }, cont))) =
+                    Option::zip(pats.next(), self.elim_ctx().split_fun_closure(closure))
+                {
+                    let type_core = self.quote_ctx().quote_value(&expected);
+
+                    let arg_value = Arc::new(Value::local(self.local_env.len().to_level()));
+                    let CheckPat(pat_core) = self.check_ann_pat(pat, &expected);
+                    self.subst_pat(&pat_core, expected, None);
+
+                    closure = cont(arg_value.clone());
+                    args_values.push(arg_value);
+                    fun_args.push(FunArg {
+                        pat: pat_core,
+                        ty: type_core,
+                    });
+                }
+
+                let expected_ret = self.elim_ctx().apply_closure(&initial_closure, args_values);
+                let CheckExpr(ret_core) = self.check_expr(body, &expected_ret);
+                self.local_env.truncate(initial_len);
+
+                CheckExpr(Expr::FunExpr(Arc::from(fun_args), Arc::new(ret_core)))
+            }
+            (surface::Expr::Let(_, pat, init, body), _) => {
+                let initial_len = self.local_env.len();
+                let SynthPat(pat_core, type_value) = self.synth_ann_pat(pat);
+                let type_core = self.quote_ctx().quote_value(&type_value);
+
+                let CheckExpr(init_core) = self.check_expr(init, &type_value);
+                let init_value = self.eval_ctx().eval_expr(&init_core);
+
+                self.subst_pat(&pat_core, type_value, Some(init_value));
+                let CheckExpr(body_core) = self.check_expr(body, expected);
+                self.local_env.truncate(initial_len);
+
+                CheckExpr(Expr::Let(
+                    Arc::new(pat_core),
+                    Arc::new(type_core),
+                    Arc::new(init_core),
+                    Arc::new(body_core),
+                ))
+            }
+            (surface::Expr::Match(_, scrut, arms), _) => {
+                self.check_match_expr(scrut, arms, expected)
+            }
+            _ => {
+                let SynthExpr(core, got) = self.synth_expr(expr);
+                match self.unify_ctx().unify_values(&got, expected) {
+                    Ok(()) => CheckExpr(core),
+                    Err(error) => {
+                        let span = expr.span();
+                        self.report_type_mismatch(span, expected, &got, error);
+                        CheckExpr(Expr::Error)
+                    }
+                }
+            }
+        }
+    }
+
+    #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
+    fn check_match_expr(
+        &mut self,
+        scrut: &surface::Expr<Span>,
+        arms: &[(surface::Pat<Span>, surface::Expr<Span>)],
+        expected: &Arc<Value>,
+    ) -> CheckExpr {
+        // TODO: check for exhaustivity and report unreachable patterns
+
+        // FIXME: update `expected` with defintions introduced by `check_pat`
+        // without having to quote `expected` back to `Expr`
+
+        let SynthExpr(scrut_core, scrut_type) = self.synth_expr(scrut);
+        let scrut_value = self.eval_ctx().eval_expr(&scrut_core);
+
+        let expected_core = self.quote_ctx().quote_value(expected);
+
+        let arms = arms
+            .iter()
+            .map(|(pat, expr)| {
+                let initial_len = self.local_env.len();
+                let CheckPat(pat_core) = self.check_pat(pat, &scrut_type);
+                self.subst_pat(&pat_core, scrut_type.clone(), Some(scrut_value.clone()));
+                let expected = &self.eval_ctx().eval_expr(&expected_core);
+                let CheckExpr(expr_core) = self.check_expr(expr, expected);
+                self.local_env.truncate(initial_len);
+
+                (pat_core, expr_core)
+            })
+            .collect();
+
+        CheckExpr(Expr::Match(Arc::new(scrut_core), arms))
+    }
+}
