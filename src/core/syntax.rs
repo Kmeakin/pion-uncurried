@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use super::env::{EnvLen, LocalSource, SharedEnv, VarIndex, VarLevel};
-use crate::ir::syntax as ir;
+use crate::ir;
 use crate::symbol::Symbol;
 
 #[derive(Debug, Clone, PartialEq, Eq)]

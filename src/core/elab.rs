@@ -10,11 +10,10 @@ use super::syntax::*;
 use super::unelab::UnelabCtx;
 use super::unify::{PartialRenaming, RenameError, SpineError, UnifyCtx, UnifyError};
 use crate::file::File;
-use crate::ir::syntax as ir;
 use crate::span::{IntoFileSpan, Span};
 use crate::surface::pretty::PrettyCtx;
-use crate::surface::syntax as surface;
 use crate::symbol::Symbol;
+use crate::{ir, surface};
 
 #[must_use = "Call `.finish()` to report unsolved metas"]
 pub struct ElabCtx<'db> {

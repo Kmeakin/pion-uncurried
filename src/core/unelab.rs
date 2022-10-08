@@ -4,7 +4,7 @@ use contracts::{debug_ensures, debug_requires};
 
 use super::env::{LocalSource, NameSource, UniqueEnv, VarLevel};
 use super::syntax::*;
-use crate::surface::syntax as surface;
+use crate::surface;
 
 pub struct UnelabCtx<'a> {
     local_names: &'a mut UniqueEnv<VarName>,

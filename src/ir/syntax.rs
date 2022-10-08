@@ -1,6 +1,6 @@
 use crate::file::File;
 use crate::span::Span;
-use crate::surface::syntax as surface;
+use crate::surface;
 use crate::symbol::Symbol;
 
 #[salsa::tracked]

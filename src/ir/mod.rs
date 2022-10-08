@@ -1,10 +1,11 @@
-use self::syntax::*;
 use crate::file::File;
 use crate::surface;
 use crate::surface::parser::parse_file;
 use crate::symbol::Symbol;
 
 pub mod syntax;
+
+pub use self::syntax::*;
 
 #[salsa::tracked]
 pub fn lower_file(db: &dyn crate::Db, file: File) -> Module {
