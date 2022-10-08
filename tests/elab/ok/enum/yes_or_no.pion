@@ -1,0 +1,7 @@
+enum YesOrNo {
+    Yes,
+    No,
+}
+
+let y = Yes;
+let n = No;

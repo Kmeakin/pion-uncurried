@@ -1,0 +1,8 @@
+enum Option(T: Type): Type {
+    None: Option(T),
+    Some(x: T): Option(T),
+}
+
+let n: fn(T: Type) -> Option(T) = None;
+
+let s: fn(T: Type, x: T) -> Option(T) = Some;

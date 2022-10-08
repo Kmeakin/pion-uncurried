@@ -1,0 +1,8 @@
+enum Either(A: Type, B: Type): Type {
+    Left(x: A): Either(A, B),
+    Right(y: B): Either(A, B),
+}
+
+let l: fn(A: Type, B: Type, x: A) -> Either(A, B) = Left;
+
+let r: fn(A: Type, B: Type, y: B) -> Either(A, B) = Right;

@@ -1,0 +1,8 @@
+enum YesOrNo: Type {
+    Yes: YesOrNo,
+    No: YesOrNo,
+}
+
+let y: YesOrNo = Yes;
+
+let n: YesOrNo = No;

@@ -100,13 +100,13 @@ pub fn elab_enum_def(db: &dyn crate::Db, ir: ir::EnumDef) -> EnumDef {
     } = ir.surface(db);
     let name = Symbol::new(db, name.to_owned());
 
-    let mut variant_type_args = Vec::with_capacity(args.len());
+    let mut self_type_args = Vec::with_capacity(args.len());
     let args: Arc<[_]> = args
         .iter()
         .map(|pat| {
             let SynthPat(pat_core, type_value) = ctx.synth_ann_pat(pat);
             let type_core = ctx.quote_ctx().quote_value(&type_value);
-            variant_type_args.push(Arc::new(Value::local(ctx.local_env.len().to_level())));
+            self_type_args.push(Arc::new(Value::local(ctx.local_env.len().to_level())));
             ctx.subst_pat(&pat_core, type_value, None);
             FunArg {
                 pat: pat_core,
@@ -136,7 +136,13 @@ pub fn elab_enum_def(db: &dyn crate::Db, ir: ir::EnumDef) -> EnumDef {
         }
     };
 
-    let self_type = (Expr::EnumDef(ir), Arc::new(Value::enum_def(ir)));
+    let self_type = match self_type_args.len() {
+        0 => Arc::new(Value::enum_def(ir)),
+        _ => Arc::new(Value::Stuck(
+            Head::EnumDef(ir),
+            vec![Elim::FunCall(self_type_args)],
+        )),
+    };
 
     let variants = variants
         .iter()
@@ -154,7 +160,7 @@ pub fn elab_enum_def(db: &dyn crate::Db, ir: ir::EnumDef) -> EnumDef {
                 .map(|pat| {
                     let SynthPat(pat_core, type_value) = ctx.synth_ann_pat(pat);
                     let type_core = ctx.quote_ctx().quote_value(&type_value);
-                    variant_type_args.push(Arc::new(Value::local(ctx.local_env.len().to_level())));
+                    ctx.subst_pat(&pat_core, type_value, None);
                     FunArg {
                         pat: pat_core,
                         ty: type_core,
@@ -163,11 +169,10 @@ pub fn elab_enum_def(db: &dyn crate::Db, ir: ir::EnumDef) -> EnumDef {
                 .collect();
 
             let ret_type = match ret_type {
-                None => self_type.clone(),
+                None => (ctx.quote_ctx().quote_value(&self_type), self_type.clone()),
                 Some(ret_type_surface) => {
                     let SynthExpr(ret_type_expr, _) = ctx.synth_expr(ret_type_surface);
                     let ret_type_value = ctx.eval_ctx().eval_expr(&ret_type_expr);
-                    // TODO: check it makes sense
                     (ret_type_expr, ret_type_value)
                 }
             };

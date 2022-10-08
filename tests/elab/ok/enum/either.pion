@@ -1,0 +1,7 @@
+enum Either(A: Type, B: Type) {
+    Left(x: A),
+    Right(y: B),
+}
+
+let l = Left;
+let r = Right;
