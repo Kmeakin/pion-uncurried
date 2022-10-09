@@ -382,7 +382,8 @@ impl PartialRenaming {
     /// Re-initialise the renaming to the requested `source_len`, reusing the
     /// previous allocation.
     fn init(&mut self, source_len: EnvLen) {
-        self.source.resize_with(source_len, || None);
+        self.source.clear();
+        self.source.resize(source_len, None);
         self.target.clear();
     }
 

@@ -34,7 +34,7 @@ impl ElabCtx<'_> {
                 let (lit, ty) = self.synth_lit(lit);
                 SynthPat(Pat::Lit(lit), ty)
             }
-            surface::Pat::Variant(..) => todo!(),
+            surface::Pat::Variant(_, name, pats) => todo!(),
         }
     }
 

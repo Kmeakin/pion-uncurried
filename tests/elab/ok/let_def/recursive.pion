@@ -1,1 +1,4 @@
-let x: Bool = x;
+let f1: fn(_:Bool) -> Bool = fn(b) => f1(b);
+let f12 = fn(b) => f1(b);
+
+let f2: fn(_:?_) -> Bool = fn(b: Bool) => f2(b);

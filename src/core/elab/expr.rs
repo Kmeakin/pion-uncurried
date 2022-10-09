@@ -317,6 +317,7 @@ impl ElabCtx<'_> {
     }
 
     #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
+    #[debug_ensures(ret.0.is_closed(self.local_env.len(), self.meta_env.len()))]
     fn check_match_expr(
         &mut self,
         scrut: &surface::Expr<Span>,

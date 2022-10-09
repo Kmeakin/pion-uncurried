@@ -90,6 +90,8 @@ impl<T> UniqueEnv<T> {
 
     pub fn truncate(&mut self, len: EnvLen) { self.entries.truncate(len.0); }
 
+    pub fn clear(&mut self) { self.entries.clear() }
+
     pub fn get<I>(&self, index: I) -> Option<&T>
     where
         I: ToLevel,
@@ -103,6 +105,13 @@ impl<T> UniqueEnv<T> {
     {
         let index = index.to_level(self.len()).unwrap().0;
         self.entries[index] = elem;
+    }
+
+    pub fn resize(&mut self, len: EnvLen, elem: T)
+    where
+        T: Clone,
+    {
+        self.entries.resize(len.0, elem);
     }
 
     pub fn resize_with(&mut self, len: EnvLen, f: impl FnMut() -> T) {
