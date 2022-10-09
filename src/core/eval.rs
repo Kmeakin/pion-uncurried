@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use contracts::debug_ensures;
+use contracts::{debug_ensures, debug_requires};
 use either::Either;
 use either::Either::{Left, Right};
 
@@ -31,6 +31,7 @@ impl<'env> EvalCtx<'env> {
 
     fn quote_ctx(&self) -> QuoteCtx { QuoteCtx::new(self.local_env.len(), self.meta_env, self.db) }
 
+    #[debug_requires(expr.is_closed(self.local_env.len(), self.meta_env.len()))]
     #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
     pub fn normalize_expr(&mut self, expr: &Expr) -> (Expr, Arc<Value>) {
         let value = self.eval_expr(expr);
@@ -38,6 +39,7 @@ impl<'env> EvalCtx<'env> {
         (expr, value)
     }
 
+    #[debug_requires(expr.is_closed(self.local_env.len(), self.meta_env.len()))]
     #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
     pub fn eval_expr(&mut self, expr: &Expr) -> Arc<Value> {
         match expr {
@@ -105,6 +107,7 @@ impl<'env> EvalCtx<'env> {
         head
     }
 
+    #[debug_requires(expr.is_closed(self.local_env.len(), self.meta_env.len()))]
     #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
     #[debug_ensures(ret.is_closed(self.local_env.len(), EnvLen(0)))]
     pub fn zonk_expr(&mut self, expr: &Expr) -> Expr {
@@ -174,6 +177,8 @@ impl<'env> EvalCtx<'env> {
         }
     }
 
+    #[debug_requires(expr.is_closed(self.local_env.len(), self.meta_env.len()))]
+    #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
     fn zonk_spine(&mut self, expr: &Expr) -> Either<Expr, Arc<Value>> {
         match expr {
             Expr::Meta(var) => match self.meta_env.get(*var) {

@@ -6,3 +6,8 @@ enum Option(T: Type): Type {
 let n: fn(T: Type) -> Option(T) = None;
 
 let s: fn(T: Type, x: T) -> Option(T) = Some;
+
+let unwrap_or: fn(_: Option(Bool), _: Bool) -> Bool = fn(o: Option(Bool), d: Bool) => match o {
+    Some(y) => y,
+    None => d,
+};

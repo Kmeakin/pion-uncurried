@@ -92,7 +92,7 @@ pub fn elab_let_def(db: &dyn crate::Db, ir: ir::LetDef) -> LetDef {
 #[salsa::tracked]
 /// Synthesise the type of an `Expr::EnumDef(ir)`
 pub fn synth_let_def_expr(db: &dyn crate::Db, ir: ir::LetDef) -> Arc<Value> {
-    let LetDefSig { ty, .. } = let_def_sig(db, ir);
+    let LetDef { ty, .. } = elab_let_def(db, ir);
     ty.1
 }
 

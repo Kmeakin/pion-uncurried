@@ -226,7 +226,7 @@ pub fn unelab_let_def(db: &dyn crate::Db, let_def: &LetDef) -> surface::LetDef<(
 
     let name = name.contents(db).clone();
     let ty = ctx.unelab_expr(&ty.0);
-    let body = ctx.unelab_expr(dbg!(&body.0));
+    let body = ctx.unelab_expr(&body.0);
     surface::LetDef {
         name,
         ty: Some(ty),
