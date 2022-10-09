@@ -4,3 +4,5 @@
 
 pub mod env;
 pub mod semantics;
+pub mod surface;
+pub mod typecheck;

@@ -12,15 +12,26 @@ pub type ValueEnv = Env<RcValue>;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Expr {
     Local(VarIndex),
+    Const(Const),
     App(Rc<Self>, Rc<Self>),
-    Lambda(Rc<Self>),
+    FunType(Rc<Self>, Rc<Self>),
+    FunExpr(Rc<Self>),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Const {
+    Type,
+    StringType,
+    StringValue(String),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Value {
     Local(VarLevel),
+    Const(Const),
+    FunType(Rc<Self>, FunClosure),
+    FunValue(FunClosure),
     App(Rc<Self>, Rc<Self>),
-    Lambda(FunClosure),
     Lazy(LazyClosure),
 }
 
@@ -38,31 +49,30 @@ pub struct LazyClosure {
 }
 
 impl Expr {
-    pub fn local(var: VarIndex) -> Self { Self::Local(var) }
-    pub fn lambda(body: Self) -> Self { Self::Lambda(Rc::new(body)) }
-    pub fn app(fun: Self, arg: Self) -> Self { Self::App(Rc::new(fun), Rc::new(arg)) }
+    pub const TYPE: Self = Self::Const(Const::Type);
 
     pub fn is_closed(&self, len: EnvLen) -> bool {
         match self {
+            Self::Const(_) => true,
             Self::Local(var) => var.0 < len.0,
-            Self::Lambda(body) => body.is_closed(len.next()),
             Self::App(fun, arg) => fun.is_closed(len) && arg.is_closed(len),
+            Self::FunExpr(body) => body.is_closed(len.next()),
+            Self::FunType(domain, range) => domain.is_closed(len) && range.is_closed(len.next()),
         }
     }
 }
 
 impl Value {
-    pub fn local(var: VarLevel) -> Self { Self::Local(var) }
-    pub fn lambda(closure: FunClosure) -> Self { Self::Lambda(closure) }
-    pub fn app(fun: Self, arg: Self) -> Self { Self::App(Rc::new(fun), Rc::new(arg)) }
-    pub fn lazy(value: LazyClosure) -> Self { Self::Lazy(value) }
+    pub const TYPE: Self = Self::Const(Const::Type);
 
     pub fn is_closed(&self, len: EnvLen) -> bool {
         match self {
+            Self::Const(_) => true,
             Self::Local(var) => var.0 < len.0,
             Self::App(fun, arg) => fun.is_closed(len) && arg.is_closed(len),
-            Self::Lambda(closure) => closure.is_closed(),
             Self::Lazy(closure) => closure.is_closed(),
+            Self::FunValue(closure) => closure.is_closed(),
+            Self::FunType(domain, closure) => domain.is_closed(len) && closure.is_closed(),
         }
     }
 }
@@ -158,8 +168,11 @@ bitflags::bitflags! {
         const NF     = 0b0000_0000_0000_0011;
 
         const BETA_LAMBDA = 0b0000_0000_0001_0000;
-
         const DELTA_LOCAL = 0b0000_0001_0000_0000;
+
+        const ALL_REDUCTIONS = Self::BETA_LAMBDA.bits | Self::DELTA_LOCAL.bits;
+
+        const EVAL_WHNF = Self::WHNF.bits | Self::ALL_REDUCTIONS.bits;
     }
 }
 
@@ -173,15 +186,16 @@ impl EvalFlags {
 
 #[debug_requires(expr.is_closed(env.len()))]
 #[debug_ensures(ret.is_closed(env.len()))]
-pub fn normalise(flags: EvalFlags, env: &ValueEnv, expr: &RcExpr) -> RcExpr {
+pub fn normalise(flags: EvalFlags, env: &ValueEnv, expr: &RcExpr) -> Expr {
     let value = reduce(flags, env, expr);
     quote(flags, env.len(), &value)
 }
 
 #[debug_requires(expr.is_closed(env.len()))]
 #[debug_ensures(ret.is_closed(env.len()))]
-pub fn reduce(flags: EvalFlags, env: &ValueEnv, expr: &RcExpr) -> RcValue {
-    match expr.as_ref() {
+pub fn reduce(flags: EvalFlags, env: &ValueEnv, expr: &Expr) -> RcValue {
+    match expr {
+        Expr::Const(c) => Rc::new(Value::Const(c.clone())),
         Expr::Local(var) => match flags.delta_local() {
             true => match env.get(*var) {
                 Some(value) => value.clone(),
@@ -192,24 +206,38 @@ pub fn reduce(flags: EvalFlags, env: &ValueEnv, expr: &RcExpr) -> RcValue {
                 None => unreachable!("Unbound local variable {var:?}"),
             },
         },
-        Expr::Lambda(body) => match flags.strong() {
+        Expr::FunType(domain, range) => match flags.strong() {
+            true => {
+                let arg = Rc::new(Value::Local(env.len().to_level()));
+                let domain = reduce(flags, env, domain);
+                let range = reduce(flags, &env.pushed(arg), range);
+                let range = quote(flags, env.len().next(), &range);
+                let closure = FunClosure::new(env.clone(), Rc::new(range));
+                Rc::new(Value::FunType(domain, closure))
+            }
+            false => Rc::new(Value::FunType(
+                reduce(flags, env, domain),
+                FunClosure::new(env.clone(), range.clone()),
+            )),
+        },
+        Expr::FunExpr(body) => match flags.strong() {
             true => {
                 let arg = Rc::new(Value::Local(env.len().to_level()));
                 let body = reduce(flags, &env.pushed(arg), body);
                 let body = quote(flags, env.len().next(), &body);
-                let closure = FunClosure::new(env.clone(), body);
-                Rc::new(Value::Lambda(closure))
+                let closure = FunClosure::new(env.clone(), Rc::new(body));
+                Rc::new(Value::FunValue(closure))
             }
-            false => Rc::new(Value::Lambda(FunClosure::new(env.clone(), body.clone()))),
+            false => Rc::new(Value::FunValue(FunClosure::new(env.clone(), body.clone()))),
         },
         Expr::App(fun, arg) => {
             let fun = reduce(flags, env, fun);
             let arg = match flags.strict() {
                 true => reduce(flags, env, arg),
-                false => Rc::new(Value::lazy(LazyClosure::new(env.clone(), arg.clone()))),
+                false => Rc::new(Value::Lazy(LazyClosure::new(env.clone(), arg.clone()))),
             };
             match fun.as_ref() {
-                Value::Lambda(closure) if flags.beta_lambda() => closure.apply(flags, arg),
+                Value::FunValue(closure) if flags.beta_lambda() => closure.apply(flags, arg),
                 _ => Rc::new(Value::App(fun, arg)),
             }
         }
@@ -218,18 +246,35 @@ pub fn reduce(flags: EvalFlags, env: &ValueEnv, expr: &RcExpr) -> RcValue {
 
 #[debug_requires(value.is_closed(len))]
 #[debug_ensures(ret.is_closed(len))]
-pub fn quote(flags: EvalFlags, len: EnvLen, value: &RcValue) -> RcExpr {
+pub fn quote(flags: EvalFlags, len: EnvLen, value: &RcValue) -> Expr {
     match value.as_ref() {
+        Value::Const(c) => Expr::Const(c.clone()),
         Value::Local(var) => match len.level_to_index(*var) {
-            Some(var) => Rc::new(Expr::local(var)),
+            Some(var) => Expr::Local(var),
             None => unreachable!("Unbound local variable {var:?}"),
         },
-        Value::Lambda(closure) => Rc::new(Expr::Lambda(quote(
-            flags,
-            len.next(),
-            &closure.apply(flags, Rc::new(Value::local(len.to_level()))),
-        ))),
-        Value::App(fun, arg) => Rc::new(Expr::App(quote(flags, len, fun), quote(flags, len, arg))),
+        Value::FunValue(closure) => {
+            let closure = quote_closure(flags, len, closure);
+            Expr::FunExpr(Rc::new(closure))
+        }
+        Value::FunType(domain, closure) => {
+            let domain = quote(flags, len, domain);
+            let closure = quote_closure(flags, len, closure);
+            Expr::FunType(Rc::new(domain), Rc::new(closure))
+        }
+        Value::App(fun, arg) => {
+            let fun = quote(flags, len, fun);
+            let arg = quote(flags, len, arg);
+            Expr::App(Rc::new(fun), Rc::new(arg))
+        }
         Value::Lazy(closure) => quote(flags, len, &closure.force(flags)),
     }
+}
+
+#[debug_requires(closure.is_closed())]
+#[debug_ensures(ret.is_closed(len.next()))]
+fn quote_closure(flags: EvalFlags, len: EnvLen, closure: &FunClosure) -> Expr {
+    let arg = Rc::new(Value::Local(len.to_level()));
+    let body = closure.apply(flags, arg);
+    quote(flags, len.next(), &body)
 }
