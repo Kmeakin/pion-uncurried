@@ -40,36 +40,42 @@ pub struct EnumVariant {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Expr {
     Error,
-    Type,
-    BoolType,
+    Prim(Prim),
     Lit(Lit),
-    LetDef(ir::LetDef),
-    EnumDef(ir::EnumDef),
-    EnumVariant(ir::EnumVariant),
     Local(VarIndex),
+    Global(GlobalVar),
     Meta(VarLevel),
     MetaInsertion(VarLevel, SharedEnv<LocalSource>),
     FunType(Arc<[FunArg<Self>]>, Arc<Self>),
     FunExpr(Arc<[FunArg<Self>]>, Arc<Self>),
     FunCall(Arc<Self>, Arc<[Self]>),
-    Let(Arc<Pat>, Arc<Self>, Arc<Self>, Arc<Self>),
     Match(Arc<Self>, Arc<[(Pat, Self)]>),
+    Let(Arc<Pat>, Arc<Self>, Arc<Self>, Arc<Self>),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Prim {
+    Type,
+    BoolType,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum GlobalVar {
+    Let(ir::LetDef),
+    Enum(ir::EnumDef),
+    Variant(ir::EnumVariant),
 }
 
 impl Expr {
+    pub const TYPE: Self = Self::Prim(Prim::Type);
+
     /// Returns true if `self` is "closed" with respect to `local_len` and
     /// `meta_len` - ie `self` would not have any unbound local or meta
     /// variables when evaluated in a local environment of length `local_len`
     /// and a meta environment of length `local_len`.
     pub fn is_closed(&self, mut local_len: EnvLen, meta_len: EnvLen) -> bool {
         match self {
-            Self::Error
-            | Self::Type
-            | Self::BoolType
-            | Self::Lit(_)
-            | Self::LetDef(_)
-            | Self::EnumDef(_)
-            | Self::EnumVariant(_) => true,
+            Self::Error | Self::Prim(_) | Self::Lit(_) | Self::Global(_) => true,
             Self::Local(var) => {
                 let ret = var.0 < local_len.0;
                 if !ret {
@@ -136,8 +142,7 @@ impl Pat {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Value {
     Error,
-    Type,
-    BoolType,
+    Prim(Prim),
     Lit(Lit),
     Stuck(Head, Vec<Elim>),
     FunType(FunClosure),
@@ -145,6 +150,8 @@ pub enum Value {
 }
 
 impl Value {
+    pub const TYPE: Self = Self::Prim(Prim::Type);
+
     pub fn local(level: VarLevel) -> Self { Self::Stuck(Head::Local(level), Vec::new()) }
     pub fn meta(level: VarLevel) -> Self { Self::Stuck(Head::Meta(level), Vec::new()) }
     pub fn let_def(def: ir::LetDef) -> Self { Self::Stuck(Head::LetDef(def), Vec::new()) }

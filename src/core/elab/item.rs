@@ -39,7 +39,7 @@ pub fn let_def_sig(db: &dyn crate::Db, ir: ir::LetDef) -> LetDefSig {
         None => {
             let name = ctx.name_source.fresh();
             let source = MetaSource::Error;
-            let ty = Arc::new(Value::Type);
+            let ty = Arc::new(Value::TYPE);
             let type_expr = ctx.push_meta_expr(name, source, ty);
             let type_value = ctx.eval_ctx().eval_expr(&type_expr);
             (type_expr, type_value)
@@ -133,11 +133,11 @@ pub fn enum_def_sig(db: &dyn crate::Db, ir: ir::EnumDef) -> EnumDefSig {
         .collect();
 
     let (ret_type_expr, ret_type_value) = match ret_type {
-        None => (Expr::Type, Arc::new(Value::Type)),
+        None => (Expr::Prim(Prim::Type), Arc::new(Value::TYPE)),
         Some(ret_type_surface) => {
             let SynthExpr(ret_type_expr, _) = ctx.synth_expr(&ret_type_surface);
             let ret_type_value = ctx.eval_ctx().eval_expr(&ret_type_expr);
-            let expected = Arc::new(Value::Type);
+            let expected = Arc::new(Value::TYPE);
             match ctx.unify_ctx().unify_values(&ret_type_value, &expected) {
                 Ok(_) => (ret_type_expr, ret_type_value),
                 Err(error) => {

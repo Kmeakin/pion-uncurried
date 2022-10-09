@@ -32,8 +32,7 @@ impl<'env> QuoteCtx<'env> {
     pub fn quote_value(&mut self, value: &Arc<Value>) -> Expr {
         match value.as_ref() {
             Value::Error => Expr::Error,
-            Value::Type => Expr::Type,
-            Value::BoolType => Expr::BoolType,
+            Value::Prim(prim) => Expr::Prim(prim.clone()),
             Value::Lit(lit) => Expr::Lit(lit.clone()),
             Value::Stuck(head, spine) => {
                 let head_core = match head {
@@ -42,9 +41,9 @@ impl<'env> QuoteCtx<'env> {
                         None => unreachable!("Unbound local variable: {level:?}"),
                     },
                     Head::Meta(level) => Expr::Meta(*level),
-                    Head::LetDef(let_def) => Expr::LetDef(*let_def),
-                    Head::EnumDef(enum_def) => Expr::EnumDef(*enum_def),
-                    Head::EnumVariant(variant) => Expr::EnumVariant(*variant),
+                    Head::LetDef(let_def) => Expr::Global(GlobalVar::Let(*let_def)),
+                    Head::EnumDef(enum_def) => Expr::Global(GlobalVar::Enum(*enum_def)),
+                    Head::EnumVariant(variant) => Expr::Global(GlobalVar::Variant(*variant)),
                 };
                 spine.iter().fold(head_core, |head_core, elim| match elim {
                     Elim::FunCall(args) => {

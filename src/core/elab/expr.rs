@@ -11,7 +11,7 @@ impl ElabCtx<'_> {
     #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
     pub fn synth_lit(&mut self, lit: &surface::Lit<Span>) -> (Lit, Arc<Value>) {
         match lit {
-            surface::Lit::Bool(_, b) => (Lit::Bool(*b), Arc::new(Value::BoolType)),
+            surface::Lit::Bool(_, b) => (Lit::Bool(*b), Arc::new(Value::Prim(Prim::BoolType))),
         }
     }
 
@@ -42,15 +42,15 @@ impl ElabCtx<'_> {
                     match item {
                         ir::Item::Let(ir) => {
                             let type_value = synth_let_def_expr(self.db, ir);
-                            return SynthExpr(Expr::LetDef(ir), type_value);
+                            return SynthExpr(Expr::Global(GlobalVar::Let(ir)), type_value);
                         }
                         ir::Item::Enum(ir) => {
                             let type_value = synth_enum_def_expr(self.db, ir);
-                            return SynthExpr(Expr::EnumDef(ir), type_value);
+                            return SynthExpr(Expr::Global(GlobalVar::Enum(ir)), type_value);
                         }
                         ir::Item::Variant(ir) => {
                             let type_value = synth_enum_variant_expr(self.db, ir);
-                            return SynthExpr(Expr::EnumVariant(ir), type_value);
+                            return SynthExpr(Expr::Global(GlobalVar::Variant(ir)), type_value);
                         }
                         #[cfg(FALSE)]
                         ir::Item::Variant(enum_variant) => {
@@ -77,8 +77,8 @@ impl ElabCtx<'_> {
                 }
 
                 match name.as_str() {
-                    "Type" => return SynthExpr(Expr::Type, Arc::new(Value::Type)),
-                    "Bool" => return SynthExpr(Expr::BoolType, Arc::new(Value::Type)),
+                    "Type" => return SynthExpr(Expr::Prim(Prim::Type), Arc::new(Value::TYPE)),
+                    "Bool" => return SynthExpr(Expr::Prim(Prim::BoolType), Arc::new(Value::TYPE)),
                     _ => {}
                 }
 
@@ -94,7 +94,7 @@ impl ElabCtx<'_> {
                 let type_name = self.name_source.fresh();
                 let type_source = MetaSource::HoleType(*span);
                 let expr_source = MetaSource::HoleExpr(*span);
-                let ty = self.push_meta_value(expr_name, type_source, Arc::new(Value::Type));
+                let ty = self.push_meta_value(expr_name, type_source, Arc::new(Value::TYPE));
                 let expr = self.push_meta_expr(type_name, expr_source, ty.clone());
                 SynthExpr(expr, ty)
             }
@@ -116,7 +116,7 @@ impl ElabCtx<'_> {
                 self.local_env.truncate(initial_len);
                 SynthExpr(
                     Expr::FunType(Arc::from(fun_args), Arc::new(ret)),
-                    Arc::new(Value::Type),
+                    Arc::new(Value::TYPE),
                 )
             }
             surface::Expr::FunExpr(_, pats, body) => {
@@ -228,7 +228,7 @@ impl ElabCtx<'_> {
             surface::Expr::Match(span, scrut, arms) => {
                 let name = self.name_source.fresh();
                 let source = MetaSource::MatchType(*span);
-                let match_type = self.push_meta_value(name, source, Arc::new(Value::Type));
+                let match_type = self.push_meta_value(name, source, Arc::new(Value::TYPE));
 
                 let CheckExpr(match_expr) = self.check_match_expr(scrut, arms, &match_type);
                 SynthExpr(match_expr, match_type)
@@ -238,7 +238,7 @@ impl ElabCtx<'_> {
 
     #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
     pub fn check_expr_is_type(&mut self, expr: &surface::Expr<Span>) -> CheckExpr {
-        self.check_expr(expr, &Arc::new(Value::Type))
+        self.check_expr(expr, &Arc::new(Value::TYPE))
     }
 
     #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]

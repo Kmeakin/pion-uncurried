@@ -34,8 +34,8 @@ impl<'a> UnelabCtx<'a> {
     pub fn unelab_expr(&mut self, expr: &Expr) -> surface::Expr<()> {
         match expr {
             Expr::Error => surface::Expr::Error(()),
-            Expr::Type => surface::Expr::Name((), "Type".into()),
-            Expr::BoolType => surface::Expr::Name((), "Bool".into()),
+            Expr::Prim(Prim::Type) => surface::Expr::Name((), "Type".into()),
+            Expr::Prim(Prim::BoolType) => surface::Expr::Name((), "Bool".into()),
             Expr::Lit(lit) => surface::Expr::Lit((), self.unelab_lit(lit)),
             Expr::Local(index) => {
                 let name = match self.local_names.get(*index) {
@@ -48,16 +48,16 @@ impl<'a> UnelabCtx<'a> {
                 };
                 surface::Expr::Name((), name)
             }
-            Expr::LetDef(def) => {
-                let name = def.name(self.db).contents(self.db).to_owned();
+            Expr::Global(GlobalVar::Let(ir)) => {
+                let name = ir.name(self.db).contents(self.db).to_owned();
                 surface::Expr::Name((), name)
             }
-            Expr::EnumDef(def) => {
-                let name = def.name(self.db).contents(self.db).to_owned();
+            Expr::Global(GlobalVar::Enum(ir)) => {
+                let name = ir.name(self.db).contents(self.db).to_owned();
                 surface::Expr::Name((), name)
             }
-            Expr::EnumVariant(def) => {
-                let name = def.name(self.db).contents(self.db).to_owned();
+            Expr::Global(GlobalVar::Variant(ir)) => {
+                let name = ir.name(self.db).contents(self.db).to_owned();
                 surface::Expr::Name((), name)
             }
             Expr::Meta(level) => {

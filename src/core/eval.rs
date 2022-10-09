@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use contracts::{debug_ensures, debug_requires};
+use contracts::debug_requires;
 use either::Either;
 use either::Either::{Left, Right};
 
@@ -44,12 +44,13 @@ impl<'env> EvalCtx<'env> {
     pub fn eval_expr(&mut self, expr: &Expr) -> Arc<Value> {
         match expr {
             Expr::Error => Arc::new(Value::Error),
-            Expr::Type => Arc::new(Value::Type),
-            Expr::BoolType => Arc::new(Value::BoolType),
+            Expr::Prim(prim) => Arc::new(Value::Prim(prim.clone())),
             Expr::Lit(lit) => Arc::new(Value::Lit(lit.clone())),
-            Expr::LetDef(ir) => super::elab::eval_let_def_expr(self.db, *ir),
-            Expr::EnumDef(enum_def) => Arc::new(Value::enum_def(*enum_def)),
-            Expr::EnumVariant(enum_variant) => Arc::new(Value::enum_variant(*enum_variant)),
+            Expr::Global(var) => match var {
+                GlobalVar::Let(ir) => super::elab::eval_let_def_expr(self.db, *ir),
+                GlobalVar::Enum(ir) => Arc::new(Value::enum_def(*ir)),
+                GlobalVar::Variant(ir) => Arc::new(Value::enum_variant(*ir)),
+            },
             Expr::Local(index) => match self.local_env.get(*index) {
                 Some(value) => value.clone(),
                 None => unreachable!("Unbound local variable: {index:?}"),
@@ -112,14 +113,9 @@ impl<'env> EvalCtx<'env> {
     #[debug_ensures(ret.is_closed(self.local_env.len(), EnvLen(0)))]
     pub fn zonk_expr(&mut self, expr: &Expr) -> Expr {
         match expr {
-            Expr::Error
-            | Expr::Type
-            | Expr::BoolType
-            | Expr::Lit(_)
-            | Expr::LetDef(_)
-            | Expr::EnumDef(_)
-            | Expr::EnumVariant(_)
-            | Expr::Local(_) => expr.clone(),
+            Expr::Error | Expr::Prim(_) | Expr::Lit(_) | Expr::Global(_) | Expr::Local(_) => {
+                expr.clone()
+            }
 
             Expr::Meta(_) | Expr::FunCall(..) | Expr::Match(..) => match self.zonk_spine(expr) {
                 Left(expr) => expr,

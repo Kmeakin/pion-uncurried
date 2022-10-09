@@ -46,8 +46,7 @@ impl<'env> UnifyCtx<'env> {
         match (value1.as_ref(), value2.as_ref()) {
             (Value::Error, _) | (_, Value::Error) => Ok(()),
 
-            (Value::Type, Value::Type) => Ok(()),
-            (Value::BoolType, Value::BoolType) => Ok(()),
+            (Value::Prim(prim1), Value::Prim(prim2)) if prim1 == prim2 => Ok(()),
             (Value::Lit(lit1), Value::Lit(lit2)) if lit1 == lit2 => Ok(()),
 
             (Value::Stuck(Head::Meta(var1), spine1), _) => self.solve(*var1, spine1, &value2),
@@ -247,8 +246,7 @@ impl<'env> UnifyCtx<'env> {
     ) -> Result<Expr, RenameError> {
         match self.elim_ctx().force_value(value).as_ref() {
             Value::Error => Ok(Expr::Error),
-            Value::Type => Ok(Expr::Type),
-            Value::BoolType => Ok(Expr::BoolType),
+            Value::Prim(prim) => Ok(Expr::Prim(prim.clone())),
             Value::Lit(lit) => Ok(Expr::Lit(lit.clone())),
             Value::Stuck(head, spine) => {
                 let head = match head {
@@ -263,9 +261,9 @@ impl<'env> UnifyCtx<'env> {
                             Expr::Meta(*var)
                         }
                     }
-                    Head::LetDef(let_def) => Expr::LetDef(*let_def),
-                    Head::EnumDef(enum_def) => Expr::EnumDef(*enum_def),
-                    Head::EnumVariant(variant) => Expr::EnumVariant(*variant),
+                    Head::LetDef(let_def) => Expr::Global(GlobalVar::Let(*let_def)),
+                    Head::EnumDef(enum_def) => Expr::Global(GlobalVar::Enum(*enum_def)),
+                    Head::EnumVariant(variant) => Expr::Global(GlobalVar::Variant(*variant)),
                 };
                 spine.iter().fold(Ok(head), |head, elim| {
                     Ok(match elim {

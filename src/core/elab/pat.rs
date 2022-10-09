@@ -21,7 +21,7 @@ impl ElabCtx<'_> {
             let name = self.name_source.fresh();
             let span = pat.span();
             let source = MetaSource::PatType(span);
-            self.push_meta_value(name, source, Arc::new(Value::Type))
+            self.push_meta_value(name, source, Arc::new(Value::TYPE))
         };
 
         match pat {
@@ -43,7 +43,7 @@ impl ElabCtx<'_> {
                 };
 
                 let EnumDefSig {
-                    args: parent_args, ..
+                    args: _parent_args, ..
                 } = enum_def_sig(db, variant.parent(db));
 
                 let EnumVariant { args, .. } = elab_enum_variant(self.db, variant);
@@ -57,7 +57,7 @@ impl ElabCtx<'_> {
                 let pats = pats
                     .iter()
                     .zip(args.iter())
-                    .map(|(pat, FunArg { ty, .. })| {
+                    .map(|(pat, FunArg { .. })| {
                         let type_value = Arc::new(Value::Error);
                         // let type_value = self.eval_ctx().eval_expr(ty);
                         let CheckPat(pat_core) = self.check_pat(pat, &type_value);
@@ -155,7 +155,7 @@ impl ElabCtx<'_> {
                     todo!("pattern arity mismatch")
                 }
 
-                for (pat, arg) in pats.iter().zip(args.iter()) {
+                for (pat, _arg) in pats.iter().zip(args.iter()) {
                     // let type_value = self.eval_ctx().eval_expr(&arg.ty);
                     let type_value = Arc::new(Value::Error);
                     self.subst_pat(pat, type_value, None);
