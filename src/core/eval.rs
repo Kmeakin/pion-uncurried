@@ -163,11 +163,11 @@ impl<'env> EvalCtx<'env> {
                 Expr::FunExpr(args, Arc::new(body))
             }
             Expr::Let(pat, ty, init, body) => {
+                let initial_len = self.local_env.len();
                 let ty = self.zonk_expr(ty);
                 let init = self.zonk_expr(init);
-                let initial_len = self.local_env.len();
-                let body = self.zonk_expr(body);
                 self.subst_pat(pat);
+                let body = self.zonk_expr(body);
                 self.local_env.truncate(initial_len);
                 Expr::Let(pat.clone(), Arc::new(ty), Arc::new(init), Arc::new(body))
             }

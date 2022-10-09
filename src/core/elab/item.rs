@@ -78,7 +78,7 @@ pub fn elab_let_def(db: &dyn crate::Db, ir: ir::LetDef) -> LetDef {
         "free variables in `body_expr`: {body_expr:#?}"
     );
     debug_assert!(
-        body_expr.is_closed(EnvLen(0), EnvLen(0)),
+        type_expr.is_closed(EnvLen(0), EnvLen(0)),
         "free variables in `type_expr`: {type_expr:#?}"
     );
 
@@ -104,10 +104,10 @@ pub fn eval_let_def_expr(db: &dyn crate::Db, ir: ir::LetDef) -> Arc<Value> {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EnumDefSig {
-    args: Arc<[FunArg<Expr>]>,
-    ret_type: (Expr, Arc<Value>),
-    self_type: Arc<Value>,
-    subst: (LocalEnv, MetaEnv, PartialRenaming),
+    pub args: Arc<[FunArg<Expr>]>,
+    pub ret_type: (Expr, Arc<Value>),
+    pub self_type: Arc<Value>,
+    pub subst: (LocalEnv, MetaEnv, PartialRenaming),
 }
 
 #[salsa::tracked]

@@ -73,8 +73,8 @@ LetExpr: Expr<Span> = {
 }
 
 FunExpr: Expr<Span> = {
-    <start: @L> "fn" "(" <args: List<AnnPat, ",">> ")" "=>" <body: FunExpr> <end: @R> => Expr::FunExpr(TextRange::new(start, end), args, Arc::new(body)),
-    <start: @L> "fn" "(" <args: List<AnnPat, ",">> ")" "->" <body: FunExpr> <end: @R> => Expr::FunType(TextRange::new(start, end), args, Arc::new(body)),
+    <start: @L> "fn" "(" <args: List<AnnPat, ",">> ")" "=>" <body: LetExpr> <end: @R> => Expr::FunExpr(TextRange::new(start, end), args, Arc::new(body)),
+    <start: @L> "fn" "(" <args: List<AnnPat, ",">> ")" "->" <body: LetExpr> <end: @R> => Expr::FunType(TextRange::new(start, end), args, Arc::new(body)),
     CallExpr => <>,
 }
 

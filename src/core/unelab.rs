@@ -128,10 +128,11 @@ impl<'a> UnelabCtx<'a> {
                 surface::Expr::FunCall((), Arc::new(fun), args)
             }
             Expr::Let(pat, ty, init, body) => {
+                let initial_len = self.local_names.len();
                 let pat_surface = self.unelab_pat(pat);
                 let type_surface = self.unelab_expr(ty);
                 let init = self.unelab_expr(init);
-                let initial_len = self.local_names.len();
+                self.subst_pat(pat);
                 let body = self.unelab_expr(body);
                 self.local_names.truncate(initial_len);
                 surface::Expr::Let(
@@ -225,7 +226,7 @@ pub fn unelab_let_def(db: &dyn crate::Db, let_def: &LetDef) -> surface::LetDef<(
 
     let name = name.contents(db).clone();
     let ty = ctx.unelab_expr(&ty.0);
-    let body = ctx.unelab_expr(&body.0);
+    let body = ctx.unelab_expr(dbg!(&body.0));
     surface::LetDef {
         name,
         ty: Some(ty),
