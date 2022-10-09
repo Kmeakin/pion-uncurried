@@ -70,8 +70,20 @@ impl Expr {
             | Self::LetDef(_)
             | Self::EnumDef(_)
             | Self::EnumVariant(_) => true,
-            Self::Local(index) => index.0 < local_len.0,
-            Self::Meta(level) | Self::MetaInsertion(level, ..) => level.0 < meta_len.0,
+            Self::Local(var) => {
+                let ret = var.0 < local_len.0;
+                if !ret {
+                    eprintln!("Not closed: {var:?} in {local_len:?}");
+                }
+                ret
+            }
+            Self::Meta(var) | Self::MetaInsertion(var, ..) => {
+                let ret = var.0 < meta_len.0;
+                if !ret {
+                    eprintln!("Not closed: {var:?} in {meta_len:?}");
+                }
+                ret
+            }
             Self::FunType(args, ret) | Self::FunExpr(args, ret) => {
                 args.iter().all(|FunArg { pat, ty }| {
                     let ret = ty.is_closed(local_len, meta_len);

@@ -1,4 +1,5 @@
 use super::*;
+use crate::ir::lookup_item;
 
 pub struct SynthPat(pub Pat, pub Arc<Value>);
 
@@ -34,7 +35,43 @@ impl ElabCtx<'_> {
                 let (lit, ty) = self.synth_lit(lit);
                 SynthPat(Pat::Lit(lit), ty)
             }
-            surface::Pat::Variant(_, name, pats) => todo!(),
+            surface::Pat::Variant(_, name, pats) => {
+                let name = Symbol::new(self.db, name.to_owned());
+                let variant = match lookup_item(self.db, self.file, name) {
+                    Some(ir::Item::Variant(ir)) => ir,
+                    _ => todo!(),
+                };
+
+                let EnumDefSig {
+                    args: parent_args, ..
+                } = enum_def_sig(db, variant.parent(db));
+
+                let EnumVariant { args, .. } = elab_enum_variant(self.db, variant);
+
+                if pats.len() != args.len() {
+                    todo!("pattern arity mismatch")
+                }
+
+                let initial_len = self.local_env.len();
+
+                let pats = pats
+                    .iter()
+                    .zip(args.iter())
+                    .map(|(pat, FunArg { ty, .. })| {
+                        let type_value = Arc::new(Value::Error);
+                        // let type_value = self.eval_ctx().eval_expr(ty);
+                        let CheckPat(pat_core) = self.check_pat(pat, &type_value);
+                        self.subst_pat(&pat_core, type_value, None);
+                        pat_core
+                    })
+                    .collect();
+
+                // TODO: what should it be?
+                let type_value = Arc::new(Value::Error);
+
+                self.local_env.truncate(initial_len);
+                SynthPat(Pat::Variant(variant, pats), type_value)
+            }
         }
     }
 
@@ -111,6 +148,18 @@ impl ElabCtx<'_> {
                 let pat_value = Arc::new(Value::Lit(lit.clone()));
                 let name = self.name_source.fresh();
                 self.local_env.push(name, ty, Some(pat_value));
+            }
+            (Pat::Variant(variant, pats), ..) => {
+                let EnumVariant { args, .. } = elab_enum_variant(self.db, *variant);
+                if args.len() != pats.len() {
+                    todo!("pattern arity mismatch")
+                }
+
+                for (pat, arg) in pats.iter().zip(args.iter()) {
+                    // let type_value = self.eval_ctx().eval_expr(&arg.ty);
+                    let type_value = Arc::new(Value::Error);
+                    self.subst_pat(pat, type_value, None);
+                }
             }
             _ => unreachable!("Cannot subst {value:#?} with type {ty:#?} into {pat:#?}"),
         }

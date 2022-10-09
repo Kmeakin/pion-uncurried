@@ -205,13 +205,16 @@ impl<'env> EvalCtx<'env> {
             },
             Expr::Match(scrut, arms) => match self.zonk_spine(scrut) {
                 Left(scrut) => {
+                    let initial_len = self.local_env.len();
                     let arms = arms
                         .iter()
                         .map(|(pat, expr)| {
+                            self.subst_pat(pat);
                             let expr = self.zonk_expr(expr);
                             (pat.clone(), expr)
                         })
                         .collect();
+                    self.local_env.truncate(initial_len);
                     Left(Expr::Match(Arc::new(scrut), arms))
                 }
                 Right(scrut) => {
