@@ -52,27 +52,6 @@ impl ElabCtx<'_> {
                             let type_value = synth_enum_variant_expr(self.db, ir);
                             return SynthExpr(Expr::Global(GlobalVar::Variant(ir)), type_value);
                         }
-                        #[cfg(FALSE)]
-                        ir::Item::Variant(enum_variant) => {
-                            let parent = enum_variant.parent(self.db);
-                            let parent_sig = elab_enum_def(self.db, parent).sig;
-
-                            let variant = elab_enum_variant(self.db, enum_variant);
-                            let parent_args = parent_sig.args.iter().cloned();
-                            let variant_args =
-                                variant.args.iter().map(|FunArg { pat, ty }| FunArg {
-                                    pat: pat.clone(),
-                                    ty: ty.0.clone(),
-                                });
-                            let args = parent_args.chain(variant_args).collect();
-                            let ret_type = variant.ret_type;
-                            let fun_type = Value::FunType(FunClosure::new(
-                                SharedEnv::new(),
-                                args,
-                                Arc::new(ret_type.0),
-                            ));
-                            return SynthExpr(Expr::EnumVariant(enum_variant), Arc::new(fun_type));
-                        }
                     }
                 }
 
