@@ -36,14 +36,12 @@ impl<'env> QuoteCtx<'env> {
             Value::Lit(lit) => Expr::Lit(lit.clone()),
             Value::Stuck(head, spine) => {
                 let head_core = match head {
-                    Head::Local(level) => match self.local_env.level_to_index(*level) {
-                        Some(index) => Expr::Local(index),
-                        None => unreachable!("Unbound local variable: {level:?}"),
+                    Head::Local(var) => match self.local_env.level_to_index(*var) {
+                        Some(var) => Expr::Local(var),
+                        None => unreachable!("Unbound local variable: {var:?}"),
                     },
-                    Head::Meta(level) => Expr::Meta(*level),
-                    Head::LetDef(let_def) => Expr::Global(GlobalVar::Let(*let_def)),
-                    Head::EnumDef(enum_def) => Expr::Global(GlobalVar::Enum(*enum_def)),
-                    Head::EnumVariant(variant) => Expr::Global(GlobalVar::Variant(*variant)),
+                    Head::Meta(var) => Expr::Meta(*var),
+                    Head::Global(var) => Expr::Global(*var),
                 };
                 spine.iter().fold(head_core, |head_core, elim| match elim {
                     Elim::FunCall(args) => {

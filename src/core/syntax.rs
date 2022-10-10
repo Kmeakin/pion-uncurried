@@ -59,7 +59,7 @@ pub enum Prim {
     BoolType,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum GlobalVar {
     Let(ir::LetDef),
     Enum(ir::EnumDef),
@@ -154,10 +154,14 @@ impl Value {
 
     pub fn local(level: VarLevel) -> Self { Self::Stuck(Head::Local(level), Vec::new()) }
     pub fn meta(level: VarLevel) -> Self { Self::Stuck(Head::Meta(level), Vec::new()) }
-    pub fn let_def(def: ir::LetDef) -> Self { Self::Stuck(Head::LetDef(def), Vec::new()) }
-    pub fn enum_def(def: ir::EnumDef) -> Self { Self::Stuck(Head::EnumDef(def), Vec::new()) }
+    pub fn let_def(def: ir::LetDef) -> Self {
+        Self::Stuck(Head::Global(GlobalVar::Let(def)), Vec::new())
+    }
+    pub fn enum_def(def: ir::EnumDef) -> Self {
+        Self::Stuck(Head::Global(GlobalVar::Enum(def)), Vec::new())
+    }
     pub fn enum_variant(def: ir::EnumVariant) -> Self {
-        Self::Stuck(Head::EnumVariant(def), Vec::new())
+        Self::Stuck(Head::Global(GlobalVar::Variant(def)), Vec::new())
     }
 }
 
@@ -165,9 +169,7 @@ impl Value {
 pub enum Head {
     Local(VarLevel),
     Meta(VarLevel),
-    LetDef(ir::LetDef),
-    EnumDef(ir::EnumDef),
-    EnumVariant(ir::EnumVariant),
+    Global(GlobalVar),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

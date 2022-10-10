@@ -261,9 +261,7 @@ impl<'env> UnifyCtx<'env> {
                             Expr::Meta(*var)
                         }
                     }
-                    Head::LetDef(let_def) => Expr::Global(GlobalVar::Let(*let_def)),
-                    Head::EnumDef(enum_def) => Expr::Global(GlobalVar::Enum(*enum_def)),
-                    Head::EnumVariant(variant) => Expr::Global(GlobalVar::Variant(*variant)),
+                    Head::Global(var) => Expr::Global(*var),
                 };
                 spine.iter().fold(Ok(head), |head, elim| {
                     Ok(match elim {

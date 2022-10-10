@@ -156,7 +156,7 @@ pub fn enum_def_sig(db: &dyn crate::Db, ir: ir::EnumDef) -> EnumDefSig {
     let self_type = match self_type_args.len() {
         0 => Arc::new(Value::enum_def(ir)),
         _ => Arc::new(Value::Stuck(
-            Head::EnumDef(ir),
+            Head::Global(GlobalVar::Enum(ir)),
             vec![Elim::FunCall(self_type_args)],
         )),
     };
