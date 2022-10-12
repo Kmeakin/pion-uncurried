@@ -489,7 +489,7 @@ mod subst {
             match pat {
                 Pat::Error | Pat::Lit(_) | Pat::Name(_) => self.push(value),
                 Pat::Variant(variant, pats) => match value.as_ref() {
-                    Value::Stuck(Head::Global(GlobalVar::Enum(v)), spine) => {
+                    Value::Stuck(Head::Global(GlobalVar::Variant(v)), spine) if variant == v => {
                         if let [Elim::FunCall(args)] = spine.as_slice() {
                             let args = args.iter().cloned();
                             for (pat, arg) in pats.iter().zip(args) {
@@ -546,7 +546,6 @@ mod subst {
                         self.subst_pat(pat, type_value, None);
                     }
                 }
-                _ => unreachable!("Cannot subst {value:#?} with type {ty:#?} into {pat:#?}"),
             }
         }
     }
