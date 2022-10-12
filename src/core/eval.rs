@@ -6,12 +6,14 @@ use either::Either::{Left, Right};
 
 use super::env::{EnvLen, LocalSource, SharedEnv, UniqueEnv};
 use super::quote::QuoteCtx;
+use super::semantics::{self, EvalFlags};
 use super::syntax::*;
 
 pub struct EvalCtx<'env> {
     local_env: &'env mut SharedEnv<Arc<Value>>,
     meta_env: &'env UniqueEnv<Option<Arc<Value>>>,
     db: &'env dyn crate::Db,
+    flags: EvalFlags,
 }
 
 impl<'env> EvalCtx<'env> {
@@ -19,17 +21,21 @@ impl<'env> EvalCtx<'env> {
         local_env: &'env mut SharedEnv<Arc<Value>>,
         meta_env: &'env UniqueEnv<Option<Arc<Value>>>,
         db: &'env dyn crate::Db,
+        flags: EvalFlags,
     ) -> Self {
         Self {
             local_env,
             meta_env,
             db,
+            flags,
         }
     }
 
-    fn elim_ctx(&self) -> ElimCtx { ElimCtx::new(self.meta_env, self.db) }
+    fn elim_ctx(&self) -> ElimCtx { ElimCtx::new(self.meta_env, self.db, self.flags) }
 
-    fn quote_ctx(&self) -> QuoteCtx { QuoteCtx::new(self.local_env.len(), self.meta_env, self.db) }
+    fn quote_ctx(&self) -> QuoteCtx {
+        QuoteCtx::new(self.local_env.len(), self.meta_env, self.db, self.flags)
+    }
 
     #[debug_requires(expr.is_closed(self.local_env.len(), self.meta_env.len()))]
     #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
@@ -42,9 +48,15 @@ impl<'env> EvalCtx<'env> {
     #[debug_requires(expr.is_closed(self.local_env.len(), self.meta_env.len()))]
     #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
     pub fn eval_expr(&mut self, expr: &Expr) -> Arc<Value> {
+        semantics::eval_expr(self.local_env, self.meta_env, self.db, self.flags, expr)
+    }
+
+    #[cfg(FALSE)]
+    #[debug_requires(expr.is_closed(self.local_env.len(), self.meta_env.len()))]
+    #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
+    pub fn eval_expr(&mut self, expr: &Expr) -> Arc<Value> {
         match expr {
-            Expr::Error => Arc::new(Value::Error),
-            Expr::Prim(prim) => Arc::new(Value::Prim(prim.clone())),
+            Expr::Prim(prim) => Arc::new(Value::prim(prim.clone())),
             Expr::Lit(lit) => Arc::new(Value::Lit(lit.clone())),
             Expr::Global(var) => match var {
                 GlobalVar::Let(ir) => super::elab::eval_let_def_expr(self.db, *ir),
@@ -94,6 +106,7 @@ impl<'env> EvalCtx<'env> {
         }
     }
 
+    #[cfg(FALSE)]
     fn fold_local_sources(
         &mut self,
         mut head: Arc<Value>,
@@ -112,10 +125,16 @@ impl<'env> EvalCtx<'env> {
     #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
     #[debug_ensures(ret.is_closed(self.local_env.len(), EnvLen(0)))]
     pub fn zonk_expr(&mut self, expr: &Expr) -> Expr {
+        semantics::zonk_expr(self.local_env, self.meta_env, self.db, expr)
+    }
+
+    #[cfg(FALSE)]
+    #[debug_requires(expr.is_closed(self.local_env.len(), self.meta_env.len()))]
+    #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
+    #[debug_ensures(ret.is_closed(self.local_env.len(), EnvLen(0)))]
+    pub fn zonk_expr(&mut self, expr: &Expr) -> Expr {
         match expr {
-            Expr::Error | Expr::Prim(_) | Expr::Lit(_) | Expr::Global(_) | Expr::Local(_) => {
-                expr.clone()
-            }
+            Expr::Prim(_) | Expr::Lit(_) | Expr::Global(_) | Expr::Local(_) => expr.clone(),
 
             Expr::Meta(_) | Expr::FunCall(..) | Expr::Match(..) => match self.zonk_spine(expr) {
                 Left(expr) => expr,
@@ -127,7 +146,7 @@ impl<'env> EvalCtx<'env> {
                     let value = self.fold_local_sources(value.clone(), sources.iter().copied());
                     self.quote_ctx().quote_value(&value)
                 }
-                Some(None) => Expr::Error,
+                Some(None) => Expr::ERROR,
                 None => unreachable!("Unbound meta variable {var:#?}"),
             },
 
@@ -173,20 +192,21 @@ impl<'env> EvalCtx<'env> {
         }
     }
 
+    #[cfg(FALSE)]
     #[debug_requires(expr.is_closed(self.local_env.len(), self.meta_env.len()))]
     #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
     fn zonk_spine(&mut self, expr: &Expr) -> Either<Expr, Arc<Value>> {
         match expr {
             Expr::Meta(var) => match self.meta_env.get(*var) {
                 Some(Some(value)) => Right(value.clone()),
-                Some(None) => Left(Expr::Error),
+                Some(None) => Left(Expr::ERROR),
                 None => unreachable!("Unbound meta variable"),
             },
             Expr::MetaInsertion(var, sources) => match self.meta_env.get(*var) {
                 Some(Some(value)) => {
                     Right(self.fold_local_sources(value.clone(), sources.iter().copied()))
                 }
-                Some(None) => Left(Expr::Error),
+                Some(None) => Left(Expr::ERROR),
                 None => unreachable!("Unbound meta variable"),
             },
             Expr::FunCall(fun, args) => match self.zonk_spine(fun) {
@@ -222,6 +242,7 @@ impl<'env> EvalCtx<'env> {
         }
     }
 
+    #[cfg(FALSE)]
     pub fn subst_pat(&mut self, pat: &Pat) {
         let var = || Arc::new(Value::local(self.local_env.len().to_level()));
         match pat {
@@ -234,15 +255,24 @@ impl<'env> EvalCtx<'env> {
 pub struct ElimCtx<'env> {
     meta_env: &'env UniqueEnv<Option<Arc<Value>>>,
     db: &'env dyn crate::Db,
+    flags: EvalFlags,
 }
 
 impl<'env> ElimCtx<'env> {
-    pub fn new(meta_env: &'env UniqueEnv<Option<Arc<Value>>>, db: &'env dyn crate::Db) -> Self {
-        Self { meta_env, db }
+    pub fn new(
+        meta_env: &'env UniqueEnv<Option<Arc<Value>>>,
+        db: &'env dyn crate::Db,
+        flags: EvalFlags,
+    ) -> Self {
+        Self {
+            meta_env,
+            db,
+            flags,
+        }
     }
 
     pub fn eval_ctx(&self, local_values: &'env mut SharedEnv<Arc<Value>>) -> EvalCtx<'env> {
-        EvalCtx::new(local_values, self.meta_env, self.db)
+        EvalCtx::new(local_values, self.meta_env, self.db, self.flags)
     }
 
     pub fn force_value(&self, value: &Arc<Value>) -> Arc<Value> {
@@ -265,7 +295,12 @@ impl<'env> ElimCtx<'env> {
     }
 
     pub fn do_fun_call(&self, mut fun: Arc<Value>, args: Vec<Arc<Value>>) -> Arc<Value> {
-        if fun.as_ref() == &Value::Error {
+        semantics::call_fun_value(self.meta_env, self.db, self.flags, fun, args)
+    }
+
+    #[cfg(FALSE)]
+    pub fn do_fun_call(&self, mut fun: Arc<Value>, args: Vec<Arc<Value>>) -> Arc<Value> {
+        if fun.as_ref() == &Value::ERROR {
             return fun;
         }
 
@@ -280,13 +315,14 @@ impl<'env> ElimCtx<'env> {
     }
 
     pub fn do_match(&self, mut scrut: Arc<Value>, arms: MatchArms) -> Arc<Value> {
-        match Arc::make_mut(&mut scrut) {
-            Value::Error => return scrut,
-            Value::Stuck(_, spine) => {
-                spine.push(Elim::Match(arms));
-                return scrut;
-            }
-            _ => {}
+        semantics::apply_match_arms(self.meta_env, self.db, self.flags, scrut, arms)
+    }
+
+    #[cfg(FALSE)]
+    pub fn do_match(&self, mut scrut: Arc<Value>, arms: MatchArms) -> Arc<Value> {
+        if let Value::Stuck(_, spine) = Arc::make_mut(&mut scrut) {
+            spine.push(Elim::Match(arms));
+            return scrut;
         };
 
         let MatchArms { mut env, arms } = arms;
@@ -294,7 +330,7 @@ impl<'env> ElimCtx<'env> {
             match (pat, scrut.clone()) {
                 (Pat::Error, _) => {
                     env.push(scrut);
-                    return Arc::new(Value::Error);
+                    return self.eval_ctx(&mut env).eval_expr(expr);
                 }
                 (Pat::Name(_), scrut) => {
                     env.push(scrut);
@@ -314,12 +350,25 @@ impl<'env> ElimCtx<'env> {
     }
 
     pub fn apply_closure(&self, closure: &FunClosure, args: Vec<Arc<Value>>) -> Arc<Value> {
+        semantics::call_fun_closure(self.meta_env, self.db, self.flags, closure, args)
+    }
+
+    #[cfg(FALSE)]
+    pub fn apply_closure(&self, closure: &FunClosure, args: Vec<Arc<Value>>) -> Arc<Value> {
         assert_eq!(closure.arity(), args.len());
         let mut env = closure.env.clone();
         env.extend(args);
         self.eval_ctx(&mut env).eval_expr(&closure.body)
     }
 
+    pub fn split_fun_closure(
+        &self,
+        closure: FunClosure,
+    ) -> Option<(FunArg<Arc<Value>>, impl FnOnce(Arc<Value>) -> FunClosure)> {
+        semantics::split_fun_closure(self.meta_env, self.db, self.flags, closure)
+    }
+
+    #[cfg(FALSE)]
     pub fn split_fun_closure(
         &self,
         mut closure: FunClosure,
@@ -342,6 +391,14 @@ impl<'env> ElimCtx<'env> {
         ))
     }
 
+    pub fn split_arms(
+        &self,
+        arms: MatchArms,
+    ) -> Option<((Pat, Arc<Value>), impl FnOnce(Arc<Value>) -> MatchArms)> {
+        semantics::split_match_arms(self.meta_env, self.db, self.flags, arms)
+    }
+
+    #[cfg(FALSE)]
     pub fn split_arms(&self, mut arms: MatchArms) -> Option<(Pat, Arc<Value>, MatchArms)> {
         match arms.arms.split_first() {
             None => None,

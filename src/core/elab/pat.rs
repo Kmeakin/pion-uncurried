@@ -11,7 +11,7 @@ impl ElabCtx<'_> {
         // let name = self.name_source.fresh();
         // let source = MetaSource::Error;
         // let ty = self.push_meta_value(name, source, Arc::new(Value::Type));
-        SynthPat(Pat::Error, Arc::new(Value::Error))
+        SynthPat(Pat::Error, Arc::new(Value::ERROR))
     }
 
     #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
@@ -39,6 +39,16 @@ impl ElabCtx<'_> {
                 let name = Symbol::new(self.db, name.to_owned());
                 let variant = match lookup_item(self.db, self.file, name) {
                     Some(ir::Item::Variant(ir)) => ir,
+                    _ => todo!("No such variant"),
+                };
+                let pats = pats.iter().map(|pat| self.synth_pat(pat).0).collect();
+                SynthPat(Pat::Variant(variant, pats), Arc::new(Value::ERROR))
+            }
+            #[cfg(FALSE)]
+            surface::Pat::Variant(_, name, pats) => {
+                let name = Symbol::new(self.db, name.to_owned());
+                let variant = match lookup_item(self.db, self.file, name) {
+                    Some(ir::Item::Variant(ir)) => ir,
                     _ => todo!(),
                 };
 
@@ -58,7 +68,7 @@ impl ElabCtx<'_> {
                     .iter()
                     .zip(args.iter())
                     .map(|(pat, FunArg { .. })| {
-                        let type_value = Arc::new(Value::Error);
+                        let type_value = Arc::new(Value::ERROR);
                         // let type_value = self.eval_ctx().eval_expr(ty);
                         let CheckPat(pat_core) = self.check_pat(pat, &type_value);
                         self.subst_pat(&pat_core, type_value, None);
@@ -67,7 +77,7 @@ impl ElabCtx<'_> {
                     .collect();
 
                 // TODO: what should it be?
-                let type_value = Arc::new(Value::Error);
+                let type_value = Arc::new(Value::ERROR);
 
                 self.local_env.truncate(initial_len);
                 SynthPat(Pat::Variant(variant, pats), type_value)
@@ -157,7 +167,7 @@ impl ElabCtx<'_> {
 
                 for (pat, _arg) in pats.iter().zip(args.iter()) {
                     // let type_value = self.eval_ctx().eval_expr(&arg.ty);
-                    let type_value = Arc::new(Value::Error);
+                    let type_value = Arc::new(Value::ERROR);
                     self.subst_pat(pat, type_value, None);
                 }
             }

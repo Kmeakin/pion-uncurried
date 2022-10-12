@@ -33,7 +33,7 @@ impl<'a> UnelabCtx<'a> {
     #[debug_ensures(self.local_names.len() == old(self.local_names.len()))]
     pub fn unelab_expr(&mut self, expr: &Expr) -> surface::Expr<()> {
         match expr {
-            Expr::Error => surface::Expr::Error(()),
+            Expr::Prim(Prim::Error) => surface::Expr::Error(()),
             Expr::Prim(Prim::Type) => surface::Expr::Name((), "Type".into()),
             Expr::Prim(Prim::BoolType) => surface::Expr::Name((), "Bool".into()),
             Expr::Lit(lit) => surface::Expr::Lit((), self.unelab_lit(lit)),

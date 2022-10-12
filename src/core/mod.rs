@@ -5,3 +5,5 @@ pub mod quote;
 pub mod syntax;
 pub mod unelab;
 pub mod unify;
+
+pub mod semantics;

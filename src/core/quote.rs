@@ -4,12 +4,14 @@ use contracts::debug_ensures;
 
 use super::env::{EnvLen, UniqueEnv};
 use super::eval::ElimCtx;
+use super::semantics::{self, EvalFlags};
 use super::syntax::*;
 
 pub struct QuoteCtx<'env> {
     local_env: EnvLen,
     meta_env: &'env UniqueEnv<Option<Arc<Value>>>,
     db: &'env dyn crate::Db,
+    flags: EvalFlags,
 }
 
 impl<'env> QuoteCtx<'env> {
@@ -17,25 +19,31 @@ impl<'env> QuoteCtx<'env> {
         local_env: EnvLen,
         meta_env: &'env UniqueEnv<Option<Arc<Value>>>,
         db: &'env dyn crate::Db,
+        flags: EvalFlags,
     ) -> Self {
         Self {
             local_env,
             meta_env,
             db,
+            flags,
         }
     }
 
-    fn elim_ctx(&self) -> ElimCtx { ElimCtx::new(self.meta_env, self.db) }
+    fn elim_ctx(&self) -> ElimCtx { ElimCtx::new(self.meta_env, self.db, self.flags) }
 
+    pub fn quote_value(&mut self, value: &Arc<Value>) -> Expr {
+        semantics::quote_value(self.local_env, self.meta_env, self.db, self.flags, value)
+    }
+
+    #[cfg(FALSE)]
     #[debug_ensures(self.local_env == old(self.local_env))]
     #[debug_ensures(ret.is_closed(self.local_env, self.meta_env.len()))]
     pub fn quote_value(&mut self, value: &Arc<Value>) -> Expr {
         match value.as_ref() {
-            Value::Error => Expr::Error,
-            Value::Prim(prim) => Expr::Prim(prim.clone()),
             Value::Lit(lit) => Expr::Lit(lit.clone()),
             Value::Stuck(head, spine) => {
                 let head_core = match head {
+                    Head::Prim(prim) => Expr::Prim(prim.clone()),
                     Head::Local(var) => match self.local_env.level_to_index(*var) {
                         Some(var) => Expr::Local(var),
                         None => unreachable!("Unbound local variable: {var:?}"),
@@ -72,6 +80,7 @@ impl<'env> QuoteCtx<'env> {
         }
     }
 
+    #[cfg(FALSE)]
     #[debug_ensures(self.local_env == old(self.local_env))]
     fn quote_closure(&mut self, closure: &FunClosure) -> (Arc<[FunArg<Expr>]>, Expr) {
         let initial_len = self.local_env;

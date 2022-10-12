@@ -4,6 +4,7 @@ use contracts::debug_ensures;
 
 use super::env::{EnvLen, SharedEnv, UniqueEnv, VarIndex, VarLevel};
 use super::eval::ElimCtx;
+use super::semantics::EvalFlags;
 use super::syntax::*;
 
 pub struct UnifyCtx<'env> {
@@ -28,7 +29,7 @@ impl<'env> UnifyCtx<'env> {
         }
     }
 
-    fn elim_ctx(&self) -> ElimCtx<'_> { ElimCtx::new(self.meta_values, self.db) }
+    fn elim_ctx(&self) -> ElimCtx<'_> { ElimCtx::new(self.meta_values, self.db, EvalFlags::EVAL) }
 
     #[debug_ensures(self.local_env == old(self.local_env))]
     pub fn unify_values(
@@ -44,9 +45,9 @@ impl<'env> UnifyCtx<'env> {
         let value2 = self.elim_ctx().force_value(value2);
 
         match (value1.as_ref(), value2.as_ref()) {
-            (Value::Error, _) | (_, Value::Error) => Ok(()),
+            (Value::Stuck(Head::Prim(Prim::Error), _), _)
+            | (_, Value::Stuck(Head::Prim(Prim::Error), _)) => Ok(()),
 
-            (Value::Prim(prim1), Value::Prim(prim2)) if prim1 == prim2 => Ok(()),
             (Value::Lit(lit1), Value::Lit(lit2)) if lit1 == lit2 => Ok(()),
 
             (Value::Stuck(Head::Meta(var1), spine1), _) => self.solve(*var1, spine1, &value2),
@@ -245,11 +246,10 @@ impl<'env> UnifyCtx<'env> {
         value: &Arc<Value>,
     ) -> Result<Expr, RenameError> {
         match self.elim_ctx().force_value(value).as_ref() {
-            Value::Error => Ok(Expr::Error),
-            Value::Prim(prim) => Ok(Expr::Prim(prim.clone())),
             Value::Lit(lit) => Ok(Expr::Lit(lit.clone())),
             Value::Stuck(head, spine) => {
                 let head = match head {
+                    Head::Prim(prim) => Expr::Prim(prim.clone()),
                     Head::Local(source_var) => match self.renaming.get_as_local(*source_var) {
                         None => return Err(RenameError::EscapingLocalVar(*source_var)),
                         Some(target_var) => Expr::Local(target_var),
@@ -275,11 +275,11 @@ impl<'env> UnifyCtx<'env> {
                         Elim::Match(arms) => {
                             let mut arms = arms.clone();
                             let mut core_arms = Vec::with_capacity(arms.arms.len());
-                            while let Some((pat, value, next_arms)) =
+                            while let Some(((pat, value), cont)) =
                                 self.elim_ctx().split_arms(arms.clone())
                             {
                                 core_arms.push((pat, self.rename_value(meta_var, &value)?));
-                                arms = next_arms;
+                                arms = cont(value);
                             }
                             Expr::Match(Arc::new(head?), Arc::from(core_arms))
                         }
@@ -305,7 +305,7 @@ impl<'env> UnifyCtx<'env> {
                 // TODO: what should the introduced args be?
                 let args: Vec<_> = std::iter::repeat_with(|| FunArg {
                     pat: Pat::Error,
-                    ty: Expr::Error,
+                    ty: Expr::ERROR,
                 })
                 .take(arity)
                 .collect();

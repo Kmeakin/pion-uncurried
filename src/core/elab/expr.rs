@@ -11,14 +11,14 @@ impl ElabCtx<'_> {
     #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
     pub fn synth_lit(&mut self, lit: &surface::Lit<Span>) -> (Lit, Arc<Value>) {
         match lit {
-            surface::Lit::Bool(_, b) => (Lit::Bool(*b), Arc::new(Value::Prim(Prim::BoolType))),
+            surface::Lit::Bool(_, b) => (Lit::Bool(*b), Arc::new(Value::prim(Prim::BoolType))),
         }
     }
 
     #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
     #[debug_ensures(ret.0.is_closed(self.local_env.len(), self.meta_env.len()))]
     pub fn synth_error_expr(&mut self) -> SynthExpr {
-        SynthExpr(Expr::Error, Arc::new(Value::Error))
+        SynthExpr(Expr::ERROR, Arc::new(Value::ERROR))
     }
 
     #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
@@ -129,7 +129,7 @@ impl ElabCtx<'_> {
                 let fun_type = self.elim_ctx().force_value(&fun_type);
                 let closure = match fun_type.as_ref() {
                     Value::FunType(closure) => closure,
-                    Value::Error => return self.synth_error_expr(),
+                    Value::Stuck(Head::Prim(Prim::Error), _) => return self.synth_error_expr(),
                     _ => {
                         self.report_non_fun_call(*call_span, fun.span(), &fun_type);
                         for arg in args {
@@ -224,7 +224,7 @@ impl ElabCtx<'_> {
     #[debug_ensures(ret.0.is_closed(self.local_env.len(), self.meta_env.len()))]
     pub fn check_expr(&mut self, expr: &surface::Expr<Span>, expected: &Arc<Value>) -> CheckExpr {
         match (expr, expected.as_ref()) {
-            (surface::Expr::Error(_), _) => CheckExpr(Expr::Error),
+            (surface::Expr::Error(_), _) => CheckExpr(Expr::ERROR),
             (surface::Expr::FunExpr(_, pats, body), Value::FunType(closure))
                 if pats.len() == closure.arity() =>
             {
@@ -288,7 +288,7 @@ impl ElabCtx<'_> {
                     Err(error) => {
                         let span = expr.span();
                         self.report_type_mismatch(span, expected, &got, error);
-                        CheckExpr(Expr::Error)
+                        CheckExpr(Expr::ERROR)
                     }
                 }
             }

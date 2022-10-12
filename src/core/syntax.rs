@@ -39,7 +39,6 @@ pub struct EnumVariant {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Expr {
-    Error,
     Prim(Prim),
     Lit(Lit),
     Local(VarIndex),
@@ -55,6 +54,7 @@ pub enum Expr {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Prim {
+    Error,
     Type,
     BoolType,
 }
@@ -67,6 +67,7 @@ pub enum GlobalVar {
 }
 
 impl Expr {
+    pub const ERROR: Self = Self::Prim(Prim::Error);
     pub const TYPE: Self = Self::Prim(Prim::Type);
 
     /// Returns true if `self` is "closed" with respect to `local_len` and
@@ -75,21 +76,9 @@ impl Expr {
     /// and a meta environment of length `local_len`.
     pub fn is_closed(&self, mut local_len: EnvLen, meta_len: EnvLen) -> bool {
         match self {
-            Self::Error | Self::Prim(_) | Self::Lit(_) | Self::Global(_) => true,
-            Self::Local(var) => {
-                let ret = var.0 < local_len.0;
-                if !ret {
-                    eprintln!("Not closed: {var:?} in {local_len:?}");
-                }
-                ret
-            }
-            Self::Meta(var) | Self::MetaInsertion(var, ..) => {
-                let ret = var.0 < meta_len.0;
-                if !ret {
-                    eprintln!("Not closed: {var:?} in {meta_len:?}");
-                }
-                ret
-            }
+            Self::Prim(_) | Self::Lit(_) | Self::Global(_) => true,
+            Self::Local(var) => var.0 < local_len.0,
+            Self::Meta(var) | Self::MetaInsertion(var, ..) => var.0 < meta_len.0,
             Self::FunType(args, ret) | Self::FunExpr(args, ret) => {
                 args.iter().all(|FunArg { pat, ty }| {
                     let ret = ty.is_closed(local_len, meta_len);
@@ -141,8 +130,6 @@ impl Pat {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Value {
-    Error,
-    Prim(Prim),
     Lit(Lit),
     Stuck(Head, Vec<Elim>),
     FunType(FunClosure),
@@ -150,23 +137,27 @@ pub enum Value {
 }
 
 impl Value {
-    pub const TYPE: Self = Self::Prim(Prim::Type);
+    pub const ERROR: Self = Self::prim(Prim::Error);
+    pub const TYPE: Self = Self::prim(Prim::Type);
 
-    pub fn local(level: VarLevel) -> Self { Self::Stuck(Head::Local(level), Vec::new()) }
-    pub fn meta(level: VarLevel) -> Self { Self::Stuck(Head::Meta(level), Vec::new()) }
-    pub fn let_def(def: ir::LetDef) -> Self {
+    pub const fn prim(prim: Prim) -> Self { Self::Stuck(Head::Prim(prim), Vec::new()) }
+    pub const fn local(level: VarLevel) -> Self { Self::Stuck(Head::Local(level), Vec::new()) }
+    pub const fn meta(level: VarLevel) -> Self { Self::Stuck(Head::Meta(level), Vec::new()) }
+    pub const fn let_def(def: ir::LetDef) -> Self {
         Self::Stuck(Head::Global(GlobalVar::Let(def)), Vec::new())
     }
-    pub fn enum_def(def: ir::EnumDef) -> Self {
+    pub const fn enum_def(def: ir::EnumDef) -> Self {
         Self::Stuck(Head::Global(GlobalVar::Enum(def)), Vec::new())
     }
-    pub fn enum_variant(def: ir::EnumVariant) -> Self {
+    pub const fn enum_variant(def: ir::EnumVariant) -> Self {
         Self::Stuck(Head::Global(GlobalVar::Variant(def)), Vec::new())
     }
+    pub const fn global(var: GlobalVar) -> Self { Self::Stuck(Head::Global(var), Vec::new()) }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Head {
+    Prim(Prim),
     Local(VarLevel),
     Meta(VarLevel),
     Global(GlobalVar),
