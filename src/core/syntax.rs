@@ -45,8 +45,8 @@ pub enum Expr {
     Global(GlobalVar),
     Meta(VarLevel),
     MetaInsertion(VarLevel, SharedEnv<LocalSource>),
-    FunType(Arc<[FunArg<Self>]>, Arc<Self>),
-    FunExpr(Arc<[FunArg<Self>]>, Arc<Self>),
+    FunType(Telescope<Self>, Arc<Self>),
+    FunExpr(Telescope<Self>, Arc<Self>),
     FunCall(Arc<Self>, Arc<[Self]>),
     Match(Arc<Self>, Arc<[(Pat, Self)]>),
     Let(Arc<Pat>, Arc<Self>, Arc<Self>, Arc<Self>),
@@ -150,6 +150,12 @@ impl<Type> Telescope<Type> {
     pub fn len(&self) -> usize { self.0.len() }
     pub fn is_empty(&self) -> bool { self.len() == 0 }
     pub fn iter(&self) -> impl ExactSizeIterator<Item = &FunArg<Type>> { self.0.iter() }
+}
+
+impl<Type> FromIterator<FunArg<Type>> for Telescope<Type> {
+    fn from_iter<T: IntoIterator<Item = FunArg<Type>>>(iter: T) -> Self {
+        Self(Arc::<[FunArg<Type>]>::from_iter(iter))
+    }
 }
 
 impl FunClosure {

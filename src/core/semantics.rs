@@ -99,16 +99,11 @@ impl<'env> EvalCtx<'env> {
                 self.apply_local_sources(head, sources)
             }
             Expr::FunType(args, ret) => {
-                let closure =
-                    FunClosure::new(self.local_env.clone(), Telescope(args.clone()), ret.clone());
+                let closure = FunClosure::new(self.local_env.clone(), args.clone(), ret.clone());
                 Arc::new(Value::FunType(closure))
             }
             Expr::FunExpr(args, body) => {
-                let closure = FunClosure::new(
-                    self.local_env.clone(),
-                    Telescope(args.clone()),
-                    body.clone(),
-                );
+                let closure = FunClosure::new(self.local_env.clone(), args.clone(), body.clone());
                 Arc::new(Value::FunValue(closure))
             }
             Expr::FunCall(fun, args) => {
@@ -137,9 +132,10 @@ impl<'env> EvalCtx<'env> {
     #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
     fn apply_local_sources(
         &mut self,
-        mut head: Arc<Value>,
+        head: Arc<Value>,
         sources: &SharedEnv<LocalSource>,
     ) -> Arc<Value> {
+        let mut head = head;
         for (source, value) in sources.iter().zip(self.local_env.iter()) {
             head = match source {
                 LocalSource::Def => head,
@@ -163,34 +159,14 @@ impl<'env> EvalCtx<'env> {
             }
             Expr::FunType(args, body) => {
                 let initial_len = self.local_env.len();
-                let args = args
-                    .iter()
-                    .map(|FunArg { pat, r#type }| {
-                        let r#type = self.zonk_expr(&r#type);
-                        self.subst_arg_into_pat(&pat);
-                        FunArg {
-                            pat: pat.clone(),
-                            r#type,
-                        }
-                    })
-                    .collect();
+                let args = self.zonk_telescope(args);
                 let body = self.zonk_expr(body);
                 self.local_env.truncate(initial_len);
                 Expr::FunType(args, Arc::new(body))
             }
             Expr::FunExpr(args, body) => {
                 let initial_len = self.local_env.len();
-                let args = args
-                    .iter()
-                    .map(|FunArg { pat, r#type }| {
-                        let r#type = self.zonk_expr(&r#type);
-                        self.subst_arg_into_pat(&pat);
-                        FunArg {
-                            pat: pat.clone(),
-                            r#type,
-                        }
-                    })
-                    .collect();
+                let args = self.zonk_telescope(args);
                 let body = self.zonk_expr(body);
                 self.local_env.truncate(initial_len);
                 Expr::FunExpr(args, Arc::new(body))
@@ -259,6 +235,20 @@ impl<'env> EvalCtx<'env> {
             },
             _ => Left(self.zonk_expr(expr)),
         }
+    }
+
+    fn zonk_fun_arg(&mut self, arg: &FunArg<Expr>) -> FunArg<Expr> {
+        let FunArg { pat, r#type } = arg;
+        let r#type = self.zonk_expr(r#type);
+        self.subst_arg_into_pat(pat);
+        FunArg {
+            pat: pat.clone(),
+            r#type,
+        }
+    }
+
+    fn zonk_telescope(&mut self, telescope: &Telescope<Expr>) -> Telescope<Expr> {
+        telescope.iter().map(|arg| self.zonk_fun_arg(arg)).collect()
     }
 }
 
@@ -460,7 +450,7 @@ impl<'env> QuoteCtx<'env> {
 
     #[debug_requires(closure.is_closed((), self.meta_env.len()))]
     #[debug_ensures(self.local_len == old(self.local_len))]
-    fn quote_closure(&mut self, closure: &FunClosure) -> (Arc<[FunArg<Expr>]>, Expr) {
+    fn quote_closure(&mut self, closure: &FunClosure) -> (Telescope<Expr>, Expr) {
         let start_len = self.local_len;
 
         let initial_closure = closure.clone();
@@ -468,17 +458,10 @@ impl<'env> QuoteCtx<'env> {
         let mut fun_args = Vec::with_capacity(closure.arity());
         let mut arg_values = Vec::with_capacity(closure.arity());
 
-        while let Some((FunArg { pat, r#type }, cont)) =
-            self.elim_ctx().split_fun_closure(closure.clone())
-        {
+        while let Some((fun_arg, cont)) = self.elim_ctx().split_fun_closure(closure.clone()) {
             let arg_value = Arc::new(Value::local(self.local_len.to_level()));
             closure = cont(arg_value.clone());
-            let type_core = self.quote_value(&r#type);
-            self.local_len.subst_pat(&pat);
-            fun_args.push(FunArg {
-                pat,
-                r#type: type_core,
-            });
+            fun_args.push(self.quote_fun_arg(fun_arg));
             arg_values.push(arg_value);
         }
 
@@ -488,6 +471,13 @@ impl<'env> QuoteCtx<'env> {
         let body = self.quote_value(&body);
         self.local_len.truncate(start_len);
 
-        (Arc::from(fun_args), body)
+        (Telescope(Arc::from(fun_args)), body)
+    }
+
+    fn quote_fun_arg(&mut self, arg: FunArg<Arc<Value>>) -> FunArg<Expr> {
+        let FunArg { pat, r#type } = arg;
+        let r#type = self.quote_value(&r#type);
+        self.local_len.subst_pat(&pat);
+        FunArg { pat, r#type }
     }
 }

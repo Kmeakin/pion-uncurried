@@ -14,11 +14,7 @@ impl IsClosed for Expr {
             Self::Local(var) => var.0 < local_env.0,
             Self::Meta(var) | Self::MetaInsertion(var, ..) => var.0 < meta_env.0,
             Self::FunType(args, ret) | Self::FunExpr(args, ret) => {
-                args.iter().all(|FunArg { pat, r#type }| {
-                    let ret = r#type.is_closed(local_env, meta_env);
-                    local_env.subst_pat(pat);
-                    ret
-                }) && ret.is_closed(local_env, meta_env)
+                args.is_closed(&mut local_env, meta_env) && ret.is_closed(local_env, meta_env)
             }
             Self::FunCall(fun, args) => {
                 fun.is_closed(local_env, meta_env)
@@ -81,7 +77,7 @@ impl IsClosed<()> for MatchClosure {
 }
 
 impl<Type: IsClosed> IsClosed<&mut EnvLen> for Telescope<Type> {
-    fn is_closed(&self, mut local_env: &mut EnvLen, meta_env: EnvLen) -> bool {
+    fn is_closed(&self, local_env: &mut EnvLen, meta_env: EnvLen) -> bool {
         self.0.iter().all(|FunArg { pat, r#type }| {
             let ret = r#type.is_closed(*local_env, meta_env);
             local_env.subst_pat(pat);

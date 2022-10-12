@@ -316,7 +316,7 @@ impl<'env> UnifyCtx<'env> {
                 .take(arity)
                 .collect();
                 let types = Arc::from(args);
-                Expr::FunExpr(types, Arc::new(expr))
+                Expr::FunExpr(Telescope(types), Arc::new(expr))
             }
             Elim::Match(_) => unreachable!("should have been caught by `init_renaming`"),
         })
@@ -327,7 +327,7 @@ impl<'env> UnifyCtx<'env> {
         &mut self,
         meta_var: VarLevel,
         closure: &FunClosure,
-    ) -> Result<(Arc<[FunArg<Expr>]>, Expr), RenameError> {
+    ) -> Result<(Telescope<Expr>, Expr), RenameError> {
         let initial_source_len = self.renaming.source.len();
         let initial_target_len = self.renaming.target;
 
@@ -362,7 +362,7 @@ impl<'env> UnifyCtx<'env> {
         self.renaming
             .truncate(initial_source_len, initial_target_len);
 
-        Ok((Arc::from(fun_args), body?))
+        Ok((Telescope(Arc::from(fun_args)), body?))
     }
 }
 

@@ -81,51 +81,25 @@ impl ElabCtx<'_> {
             }
             surface::Expr::FunType(_, pats, ret) => {
                 let initial_len = self.local_env.len();
-                let fun_args: Vec<_> = pats
-                    .iter()
-                    .map(|pat| {
-                        let SynthPat(pat_core, pat_type) = self.synth_ann_pat(pat);
-                        let type_core = self.quote_ctx().quote_value(&pat_type);
-                        self.subst_pat(&pat_core, pat_type, None);
-                        FunArg {
-                            pat: pat_core,
-                            r#type: type_core,
-                        }
-                    })
-                    .collect();
+                let fun_args = self.synth_telescope(pats);
                 let CheckExpr(ret) = self.check_expr_is_type(ret);
                 self.local_env.truncate(initial_len);
+
                 SynthExpr(
-                    Expr::FunType(Arc::from(fun_args), Arc::new(ret)),
+                    Expr::FunType(fun_args, Arc::new(ret)),
                     Arc::new(Value::TYPE),
                 )
             }
             surface::Expr::FunExpr(_, pats, body) => {
                 let initial_len = self.local_env.len();
-                let fun_args: Vec<_> = pats
-                    .iter()
-                    .map(|pat| {
-                        let SynthPat(pat_core, pat_type) = self.synth_ann_pat(pat);
-                        let type_core = self.quote_ctx().quote_value(&pat_type);
-                        self.subst_pat(&pat_core, pat_type, None);
-                        FunArg {
-                            pat: pat_core,
-                            r#type: type_core,
-                        }
-                    })
-                    .collect();
-                let fun_args: Arc<[_]> = Arc::from(fun_args);
-
+                let fun_args = self.synth_telescope(pats);
                 let SynthExpr(body_core, body_type) = self.synth_expr(body);
                 let ret_type = self.quote_ctx().quote_value(&body_type);
                 self.local_env.truncate(initial_len);
 
                 let fun_core = Expr::FunExpr(fun_args.clone(), Arc::new(body_core));
-                let closure = FunClosure::new(
-                    self.local_env.values.clone(),
-                    Telescope(fun_args),
-                    Arc::new(ret_type),
-                );
+                let closure =
+                    FunClosure::new(self.local_env.values.clone(), fun_args, Arc::new(ret_type));
                 let fun_type = Value::FunType(closure);
                 SynthExpr(fun_core, Arc::new(fun_type))
             }
@@ -222,6 +196,20 @@ impl ElabCtx<'_> {
         }
     }
 
+    fn synth_telescope(&mut self, pats: &[surface::AnnPat<Span>]) -> Telescope<Expr> {
+        pats.iter().map(|arg| self.synth_fun_arg(arg)).collect()
+    }
+
+    fn synth_fun_arg(&mut self, arg: &surface::AnnPat<Span>) -> FunArg<Expr> {
+        let SynthPat(pat_core, pat_type) = self.synth_ann_pat(arg);
+        let type_core = self.quote_ctx().quote_value(&pat_type);
+        self.subst_pat(&pat_core, pat_type, None);
+        FunArg {
+            pat: pat_core,
+            r#type: type_core,
+        }
+    }
+
     #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
     pub fn check_expr_is_type(&mut self, expr: &surface::Expr<Span>) -> CheckExpr {
         self.check_expr(expr, &Arc::new(Value::TYPE))
@@ -273,7 +261,10 @@ impl ElabCtx<'_> {
                 let CheckExpr(ret_core) = self.check_expr(body, &expected_ret);
                 self.local_env.truncate(initial_len);
 
-                CheckExpr(Expr::FunExpr(Arc::from(fun_args), Arc::new(ret_core)))
+                CheckExpr(Expr::FunExpr(
+                    Telescope(Arc::from(fun_args)),
+                    Arc::new(ret_core),
+                ))
             }
             (surface::Expr::Let(_, pat, init, body), _) => {
                 let initial_len = self.local_env.len();
