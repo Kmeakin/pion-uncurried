@@ -114,7 +114,7 @@ impl<'env> EvalCtx<'env> {
             Expr::Let(pat, _, init, body) => {
                 let initial_len = self.local_env.len();
                 let init = self.eval_expr(init);
-                self.local_env.subst_value_into_pat(pat, init);
+                self.subst_value_into_pat(pat, init);
                 let ret = self.eval_expr(body);
                 self.local_env.truncate(initial_len);
                 ret
@@ -154,7 +154,7 @@ impl<'env> EvalCtx<'env> {
                     .iter()
                     .map(|arg| {
                         let ty = self.zonk_expr(&arg.ty);
-                        self.local_env.subst_arg_into_pat(&arg.pat);
+                        self.subst_arg_into_pat(&arg.pat);
                         FunArg {
                             pat: arg.pat.clone(),
                             ty,
@@ -171,7 +171,7 @@ impl<'env> EvalCtx<'env> {
                     .iter()
                     .map(|arg| {
                         let ty = self.zonk_expr(&arg.ty);
-                        self.local_env.subst_arg_into_pat(&arg.pat);
+                        self.subst_arg_into_pat(&arg.pat);
                         FunArg {
                             pat: arg.pat.clone(),
                             ty,
@@ -186,7 +186,7 @@ impl<'env> EvalCtx<'env> {
                 let initial_len = self.local_env.len();
                 let ty = self.zonk_expr(ty);
                 let init = self.zonk_expr(init);
-                self.local_env.subst_arg_into_pat(pat);
+                self.subst_arg_into_pat(pat);
                 let body = self.zonk_expr(body);
                 self.local_env.truncate(initial_len);
                 Expr::Let(pat.clone(), Arc::new(ty), Arc::new(init), Arc::new(body))
@@ -225,7 +225,7 @@ impl<'env> EvalCtx<'env> {
                     let branches = branches
                         .iter()
                         .map(|(pat, expr)| {
-                            self.local_env.subst_arg_into_pat(pat);
+                            self.subst_arg_into_pat(pat);
                             (pat.clone(), self.zonk_expr(expr))
                         })
                         .collect();
@@ -294,11 +294,11 @@ impl<'env> ElimCtx<'env> {
     pub fn apply_fun_closure(&self, closure: &FunClosure, args: Vec<Arc<Value>>) -> Arc<Value> {
         assert_eq!(closure.arity(), args.len());
         let mut env = closure.env.clone();
+        let mut eval_ctx = self.eval_ctx(&mut env);
         for (arg, value) in closure.args.iter().zip(args.into_iter()) {
-            env.subst_value_into_pat(&arg.pat, value);
+            eval_ctx.subst_value_into_pat(&arg.pat, value);
         }
-
-        self.eval_ctx(&mut env).eval_expr(&closure.body)
+        eval_ctx.eval_expr(&closure.body)
     }
 
     pub fn apply_match_closure(&self, mut scrut: Arc<Value>, closure: MatchClosure) -> Arc<Value> {
@@ -308,19 +308,20 @@ impl<'env> ElimCtx<'env> {
         };
 
         let MatchClosure { mut env, branches } = closure;
+        let mut eval_ctx = self.eval_ctx(&mut env);
         for (pat, expr) in branches.iter() {
             match pat {
                 Pat::Error => {
-                    env.subst_value_into_pat(pat, scrut);
-                    return self.eval_ctx(&mut env).eval_expr(expr);
+                    eval_ctx.subst_value_into_pat(pat, scrut);
+                    return eval_ctx.eval_expr(expr);
                 }
                 Pat::Name(_) => {
-                    env.subst_value_into_pat(pat, scrut);
-                    return self.eval_ctx(&mut env).eval_expr(expr);
+                    eval_ctx.subst_value_into_pat(pat, scrut);
+                    return eval_ctx.eval_expr(expr);
                 }
                 Pat::Lit(lit1) if scrut.as_ref() == &Value::Lit(lit1.clone()) => {
-                    env.subst_value_into_pat(pat, scrut);
-                    return self.eval_ctx(&mut env).eval_expr(expr);
+                    eval_ctx.subst_value_into_pat(pat, scrut);
+                    return eval_ctx.eval_expr(expr);
                 }
                 Pat::Lit(_) => continue,
                 Pat::Variant(..) => todo!(),
@@ -475,8 +476,17 @@ mod subst {
     use crate::core::syntax::Pat;
     use crate::core::unelab::UnelabCtx;
 
+    impl EnvLen {
+        pub fn subst_pat(&mut self, pat: &Pat) { *self += pat.num_binders() }
+    }
+
+    impl QuoteCtx<'_> {
+        pub fn subst_pat(&mut self, pat: &Pat) { self.local_len.subst_pat(pat) }
+    }
+
     impl LocalEnv {
         /// Push an `Value::local` onto env for each binder in `pat`.
+        #[debug_ensures(self.len() == old(self.len()) + pat.num_binders())]
         pub fn subst_arg_into_pat(&mut self, pat: &Pat) {
             let var = || Arc::new(Value::local(self.len().to_level()));
             match pat {
@@ -485,6 +495,7 @@ mod subst {
             }
         }
 
+        #[debug_ensures(self.len() == old(self.len()) + pat.num_binders())]
         pub fn subst_value_into_pat(&mut self, pat: &Pat, value: Arc<Value>) {
             match pat {
                 Pat::Error | Pat::Lit(_) | Pat::Name(_) => self.push(value),
@@ -505,11 +516,19 @@ mod subst {
         }
     }
 
-    impl EnvLen {
-        pub fn subst_pat(&mut self, pat: &Pat) { *self += pat.num_binders(); }
+    impl EvalCtx<'_> {
+        /// Push an `Value::local` onto env for each binder in `pat`.
+        #[debug_ensures(self.local_env.len() == old(self.local_env.len()) + pat.num_binders())]
+        pub fn subst_arg_into_pat(&mut self, pat: &Pat) { self.local_env.subst_arg_into_pat(pat) }
+
+        #[debug_ensures(self.local_env.len() == old(self.local_env.len()) + pat.num_binders())]
+        pub fn subst_value_into_pat(&mut self, pat: &Pat, value: Arc<Value>) {
+            self.local_env.subst_value_into_pat(pat, value)
+        }
     }
 
     impl UnelabCtx<'_> {
+        #[debug_ensures(self.local_names.len() == old(self.local_names.len()) + pat.num_binders())]
         pub fn subst_pat(&mut self, pat: &Pat) {
             match pat {
                 Pat::Error => self.local_names.push(VarName::Underscore),
@@ -521,6 +540,7 @@ mod subst {
     }
 
     impl ElabCtx<'_> {
+        #[debug_ensures(self.local_env.len() == old(self.local_env.len()) + pat.num_binders())]
         pub fn subst_pat(&mut self, pat: &Pat, ty: Arc<Value>, value: Option<Arc<Value>>) {
             match (pat, ty.as_ref(), value.as_ref()) {
                 (Pat::Error, ..) => {
