@@ -7,11 +7,11 @@ use super::syntax::*;
 use crate::surface;
 
 pub struct UnelabCtx<'a> {
-    local_names: &'a mut UniqueEnv<VarName>,
-    meta_names: &'a UniqueEnv<VarName>,
+    pub local_names: &'a mut UniqueEnv<VarName>,
+    pub meta_names: &'a UniqueEnv<VarName>,
 
-    name_source: &'a mut NameSource,
-    db: &'a dyn crate::Db,
+    pub name_source: &'a mut NameSource,
+    pub db: &'a dyn crate::Db,
 }
 
 impl<'a> UnelabCtx<'a> {
@@ -185,15 +185,6 @@ impl<'a> UnelabCtx<'a> {
     pub fn unelab_lit(&mut self, lit: &Lit) -> surface::Lit<()> {
         match lit {
             Lit::Bool(b) => surface::Lit::Bool((), *b),
-        }
-    }
-
-    fn subst_pat(&mut self, pat: &Pat) {
-        match pat {
-            Pat::Error => self.local_names.push(VarName::Underscore),
-            Pat::Name(name) => self.local_names.push(*name),
-            Pat::Lit(_) => self.local_names.push(self.name_source.fresh()),
-            Pat::Variant(_, pats) => pats.iter().for_each(|pat| self.subst_pat(pat)),
         }
     }
 

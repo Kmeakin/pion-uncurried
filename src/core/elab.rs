@@ -23,13 +23,13 @@ use self::pat::*;
 
 #[must_use = "Call `.finish()` to report unsolved metas"]
 pub struct ElabCtx<'db> {
-    local_env: LocalEnv,
-    meta_env: MetaEnv,
-    renaming: PartialRenaming,
-    name_source: NameSource,
+    pub local_env: LocalEnv,
+    pub meta_env: MetaEnv,
+    pub renaming: PartialRenaming,
+    pub name_source: NameSource,
 
-    db: &'db dyn crate::Db,
-    file: File,
+    pub db: &'db dyn crate::Db,
+    pub file: File,
 }
 
 impl<'db> ElabCtx<'db> {

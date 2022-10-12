@@ -4,7 +4,7 @@ use contracts::{debug_ensures, debug_requires};
 use either::Either;
 use either::Either::*;
 
-use super::elab::eval_let_def_expr;
+use super::elab::{elab_enum_variant, eval_let_def_expr};
 use super::env::{EnvLen, LocalSource, SharedEnv, UniqueEnv};
 use super::syntax::*;
 
@@ -468,36 +468,86 @@ impl<'env> QuoteCtx<'env> {
     }
 }
 
-impl LocalEnv {
-    /// Push an `Value::local` onto env for each binder in `pat`.
-    pub fn subst_arg_into_pat(&mut self, pat: &Pat) {
-        let var = || Arc::new(Value::local(self.len().to_level()));
-        match pat {
-            Pat::Error | Pat::Lit(_) | Pat::Name(_) => self.push(var()),
-            Pat::Variant(_, pats) => pats.iter().for_each(|pat| self.subst_arg_into_pat(pat)),
+mod subst {
+    use super::*;
+    use crate::core::elab::ElabCtx;
+    use crate::core::env::EnvLen;
+    use crate::core::syntax::Pat;
+    use crate::core::unelab::UnelabCtx;
+
+    impl LocalEnv {
+        /// Push an `Value::local` onto env for each binder in `pat`.
+        pub fn subst_arg_into_pat(&mut self, pat: &Pat) {
+            let var = || Arc::new(Value::local(self.len().to_level()));
+            match pat {
+                Pat::Error | Pat::Lit(_) | Pat::Name(_) => self.push(var()),
+                Pat::Variant(_, pats) => pats.iter().for_each(|pat| self.subst_arg_into_pat(pat)),
+            }
+        }
+
+        pub fn subst_value_into_pat(&mut self, pat: &Pat, value: Arc<Value>) {
+            match pat {
+                Pat::Error | Pat::Lit(_) | Pat::Name(_) => self.push(value),
+                Pat::Variant(variant, pats) => match value.as_ref() {
+                    Value::Stuck(Head::Global(GlobalVar::Enum(v)), spine) => {
+                        if let [Elim::FunCall(args)] = spine.as_slice() {
+                            let args = args.iter().cloned();
+                            for (pat, arg) in pats.iter().zip(args) {
+                                self.subst_value_into_pat(pat, arg);
+                            }
+                        } else {
+                            unreachable!()
+                        }
+                    }
+                    _ => todo!("Cannot subst {value:?} into {pat:?}"),
+                },
+            }
         }
     }
 
-    pub fn subst_value_into_pat(&mut self, pat: &Pat, value: Arc<Value>) {
-        match pat {
-            Pat::Error | Pat::Lit(_) | Pat::Name(_) => self.push(value),
-            Pat::Variant(variant, pats) => match value.as_ref() {
-                Value::Stuck(Head::Global(GlobalVar::Enum(v)), spine) => {
-                    if let [Elim::FunCall(args)] = spine.as_slice() {
-                        let args = args.iter().cloned();
-                        for (pat, arg) in pats.iter().zip(args) {
-                            self.subst_value_into_pat(pat, arg);
-                        }
-                    } else {
-                        unreachable!()
+    impl EnvLen {
+        pub fn subst_pat(&mut self, pat: &Pat) { *self += pat.num_binders(); }
+    }
+
+    impl UnelabCtx<'_> {
+        pub fn subst_pat(&mut self, pat: &Pat) {
+            match pat {
+                Pat::Error => self.local_names.push(VarName::Underscore),
+                Pat::Name(name) => self.local_names.push(*name),
+                Pat::Lit(_) => self.local_names.push(self.name_source.fresh()),
+                Pat::Variant(_, pats) => pats.iter().for_each(|pat| self.subst_pat(pat)),
+            }
+        }
+    }
+
+    impl ElabCtx<'_> {
+        pub fn subst_pat(&mut self, pat: &Pat, ty: Arc<Value>, value: Option<Arc<Value>>) {
+            match (pat, ty.as_ref(), value.as_ref()) {
+                (Pat::Error, ..) => {
+                    self.local_env.push(VarName::Underscore, ty, value);
+                }
+                (Pat::Name(name), ..) => {
+                    self.local_env.push(*name, ty, value);
+                }
+                (Pat::Lit(lit), ..) => {
+                    let pat_value = Arc::new(Value::Lit(lit.clone()));
+                    let name = self.name_source.fresh();
+                    self.local_env.push(name, ty, Some(pat_value));
+                }
+                (Pat::Variant(variant, pats), ..) => {
+                    let EnumVariant { args, .. } = elab_enum_variant(self.db, *variant);
+                    if args.len() != pats.len() {
+                        todo!("pattern arity mismatch")
+                    }
+
+                    for (pat, _arg) in pats.iter().zip(args.iter()) {
+                        // let type_value = self.eval_ctx().eval_expr(&arg.ty);
+                        let type_value = Arc::new(Value::ERROR);
+                        self.subst_pat(pat, type_value, None);
                     }
                 }
-                _ => todo!("Cannot subst {value:?} into {pat:?}"),
-            },
+                _ => unreachable!("Cannot subst {value:#?} with type {ty:#?} into {pat:#?}"),
+            }
         }
     }
-}
-
-impl EnvLen {
-    pub fn subst_pat(&mut self, pat: &Pat) { *self += pat.num_binders(); }
 }
