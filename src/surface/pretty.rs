@@ -199,10 +199,10 @@ impl<'a> PrettyCtx {
                     ),
                 )
             }
-            Expr::Match(_, scrut, arms) => {
+            Expr::Match(_, scrut, branches) => {
                 let scrut = self.pretty_expr(scrut);
-                let is_empty = arms.is_empty();
-                let arms = arms.iter().map(|(pat, expr)| {
+                let is_empty = branches.is_empty();
+                let branches = branches.iter().map(|(pat, expr)| {
                     let pat = self.pretty_pat(pat);
                     let expr = self.pretty_expr(expr);
                     docs!(
@@ -223,7 +223,7 @@ impl<'a> PrettyCtx {
                     scrut,
                     self.space(),
                     "{",
-                    self.concat(arms).nest(INDENT),
+                    self.concat(branches).nest(INDENT),
                     (!is_empty).then_some(self.hardline()),
                     "}"
                 )

@@ -145,9 +145,9 @@ impl<'a> UnelabCtx<'a> {
                     Arc::new(body),
                 )
             }
-            Expr::Match(scrut, arms) => {
+            Expr::Match(scrut, branches) => {
                 let scrut = self.unelab_expr(scrut);
-                let arms = arms
+                let branches = branches
                     .iter()
                     .map(|(pat, body)| {
                         let initial_len = self.local_names.len();
@@ -158,7 +158,7 @@ impl<'a> UnelabCtx<'a> {
                         (pat_surface, body_surface)
                     })
                     .collect();
-                surface::Expr::Match((), Arc::new(scrut), arms)
+                surface::Expr::Match((), Arc::new(scrut), branches)
             }
         }
     }

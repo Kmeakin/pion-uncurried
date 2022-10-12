@@ -106,10 +106,10 @@ impl<'env> EvalCtx<'env> {
                 let args = args.iter().map(|arg| self.eval_expr(arg)).collect();
                 self.elim_ctx().call_fun_value(fun, args)
             }
-            Expr::Match(scrut, arms) => {
+            Expr::Match(scrut, branches) => {
                 let scrut = self.eval_expr(scrut);
-                let arms = MatchArms::new(self.local_env.clone(), arms.clone());
-                self.elim_ctx().apply_match_arms(scrut, arms)
+                let closure = MatchClosure::new(self.local_env.clone(), branches.clone());
+                self.elim_ctx().apply_match_closure(scrut, closure)
             }
             Expr::Let(pat, _, init, body) => {
                 let initial_len = self.local_env.len();
@@ -219,10 +219,10 @@ impl<'env> EvalCtx<'env> {
                     Right(self.elim_ctx().call_fun_value(fun, args))
                 }
             },
-            Expr::Match(scrut, arms) => match self.zonk_spine(scrut) {
+            Expr::Match(scrut, branches) => match self.zonk_spine(scrut) {
                 Left(scrut) => {
                     let initial_len = self.local_env.len();
-                    let arms = arms
+                    let branches = branches
                         .iter()
                         .map(|(pat, expr)| {
                             self.local_env.subst_arg_into_pat(pat);
@@ -230,11 +230,11 @@ impl<'env> EvalCtx<'env> {
                         })
                         .collect();
                     self.local_env.truncate(initial_len);
-                    Left(Expr::Match(Arc::new(scrut), arms))
+                    Left(Expr::Match(Arc::new(scrut), branches))
                 }
                 Right(value) => {
-                    let arms = MatchArms::new(self.local_env.clone(), arms.clone());
-                    Right(self.elim_ctx().apply_match_arms(value, arms))
+                    let closure = MatchClosure::new(self.local_env.clone(), branches.clone());
+                    Right(self.elim_ctx().apply_match_closure(value, closure))
                 }
             },
             _ => Left(self.zonk_expr(expr)),
@@ -276,7 +276,7 @@ impl<'env> ElimCtx<'env> {
     fn apply_spine(&self, head: Arc<Value>, spine: &[Elim]) -> Arc<Value> {
         spine.iter().fold(head, |head, elim| match elim {
             Elim::FunCall(args) => self.call_fun_value(head, args.clone()),
-            Elim::Match(arms) => self.apply_match_arms(head, arms.clone()),
+            Elim::Match(closure) => self.apply_match_closure(head, closure.clone()),
         })
     }
 
@@ -301,14 +301,14 @@ impl<'env> ElimCtx<'env> {
         self.eval_ctx(&mut env).eval_expr(&closure.body)
     }
 
-    pub fn apply_match_arms(&self, mut scrut: Arc<Value>, arms: MatchArms) -> Arc<Value> {
+    pub fn apply_match_closure(&self, mut scrut: Arc<Value>, closure: MatchClosure) -> Arc<Value> {
         if let Value::Stuck(_, spine) = Arc::make_mut(&mut scrut) {
-            spine.push(Elim::Match(arms));
+            spine.push(Elim::Match(closure));
             return scrut;
         };
 
-        let MatchArms { mut env, arms } = arms;
-        for (pat, expr) in arms.iter() {
+        let MatchClosure { mut env, branches } = closure;
+        for (pat, expr) in branches.iter() {
             match pat {
                 Pat::Error => {
                     env.subst_value_into_pat(pat, scrut);
@@ -351,20 +351,20 @@ impl<'env> ElimCtx<'env> {
         Some((arg, cont))
     }
 
-    pub fn split_match_arms(
+    pub fn split_match_closure(
         &self,
-        mut arms: MatchArms,
-    ) -> Option<((Pat, Arc<Value>), impl FnOnce(Arc<Value>) -> MatchArms)> {
-        let ((pat, expr), rest) = arms.arms.split_first()?;
+        mut closure: MatchClosure,
+    ) -> Option<((Pat, Arc<Value>), impl FnOnce(Arc<Value>) -> MatchClosure)> {
+        let ((pat, expr), rest) = closure.branches.split_first()?;
         let pat = pat.clone();
         let rest = Arc::from(rest);
-        let value = self.eval_ctx(&mut arms.env).eval_expr(expr);
+        let value = self.eval_ctx(&mut closure.env).eval_expr(expr);
         let first = (pat.clone(), value);
 
         let cont = move |prev| {
-            arms.env.subst_value_into_pat(&pat, prev);
-            arms.arms = rest;
-            arms
+            closure.env.subst_value_into_pat(&pat, prev);
+            closure.branches = rest;
+            closure
         };
         Some((first, cont))
     }
@@ -414,16 +414,16 @@ impl<'env> QuoteCtx<'env> {
                         let args = args.iter().map(|arg| self.quote_value(arg)).collect();
                         Expr::FunCall(Arc::new(head_core), args)
                     }
-                    Elim::Match(arms) => {
-                        let mut arms = arms.clone();
-                        let mut core_arms = Vec::with_capacity(arms.arms.len());
+                    Elim::Match(closure) => {
+                        let mut closure = closure.clone();
+                        let mut branches = Vec::with_capacity(closure.branches.len());
                         while let Some(((pat, value), cont)) =
-                            self.elim_ctx().split_match_arms(arms.clone())
+                            self.elim_ctx().split_match_closure(closure.clone())
                         {
-                            core_arms.push((pat, self.quote_value(&value)));
-                            arms = cont(value);
+                            branches.push((pat, self.quote_value(&value)));
+                            closure = cont(value);
                         }
-                        Expr::Match(Arc::new(head_core), Arc::from(core_arms))
+                        Expr::Match(Arc::new(head_core), Arc::from(branches))
                     }
                 })
             }

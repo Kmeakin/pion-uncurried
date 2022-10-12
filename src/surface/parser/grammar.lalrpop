@@ -88,7 +88,7 @@ AtomExpr: Expr<Span> = {
     <start: @L> <lit: Lit> <end: @R> => Expr::Lit(Span::new(start, end), lit),
     <start: @L> <name: Name> <end: @R> => Expr::Name(Span::new(start, end), name),
     <start: @L> <hole: Hole> <end: @R> => Expr::Hole(TextRange::new(start, end), hole),
-    <start: @L> "match" <scrutinee: Expr> "{" <arms: List<(<Pat> "=>" <Expr>), ",">> "}" <end: @R> => Expr::Match(TextRange::new(start, end), Arc::new(scrutinee), arms),
+    <start: @L> "match" <scrutinee: Expr> "{" <branches: List<(<Pat> "=>" <Expr>), ",">> "}" <end: @R> => Expr::Match(TextRange::new(start, end), Arc::new(scrutinee), branches),
 }
 
 pub Hole: Hole = {

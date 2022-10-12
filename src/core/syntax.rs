@@ -95,9 +95,9 @@ impl Expr {
                     && init.is_closed(local_len, meta_len)
                     && body.is_closed(local_len + pat.num_binders(), meta_len)
             }
-            Self::Match(scrut, arms) => {
+            Self::Match(scrut, branches) => {
                 scrut.is_closed(local_len, meta_len)
-                    && arms
+                    && branches
                         .iter()
                         .all(|(pat, expr)| expr.is_closed(local_len + pat.num_binders(), meta_len))
             }
@@ -166,7 +166,7 @@ pub enum Head {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Elim {
     FunCall(Vec<Arc<Value>>),
-    Match(MatchArms),
+    Match(MatchClosure),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -185,15 +185,17 @@ impl FunClosure {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MatchArms {
+pub struct MatchClosure {
     pub env: SharedEnv<Arc<Value>>,
-    pub arms: Arc<[(Pat, Expr)]>,
+    pub branches: Arc<[(Pat, Expr)]>,
 }
 
-impl MatchArms {
-    pub fn new(env: SharedEnv<Arc<Value>>, arms: Arc<[(Pat, Expr)]>) -> Self { Self { env, arms } }
+impl MatchClosure {
+    pub fn new(env: SharedEnv<Arc<Value>>, branches: Arc<[(Pat, Expr)]>) -> Self {
+        Self { env, branches }
+    }
 
-    pub fn len(&self) -> usize { self.arms.len() }
+    pub fn len(&self) -> usize { self.branches.len() }
 
     pub fn is_empty(&self) -> bool { self.len() == 0 }
 }

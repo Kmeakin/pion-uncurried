@@ -148,7 +148,9 @@ impl<'env> UnifyCtx<'env> {
         for (elim1, elim2) in spine1.iter().zip(spine2.iter()) {
             match (elim1, elim2) {
                 (Elim::FunCall(args1), Elim::FunCall(args2)) => self.unify_args(args1, args2)?,
-                (Elim::Match(arms1), Elim::Match(arms2)) => self.unify_arms(arms1, arms2)?,
+                (Elim::Match(closure1), Elim::Match(closure2)) => {
+                    self.unify_match_closures(closure1, closure2)?
+                }
                 _ => return Err(UnifyError::Mismatch),
             }
         }
@@ -168,8 +170,12 @@ impl<'env> UnifyCtx<'env> {
     }
 
     #[debug_ensures(self.local_env == old(self.local_env))]
-    fn unify_arms(&mut self, arms1: &MatchArms, arms2: &MatchArms) -> Result<(), UnifyError> {
-        if arms1.len() != arms2.len() {
+    fn unify_match_closures(
+        &mut self,
+        closure1: &MatchClosure,
+        closure2: &MatchClosure,
+    ) -> Result<(), UnifyError> {
+        if closure1.len() != closure2.len() {
             return Err(UnifyError::Mismatch);
         }
 
@@ -272,16 +278,16 @@ impl<'env> UnifyCtx<'env> {
                                 .collect::<Result<_, _>>()?;
                             Expr::FunCall(Arc::new(head?), args)
                         }
-                        Elim::Match(arms) => {
-                            let mut arms = arms.clone();
-                            let mut core_arms = Vec::with_capacity(arms.arms.len());
+                        Elim::Match(closure) => {
+                            let mut closure = closure.clone();
+                            let mut branches = Vec::with_capacity(closure.branches.len());
                             while let Some(((pat, value), cont)) =
-                                self.elim_ctx().split_match_arms(arms.clone())
+                                self.elim_ctx().split_match_closure(closure.clone())
                             {
-                                core_arms.push((pat, self.rename_value(meta_var, &value)?));
-                                arms = cont(value);
+                                branches.push((pat, self.rename_value(meta_var, &value)?));
+                                closure = cont(value);
                             }
-                            Expr::Match(Arc::new(head?), Arc::from(core_arms))
+                            Expr::Match(Arc::new(head?), Arc::from(branches))
                         }
                     })
                 })

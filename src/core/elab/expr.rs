@@ -206,12 +206,12 @@ impl ElabCtx<'_> {
                     body_type,
                 )
             }
-            surface::Expr::Match(span, scrut, arms) => {
+            surface::Expr::Match(span, scrut, branches) => {
                 let name = self.name_source.fresh();
                 let source = MetaSource::MatchType(*span);
                 let match_type = self.push_meta_value(name, source, Arc::new(Value::TYPE));
 
-                let CheckExpr(match_expr) = self.check_match_expr(scrut, arms, &match_type);
+                let CheckExpr(match_expr) = self.check_match_expr(scrut, branches, &match_type);
                 SynthExpr(match_expr, match_type)
             }
         }
@@ -282,8 +282,8 @@ impl ElabCtx<'_> {
                     Arc::new(body_core),
                 ))
             }
-            (surface::Expr::Match(_, scrut, arms), _) => {
-                self.check_match_expr(scrut, arms, expected)
+            (surface::Expr::Match(_, scrut, branches), _) => {
+                self.check_match_expr(scrut, branches, expected)
             }
             _ => {
                 let SynthExpr(core, got) = self.synth_expr(expr);
@@ -304,7 +304,7 @@ impl ElabCtx<'_> {
     fn check_match_expr(
         &mut self,
         scrut: &surface::Expr<Span>,
-        arms: &[(surface::Pat<Span>, surface::Expr<Span>)],
+        branches: &[(surface::Pat<Span>, surface::Expr<Span>)],
         expected: &Arc<Value>,
     ) -> CheckExpr {
         // TODO: check for exhaustivity and report unreachable patterns
@@ -317,7 +317,7 @@ impl ElabCtx<'_> {
 
         let expected_core = self.quote_ctx().quote_value(expected);
 
-        let arms = arms
+        let branches = branches
             .iter()
             .map(|(pat, expr)| {
                 let initial_len = self.local_env.len();
@@ -331,6 +331,6 @@ impl ElabCtx<'_> {
             })
             .collect();
 
-        CheckExpr(Expr::Match(Arc::new(scrut_core), arms))
+        CheckExpr(Expr::Match(Arc::new(scrut_core), branches))
     }
 }
