@@ -3,13 +3,12 @@ use std::sync::Arc;
 use contracts::debug_ensures;
 
 use super::env::{EnvLen, SharedEnv, UniqueEnv, VarIndex, VarLevel};
-use super::eval::ElimCtx;
-use super::semantics::EvalFlags;
+use super::semantics::{self, EvalFlags};
 use super::syntax::*;
 
 pub struct UnifyCtx<'env> {
     local_env: EnvLen,
-    meta_values: &'env mut UniqueEnv<Option<Arc<Value>>>,
+    meta_env: &'env mut semantics::MetaEnv,
     renaming: &'env mut PartialRenaming,
     db: &'env dyn crate::Db,
 }
@@ -17,19 +16,25 @@ pub struct UnifyCtx<'env> {
 impl<'env> UnifyCtx<'env> {
     pub fn new(
         local_env: EnvLen,
-        meta_values: &'env mut UniqueEnv<Option<Arc<Value>>>,
+        meta_values: &'env mut semantics::MetaEnv,
         renaming: &'env mut PartialRenaming,
         db: &'env dyn crate::Db,
     ) -> Self {
         Self {
             local_env,
-            meta_values,
+            meta_env: meta_values,
             renaming,
             db,
         }
     }
 
-    fn elim_ctx(&self) -> ElimCtx<'_> { ElimCtx::new(self.meta_values, self.db, EvalFlags::EVAL) }
+    fn eval_ctx(&self, local_env: &'env mut semantics::LocalEnv) -> semantics::EvalCtx<'_> {
+        semantics::EvalCtx::new(local_env, self.meta_env, self.db, EvalFlags::EVAL)
+    }
+
+    fn elim_ctx(&self) -> semantics::ElimCtx<'_> {
+        semantics::ElimCtx::new(self.meta_env, self.db, EvalFlags::EVAL)
+    }
 
     #[debug_ensures(self.local_env == old(self.local_env))]
     pub fn unify_values(
@@ -106,8 +111,8 @@ impl<'env> UnifyCtx<'env> {
             args.push(arg);
         }
 
-        let body1 = self.elim_ctx().apply_closure(&closure1, args.clone());
-        let body2 = self.elim_ctx().apply_closure(&closure2, args);
+        let body1 = self.elim_ctx().call_fun_closure(&closure1, args.clone());
+        let body2 = self.elim_ctx().call_fun_closure(&closure2, args);
         let result = self.unify_values(&body1, &body2);
 
         self.local_env.truncate(initial_len);
@@ -126,8 +131,8 @@ impl<'env> UnifyCtx<'env> {
             .collect();
         self.local_env.truncate(initial_len);
 
-        let value1 = self.elim_ctx().do_fun_call(rhs_value, args.clone());
-        let value2 = self.elim_ctx().apply_closure(lhs_closure, args);
+        let value1 = self.elim_ctx().call_fun_value(rhs_value, args.clone());
+        let value2 = self.elim_ctx().call_fun_closure(lhs_closure, args);
         self.local_env.extend(EnvLen(lhs_closure.arity()));
         let result = self.unify_values(&value1, &value2);
         self.local_env.truncate(initial_len);
@@ -192,13 +197,8 @@ impl<'env> UnifyCtx<'env> {
         self.init_renaming(spine)?;
         let term = self.rename_value(meta_var, value)?;
         let fun_expr = self.fun_intros(spine, term);
-        let solution = self
-            .elim_ctx()
-            .eval_ctx(&mut SharedEnv::new())
-            .eval_expr(&fun_expr);
-
-        self.meta_values.set(meta_var, Some(solution));
-
+        let solution = self.eval_ctx(&mut SharedEnv::new()).eval_expr(&fun_expr);
+        self.meta_env.set(meta_var, Some(solution));
         Ok(())
     }
 
@@ -276,7 +276,7 @@ impl<'env> UnifyCtx<'env> {
                             let mut arms = arms.clone();
                             let mut core_arms = Vec::with_capacity(arms.arms.len());
                             while let Some(((pat, value), cont)) =
-                                self.elim_ctx().split_arms(arms.clone())
+                                self.elim_ctx().split_match_arms(arms.clone())
                             {
                                 core_arms.push((pat, self.rename_value(meta_var, &value)?));
                                 arms = cont(value);
@@ -348,7 +348,9 @@ impl<'env> UnifyCtx<'env> {
             self.renaming.push_local();
         }
 
-        let body = self.elim_ctx().apply_closure(&initial_closure, arg_values);
+        let body = self
+            .elim_ctx()
+            .call_fun_closure(&initial_closure, arg_values);
         let body = self.rename_value(meta_var, &body);
 
         self.renaming

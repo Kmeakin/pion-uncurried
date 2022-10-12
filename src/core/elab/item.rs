@@ -1,7 +1,6 @@
 #![allow(clippy::needless_borrow)]
 
 use super::*;
-use crate::core::semantics;
 use crate::ir::lower_file;
 
 #[salsa::tracked]
@@ -69,18 +68,14 @@ pub fn elab_let_def(db: &dyn crate::Db, ir: ir::LetDef) -> LetDef {
 
     let CheckExpr(body_expr) = ctx.check_expr(&body, &type_value);
 
-    let type_expr = semantics::zonk_expr(
-        &mut ctx.local_env.values,
-        &ctx.meta_env.values,
-        ctx.db,
-        &type_expr,
-    );
-    let body_expr = semantics::zonk_expr(
-        &mut ctx.local_env.values,
-        &ctx.meta_env.values,
-        ctx.db,
-        &body_expr,
-    );
+    let type_expr = ctx
+        .eval_ctx()
+        .with_flags(EvalFlags::ZONK)
+        .zonk_expr(&type_expr);
+    let body_expr = ctx
+        .eval_ctx()
+        .with_flags(EvalFlags::ZONK)
+        .zonk_expr(&body_expr);
     let type_value = ctx.eval_ctx().eval_expr(&type_expr);
     let body_value = ctx.eval_ctx().eval_expr(&body_expr);
 

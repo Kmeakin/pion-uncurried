@@ -1,0 +1,7 @@
+enum Pair(A: Type, B: Type): Type {
+    MkPair(x: A, y: B): Pair(A, B),
+}
+
+let fst: fn(p: #error) -> #error(p) = fn(p: #error) => match p {
+    MkPair(z, _) => z,
+};

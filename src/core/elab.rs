@@ -3,9 +3,7 @@ use std::sync::Arc;
 use contracts::debug_ensures;
 
 use super::env::{EnvLen, LocalEnv, MetaEnv, MetaSource, NameSource, SharedEnv};
-use super::eval::{ElimCtx, EvalCtx};
-use super::quote::QuoteCtx;
-use super::semantics::EvalFlags;
+use super::semantics::{self, EvalFlags};
 use super::syntax::*;
 use super::unelab::UnelabCtx;
 use super::unify::{PartialRenaming, RenameError, SpineError, UnifyCtx, UnifyError};
@@ -160,8 +158,8 @@ impl<'db> ElabCtx<'db> {
 
 /// Helpers
 impl ElabCtx<'_> {
-    pub fn eval_ctx(&mut self) -> EvalCtx {
-        EvalCtx::new(
+    pub fn eval_ctx(&mut self) -> semantics::EvalCtx {
+        semantics::EvalCtx::new(
             &mut self.local_env.values,
             &self.meta_env.values,
             self.db,
@@ -169,12 +167,12 @@ impl ElabCtx<'_> {
         )
     }
 
-    pub fn elim_ctx(&self) -> ElimCtx {
-        ElimCtx::new(&self.meta_env.values, self.db, EvalFlags::EVAL)
+    pub fn elim_ctx(&self) -> semantics::ElimCtx {
+        semantics::ElimCtx::new(&self.meta_env.values, self.db, EvalFlags::EVAL)
     }
 
-    pub fn quote_ctx(&mut self) -> QuoteCtx {
-        QuoteCtx::new(
+    pub fn quote_ctx(&mut self) -> semantics::QuoteCtx {
+        semantics::QuoteCtx::new(
             self.local_env.values.len(),
             &self.meta_env.values,
             self.db,

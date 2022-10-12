@@ -176,7 +176,9 @@ impl ElabCtx<'_> {
                     let SynthExpr(..) = self.synth_expr(arg);
                 }
 
-                let ret_type = self.elim_ctx().apply_closure(&initial_closure, arg_values);
+                let ret_type = self
+                    .elim_ctx()
+                    .call_fun_closure(&initial_closure, arg_values);
                 SynthExpr(
                     Expr::FunCall(Arc::new(fun_core), Arc::from(arg_cores)),
                     ret_type,
@@ -253,7 +255,9 @@ impl ElabCtx<'_> {
                     });
                 }
 
-                let expected_ret = self.elim_ctx().apply_closure(&initial_closure, args_values);
+                let expected_ret = self
+                    .elim_ctx()
+                    .call_fun_closure(&initial_closure, args_values);
                 let CheckExpr(ret_core) = self.check_expr(body, &expected_ret);
                 self.local_env.truncate(initial_len);
 
