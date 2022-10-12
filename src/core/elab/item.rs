@@ -110,7 +110,7 @@ pub fn eval_let_def_expr(db: &dyn crate::Db, ir: ir::LetDef) -> Arc<Value> {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EnumDefSig {
-    pub args: Arc<[FunArg<Expr>]>,
+    pub args: Telescope<Expr>,
     pub ret_type: (Expr, Arc<Value>),
     pub self_type: Arc<Value>,
     pub subst: (LocalEnv, MetaEnv, PartialRenaming),
@@ -137,6 +137,7 @@ pub fn enum_def_sig(db: &dyn crate::Db, ir: ir::EnumDef) -> EnumDefSig {
             }
         })
         .collect();
+    let telescope = Telescope(args);
 
     let (ret_type_expr, ret_type_value) = match ret_type {
         None => (Expr::Prim(Prim::Type), Arc::new(Value::TYPE)),
@@ -168,7 +169,7 @@ pub fn enum_def_sig(db: &dyn crate::Db, ir: ir::EnumDef) -> EnumDefSig {
     };
 
     EnumDefSig {
-        args,
+        args: telescope,
         ret_type: (ret_type_expr, ret_type_value),
         self_type,
         subst: (ctx.local_env, ctx.meta_env, ctx.renaming),
@@ -202,20 +203,7 @@ pub fn elab_enum_def(db: &dyn crate::Db, ir: ir::EnumDef) -> EnumDef {
                 ret_type,
             } = surface;
             let name = Symbol::new(db, name.to_owned());
-
-            let args = args
-                .iter()
-                .map(|pat| {
-                    let SynthPat(pat_core, type_value) = ctx.synth_ann_pat(pat);
-                    let type_core = ctx.quote_ctx().quote_value(&type_value);
-                    ctx.subst_pat(&pat_core, type_value, None);
-                    FunArg {
-                        pat: pat_core,
-                        r#type: type_core,
-                    }
-                })
-                .collect();
-
+            let telescope = ctx.synth_telescope(args);
             let ret_type = match ret_type {
                 None => (ctx.quote_ctx().quote_value(&self_type), self_type.clone()),
                 Some(ret_type_surface) => {
@@ -228,7 +216,7 @@ pub fn elab_enum_def(db: &dyn crate::Db, ir: ir::EnumDef) -> EnumDef {
             ctx.local_env.truncate(initial_len);
             EnumVariant {
                 name,
-                args,
+                args: telescope,
                 ret_type,
             }
         })
@@ -251,7 +239,7 @@ pub fn synth_enum_def_expr(db: &dyn crate::Db, ir: ir::EnumDef) -> Arc<Value> {
         0 => ret_type.1,
         _ => Arc::new(Value::FunType(FunClosure::new(
             SharedEnv::new(),
-            Telescope(args),
+            args,
             Arc::new(ret_type.0),
         ))),
     }
@@ -294,23 +282,21 @@ pub fn synth_enum_variant_expr(db: &dyn crate::Db, ir: ir::EnumVariant) -> Arc<V
         (0, 0) => ret_type.1,
         (_, 0) => Arc::new(Value::FunType(FunClosure::new(
             SharedEnv::new(),
-            Telescope(parent_args),
+            parent_args,
             Arc::new(ret_type.0),
         ))),
         (0, _) => Arc::new(Value::FunType(FunClosure::new(
             SharedEnv::new(),
-            Telescope(variant_args),
+            variant_args,
             Arc::new(ret_type.0),
         ))),
         (..) => Arc::new(Value::FunType(FunClosure::new(
             SharedEnv::new(),
-            Telescope(
-                parent_args
-                    .iter()
-                    .chain(variant_args.iter())
-                    .cloned()
-                    .collect(),
-            ),
+            parent_args
+                .iter()
+                .chain(variant_args.iter())
+                .cloned()
+                .collect(),
             Arc::new(ret_type.0),
         ))),
     }

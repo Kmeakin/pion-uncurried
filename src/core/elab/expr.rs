@@ -196,11 +196,11 @@ impl ElabCtx<'_> {
         }
     }
 
-    fn synth_telescope(&mut self, pats: &[surface::AnnPat<Span>]) -> Telescope<Expr> {
+    pub fn synth_telescope(&mut self, pats: &[surface::AnnPat<Span>]) -> Telescope<Expr> {
         pats.iter().map(|arg| self.synth_fun_arg(arg)).collect()
     }
 
-    fn synth_fun_arg(&mut self, arg: &surface::AnnPat<Span>) -> FunArg<Expr> {
+    pub fn synth_fun_arg(&mut self, arg: &surface::AnnPat<Span>) -> FunArg<Expr> {
         let SynthPat(pat_core, pat_type) = self.synth_ann_pat(arg);
         let type_core = self.quote_ctx().quote_value(&pat_type);
         self.subst_pat(&pat_core, pat_type, None);
