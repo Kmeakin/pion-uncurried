@@ -111,8 +111,8 @@ impl<'env> UnifyCtx<'env> {
             args.push(arg);
         }
 
-        let body1 = self.elim_ctx().call_fun_closure(&closure1, args.clone());
-        let body2 = self.elim_ctx().call_fun_closure(&closure2, args);
+        let body1 = self.elim_ctx().apply_fun_closure(&closure1, args.clone());
+        let body2 = self.elim_ctx().apply_fun_closure(&closure2, args);
         let result = self.unify_values(&body1, &body2);
 
         self.local_env.truncate(initial_len);
@@ -131,8 +131,8 @@ impl<'env> UnifyCtx<'env> {
             .collect();
         self.local_env.truncate(initial_len);
 
-        let value1 = self.elim_ctx().call_fun_value(rhs_value, args.clone());
-        let value2 = self.elim_ctx().call_fun_closure(lhs_closure, args);
+        let value1 = self.elim_ctx().apply_fun_value(rhs_value, args.clone());
+        let value2 = self.elim_ctx().apply_fun_closure(lhs_closure, args);
         self.local_env.extend(EnvLen(lhs_closure.arity()));
         let result = self.unify_values(&value1, &value2);
         self.local_env.truncate(initial_len);
@@ -356,7 +356,7 @@ impl<'env> UnifyCtx<'env> {
 
         let body = self
             .elim_ctx()
-            .call_fun_closure(&initial_closure, arg_values);
+            .apply_fun_closure(&initial_closure, arg_values);
         let body = self.rename_value(meta_var, &body);
 
         self.renaming

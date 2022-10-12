@@ -104,7 +104,7 @@ impl<'env> EvalCtx<'env> {
             Expr::FunCall(fun, args) => {
                 let fun = self.eval_expr(fun);
                 let args = args.iter().map(|arg| self.eval_expr(arg)).collect();
-                self.elim_ctx().call_fun_value(fun, args)
+                self.elim_ctx().apply_fun_value(fun, args)
             }
             Expr::Match(scrut, branches) => {
                 let scrut = self.eval_expr(scrut);
@@ -130,7 +130,7 @@ impl<'env> EvalCtx<'env> {
         for (source, value) in sources.iter().zip(self.local_env.iter()) {
             head = match source {
                 LocalSource::Def => head,
-                LocalSource::Param => self.elim_ctx().call_fun_value(head, vec![value.clone()]),
+                LocalSource::Param => self.elim_ctx().apply_fun_value(head, vec![value.clone()]),
             }
         }
         head
@@ -216,7 +216,7 @@ impl<'env> EvalCtx<'env> {
                 )),
                 Right(fun) => {
                     let args = args.iter().map(|arg| self.eval_expr(arg)).collect();
-                    Right(self.elim_ctx().call_fun_value(fun, args))
+                    Right(self.elim_ctx().apply_fun_value(fun, args))
                 }
             },
             Expr::Match(scrut, branches) => match self.zonk_spine(scrut) {
@@ -275,23 +275,23 @@ impl<'env> ElimCtx<'env> {
 
     fn apply_spine(&self, head: Arc<Value>, spine: &[Elim]) -> Arc<Value> {
         spine.iter().fold(head, |head, elim| match elim {
-            Elim::FunCall(args) => self.call_fun_value(head, args.clone()),
+            Elim::FunCall(args) => self.apply_fun_value(head, args.clone()),
             Elim::Match(closure) => self.apply_match_closure(head, closure.clone()),
         })
     }
 
-    pub fn call_fun_value(&self, mut fun: Arc<Value>, args: Vec<Arc<Value>>) -> Arc<Value> {
+    pub fn apply_fun_value(&self, mut fun: Arc<Value>, args: Vec<Arc<Value>>) -> Arc<Value> {
         match Arc::make_mut(&mut fun) {
             Value::Stuck(_, spine) => {
                 spine.push(Elim::FunCall(args));
                 fun
             }
-            Value::FunValue(closure) => self.call_fun_closure(closure, args),
+            Value::FunValue(closure) => self.apply_fun_closure(closure, args),
             _ => unreachable!("Cannot call non function value `{fun:?}`"),
         }
     }
 
-    pub fn call_fun_closure(&self, closure: &FunClosure, args: Vec<Arc<Value>>) -> Arc<Value> {
+    pub fn apply_fun_closure(&self, closure: &FunClosure, args: Vec<Arc<Value>>) -> Arc<Value> {
         assert_eq!(closure.arity(), args.len());
         let mut env = closure.env.clone();
         for (arg, value) in closure.args.iter().zip(args.into_iter()) {
@@ -460,7 +460,7 @@ impl<'env> QuoteCtx<'env> {
 
         let body = self
             .elim_ctx()
-            .call_fun_closure(&initial_closure, arg_values);
+            .apply_fun_closure(&initial_closure, arg_values);
         let body = self.quote_value(&body);
         self.local_len.truncate(start_len);
 
