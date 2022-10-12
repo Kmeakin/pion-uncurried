@@ -65,6 +65,7 @@ impl<'env> EvalCtx<'env> {
     }
 
     #[debug_requires(expr.is_closed(self.local_env.len(), self.meta_env.len()))]
+    #[debug_ensures(ret.is_closed(self.local_env.len(), self.meta_env.len()))]
     #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
     pub fn eval_expr(&mut self, expr: &Expr) -> Arc<Value> {
         match expr {
@@ -122,6 +123,9 @@ impl<'env> EvalCtx<'env> {
         }
     }
 
+    #[debug_requires(head.is_closed(self.local_env.len(), self.meta_env.len()))]
+    #[debug_ensures(ret.is_closed(self.local_env.len(), self.meta_env.len()))]
+    #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
     fn apply_local_sources(
         &mut self,
         mut head: Arc<Value>,
@@ -194,6 +198,8 @@ impl<'env> EvalCtx<'env> {
         }
     }
 
+    #[debug_requires(expr.is_closed(self.local_env.len(), self.meta_env.len()))]
+    #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
     fn zonk_spine(&mut self, expr: &Expr) -> Either<Expr, Arc<Value>> {
         match expr {
             Expr::Meta(var) => match self.meta_env.get(*var) {
@@ -291,8 +297,8 @@ impl<'env> ElimCtx<'env> {
         }
     }
 
+    #[debug_requires(closure.arity() == args.len())]
     pub fn apply_fun_closure(&self, closure: &FunClosure, args: Vec<Arc<Value>>) -> Arc<Value> {
-        assert_eq!(closure.arity(), args.len());
         let mut env = closure.env.clone();
         let mut eval_ctx = self.eval_ctx(&mut env);
         for (arg, value) in closure.args.iter().zip(args.into_iter()) {
@@ -395,6 +401,7 @@ impl<'env> QuoteCtx<'env> {
 
     fn elim_ctx(&self) -> ElimCtx { ElimCtx::new(self.meta_env, self.db, self.flags) }
 
+    #[debug_requires(value.is_closed(self.local_len, self.meta_env.len()))]
     #[debug_ensures(self.local_len == old(self.local_len))]
     #[debug_ensures(ret.is_closed(self.local_len, self.meta_env.len()))]
     pub fn quote_value(&mut self, value: &Value) -> Expr {
@@ -439,6 +446,7 @@ impl<'env> QuoteCtx<'env> {
         }
     }
 
+    #[debug_requires(closure.is_closed(self.meta_env.len()))]
     #[debug_ensures(self.local_len == old(self.local_len))]
     fn quote_closure(&mut self, closure: &FunClosure) -> (Arc<[FunArg<Expr>]>, Expr) {
         let start_len = self.local_len;
