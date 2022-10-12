@@ -499,7 +499,7 @@ mod subst {
                             unreachable!()
                         }
                     }
-                    _ => todo!("Cannot subst {value:?} into {pat:?}"),
+                    _ => unreachable!("Cannot subst {value:?} into {pat:?}"),
                 },
             }
         }
@@ -537,7 +537,7 @@ mod subst {
                 (Pat::Variant(variant, pats), ..) => {
                     let EnumVariant { args, .. } = elab_enum_variant(self.db, *variant);
                     if args.len() != pats.len() {
-                        todo!("pattern arity mismatch")
+                        unreachable!("pattern arity mismatch")
                     }
 
                     for (pat, _arg) in pats.iter().zip(args.iter()) {
