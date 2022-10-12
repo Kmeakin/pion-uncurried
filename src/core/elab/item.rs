@@ -1,6 +1,7 @@
 #![allow(clippy::needless_borrow)]
 
 use super::*;
+use crate::core::semantics::binders::IsClosed;
 use crate::ir::lower_file;
 
 #[salsa::tracked]

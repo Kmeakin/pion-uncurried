@@ -1,3 +1,4 @@
+use super::semantics::binders::IsClosed;
 use super::*;
 
 #[derive(Debug, Clone, PartialEq, Eq)]

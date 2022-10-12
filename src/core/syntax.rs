@@ -55,40 +55,6 @@ pub enum Expr {
 impl Expr {
     pub const ERROR: Self = Self::Prim(Prim::Error);
     pub const TYPE: Self = Self::Prim(Prim::Type);
-
-    /// Returns true if `self` is "closed" with respect to `local_len` and
-    /// `meta_len` - ie `self` would not have any unbound local or meta
-    /// variables when evaluated in a local environment of length `local_len`
-    /// and a meta environment of length `local_len`.
-    pub fn is_closed(&self, mut local_len: EnvLen, meta_len: EnvLen) -> bool {
-        match self {
-            Self::Prim(_) | Self::Lit(_) | Self::Global(_) => true,
-            Self::Local(var) => var.0 < local_len.0,
-            Self::Meta(var) | Self::MetaInsertion(var, ..) => var.0 < meta_len.0,
-            Self::FunType(args, ret) | Self::FunExpr(args, ret) => {
-                args.iter().all(|FunArg { pat, r#type }| {
-                    let ret = r#type.is_closed(local_len, meta_len);
-                    local_len.subst_pat(pat);
-                    ret
-                }) && ret.is_closed(local_len, meta_len)
-            }
-            Self::FunCall(fun, args) => {
-                fun.is_closed(local_len, meta_len)
-                    && args.iter().all(|arg| arg.is_closed(local_len, meta_len))
-            }
-            Self::Let(pat, r#type, init, body) => {
-                r#type.is_closed(local_len, meta_len)
-                    && init.is_closed(local_len, meta_len)
-                    && body.is_closed(local_len + pat.num_binders(), meta_len)
-            }
-            Self::Match(scrut, branches) => {
-                scrut.is_closed(local_len, meta_len)
-                    && branches
-                        .iter()
-                        .all(|(pat, expr)| expr.is_closed(local_len + pat.num_binders(), meta_len))
-            }
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -153,26 +119,6 @@ impl Value {
         Self::Stuck(Head::Global(GlobalVar::Variant(def)), Vec::new())
     }
     pub const fn global(var: GlobalVar) -> Self { Self::Stuck(Head::Global(var), Vec::new()) }
-
-    pub fn is_closed(&self, local_len: EnvLen, meta_len: EnvLen) -> bool {
-        match self {
-            Self::Lit(_) => true,
-            Self::Stuck(head, spine) => {
-                let head = match head {
-                    Head::Prim(_) | Head::Global(_) => true,
-                    Head::Local(var) => var.0 < local_len.0,
-                    Head::Meta(var) => var.0 < meta_len.0,
-                };
-                head && spine.iter().all(|elim| match elim {
-                    Elim::FunCall(args) => {
-                        args.iter().all(|arg| arg.is_closed(local_len, meta_len))
-                    }
-                    Elim::Match(closure) => closure.is_closed(meta_len),
-                })
-            }
-            Self::FunType(closure) | Self::FunValue(closure) => closure.is_closed(meta_len),
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -196,21 +142,21 @@ pub struct FunClosure {
     pub body: Arc<Expr>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Telescope<Type>(Arc<[(Pat, Type)]>);
+
+impl<Type> Telescope<Type> {
+    pub fn new(params: Arc<[(Pat, Type)]>) -> Self { Self(params) }
+    pub fn len(&self) -> usize { self.0.len() }
+    pub fn is_empty(&self) -> bool { self.len() == 0 }
+}
+
 impl FunClosure {
     pub fn new(env: SharedEnv<Arc<Value>>, args: Arc<[FunArg<Expr>]>, body: Arc<Expr>) -> Self {
         Self { env, args, body }
     }
 
     pub fn arity(&self) -> usize { self.args.len() }
-
-    pub fn is_closed(&self, meta_len: EnvLen) -> bool {
-        let mut local_len = self.env.len();
-        self.args.iter().all(|FunArg { pat, r#type }| {
-            let ret = r#type.is_closed(local_len, meta_len);
-            local_len.subst_pat(pat);
-            ret
-        }) && self.body.is_closed(local_len, meta_len)
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -227,15 +173,6 @@ impl MatchClosure {
     pub fn len(&self) -> usize { self.branches.len() }
 
     pub fn is_empty(&self) -> bool { self.len() == 0 }
-
-    pub fn is_closed(&self, meta_len: EnvLen) -> bool {
-        let mut local_len = self.env.len();
-        self.branches.iter().all(|(pat, expr)| {
-            let ret = expr.is_closed(local_len, meta_len);
-            local_len.subst_pat(pat);
-            ret
-        })
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

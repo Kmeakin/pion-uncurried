@@ -3,6 +3,7 @@ use std::sync::Arc;
 use contracts::{debug_ensures, debug_requires};
 
 use super::env::{LocalSource, NameSource, UniqueEnv, VarLevel};
+use super::semantics::binders::IsClosed;
 use super::syntax::*;
 use crate::surface;
 

@@ -4,10 +4,12 @@ use contracts::{debug_ensures, debug_requires};
 use either::Either;
 use either::Either::*;
 
+use self::binders::IsClosed;
 use super::elab::{elab_enum_variant, eval_let_def_expr};
 use super::env::{EnvLen, LocalSource, SharedEnv, UniqueEnv};
 use super::syntax::*;
 
+pub mod binders;
 pub mod subst;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -453,7 +455,7 @@ impl<'env> QuoteCtx<'env> {
         }
     }
 
-    #[debug_requires(closure.is_closed(self.meta_env.len()))]
+    #[debug_requires(closure.is_closed((), self.meta_env.len()))]
     #[debug_ensures(self.local_len == old(self.local_len))]
     fn quote_closure(&mut self, closure: &FunClosure) -> (Arc<[FunArg<Expr>]>, Expr) {
         let start_len = self.local_len;
