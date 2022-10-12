@@ -52,20 +52,6 @@ pub enum Expr {
     Let(Arc<Pat>, Arc<Self>, Arc<Self>, Arc<Self>),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Prim {
-    Error,
-    Type,
-    BoolType,
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub enum GlobalVar {
-    Let(ir::LetDef),
-    Enum(ir::EnumDef),
-    Variant(ir::EnumVariant),
-}
-
 impl Expr {
     pub const ERROR: Self = Self::Prim(Prim::Error);
     pub const TYPE: Self = Self::Prim(Prim::Type);
@@ -82,7 +68,7 @@ impl Expr {
             Self::FunType(args, ret) | Self::FunExpr(args, ret) => {
                 args.iter().all(|FunArg { pat, ty }| {
                     let ret = ty.is_closed(local_len, meta_len);
-                    local_len += pat.num_binders();
+                    local_len.subst_pat(pat);
                     ret
                 }) && ret.is_closed(local_len, meta_len)
             }
@@ -103,6 +89,20 @@ impl Expr {
             }
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Prim {
+    Error,
+    Type,
+    BoolType,
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum GlobalVar {
+    Let(ir::LetDef),
+    Enum(ir::EnumDef),
+    Variant(ir::EnumVariant),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -153,6 +153,26 @@ impl Value {
         Self::Stuck(Head::Global(GlobalVar::Variant(def)), Vec::new())
     }
     pub const fn global(var: GlobalVar) -> Self { Self::Stuck(Head::Global(var), Vec::new()) }
+
+    pub fn is_closed(&self, local_len: EnvLen, meta_len: EnvLen) -> bool {
+        match self {
+            Self::Lit(_) => true,
+            Self::Stuck(head, spine) => {
+                let head = match head {
+                    Head::Prim(_) | Head::Global(_) => true,
+                    Head::Local(var) => var.0 < local_len.0,
+                    Head::Meta(var) => var.0 < meta_len.0,
+                };
+                head && spine.iter().all(|elim| match elim {
+                    Elim::FunCall(args) => {
+                        args.iter().all(|arg| arg.is_closed(local_len, meta_len))
+                    }
+                    Elim::Match(closure) => closure.is_closed(meta_len),
+                })
+            }
+            Self::FunType(closure) | Self::FunValue(closure) => closure.is_closed(meta_len),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -182,6 +202,15 @@ impl FunClosure {
     }
 
     pub fn arity(&self) -> usize { self.args.len() }
+
+    pub fn is_closed(&self, meta_len: EnvLen) -> bool {
+        let mut local_len = self.env.len();
+        self.args.iter().all(|FunArg { pat, ty }| {
+            let ret = ty.is_closed(local_len, meta_len);
+            local_len.subst_pat(pat);
+            ret
+        }) && self.body.is_closed(local_len, meta_len)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -198,6 +227,15 @@ impl MatchClosure {
     pub fn len(&self) -> usize { self.branches.len() }
 
     pub fn is_empty(&self) -> bool { self.len() == 0 }
+
+    pub fn is_closed(&self, meta_len: EnvLen) -> bool {
+        let mut local_len = self.env.len();
+        self.branches.iter().all(|(pat, expr)| {
+            let ret = expr.is_closed(local_len, meta_len);
+            local_len.subst_pat(pat);
+            ret
+        })
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
