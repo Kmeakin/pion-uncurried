@@ -121,8 +121,11 @@ impl ElabCtx<'_> {
                 self.local_env.truncate(initial_len);
 
                 let fun_core = Expr::FunExpr(fun_args.clone(), Arc::new(body_core));
-                let closure =
-                    FunClosure::new(self.local_env.values.clone(), fun_args, Arc::new(ret_type));
+                let closure = FunClosure::new(
+                    self.local_env.values.clone(),
+                    Telescope(fun_args),
+                    Arc::new(ret_type),
+                );
                 let fun_type = Value::FunType(closure);
                 SynthExpr(fun_core, Arc::new(fun_type))
             }

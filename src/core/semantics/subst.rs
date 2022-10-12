@@ -53,6 +53,16 @@ impl EvalCtx<'_> {
     pub fn subst_value_into_pat(&mut self, pat: &Pat, value: Arc<Value>) {
         self.local_env.subst_value_into_pat(pat, value)
     }
+
+    pub fn subst_values_into_telescope(
+        &mut self,
+        telescope: &Telescope<Expr>,
+        values: impl IntoIterator<Item = Arc<Value>>,
+    ) {
+        for (arg, value) in telescope.iter().zip(values.into_iter()) {
+            self.subst_value_into_pat(&arg.pat, value);
+        }
+    }
 }
 
 impl UnelabCtx<'_> {

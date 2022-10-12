@@ -251,7 +251,7 @@ pub fn synth_enum_def_expr(db: &dyn crate::Db, ir: ir::EnumDef) -> Arc<Value> {
         0 => ret_type.1,
         _ => Arc::new(Value::FunType(FunClosure::new(
             SharedEnv::new(),
-            args,
+            Telescope(args),
             Arc::new(ret_type.0),
         ))),
     }
@@ -294,21 +294,23 @@ pub fn synth_enum_variant_expr(db: &dyn crate::Db, ir: ir::EnumVariant) -> Arc<V
         (0, 0) => ret_type.1,
         (_, 0) => Arc::new(Value::FunType(FunClosure::new(
             SharedEnv::new(),
-            parent_args,
+            Telescope(parent_args),
             Arc::new(ret_type.0),
         ))),
         (0, _) => Arc::new(Value::FunType(FunClosure::new(
             SharedEnv::new(),
-            variant_args,
+            Telescope(variant_args),
             Arc::new(ret_type.0),
         ))),
         (..) => Arc::new(Value::FunType(FunClosure::new(
             SharedEnv::new(),
-            parent_args
-                .iter()
-                .chain(variant_args.iter())
-                .cloned()
-                .collect(),
+            Telescope(
+                parent_args
+                    .iter()
+                    .chain(variant_args.iter())
+                    .cloned()
+                    .collect(),
+            ),
             Arc::new(ret_type.0),
         ))),
     }

@@ -138,21 +138,22 @@ pub enum Elim {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FunClosure {
     pub env: SharedEnv<Arc<Value>>,
-    pub args: Arc<[FunArg<Expr>]>,
+    pub args: Telescope<Expr>,
     pub body: Arc<Expr>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Telescope<Type>(Arc<[(Pat, Type)]>);
+pub struct Telescope<Type>(pub Arc<[FunArg<Type>]>);
 
 impl<Type> Telescope<Type> {
-    pub fn new(params: Arc<[(Pat, Type)]>) -> Self { Self(params) }
+    pub fn new(args: Arc<[FunArg<Type>]>) -> Self { Self(args) }
     pub fn len(&self) -> usize { self.0.len() }
     pub fn is_empty(&self) -> bool { self.len() == 0 }
+    pub fn iter(&self) -> impl ExactSizeIterator<Item = &FunArg<Type>> { self.0.iter() }
 }
 
 impl FunClosure {
-    pub fn new(env: SharedEnv<Arc<Value>>, args: Arc<[FunArg<Expr>]>, body: Arc<Expr>) -> Self {
+    pub fn new(env: SharedEnv<Arc<Value>>, args: Telescope<Expr>, body: Arc<Expr>) -> Self {
         Self { env, args, body }
     }
 

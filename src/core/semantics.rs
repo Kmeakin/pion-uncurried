@@ -99,11 +99,16 @@ impl<'env> EvalCtx<'env> {
                 self.apply_local_sources(head, sources)
             }
             Expr::FunType(args, ret) => {
-                let closure = FunClosure::new(self.local_env.clone(), args.clone(), ret.clone());
+                let closure =
+                    FunClosure::new(self.local_env.clone(), Telescope(args.clone()), ret.clone());
                 Arc::new(Value::FunType(closure))
             }
             Expr::FunExpr(args, body) => {
-                let closure = FunClosure::new(self.local_env.clone(), args.clone(), body.clone());
+                let closure = FunClosure::new(
+                    self.local_env.clone(),
+                    Telescope(args.clone()),
+                    body.clone(),
+                );
                 Arc::new(Value::FunValue(closure))
             }
             Expr::FunCall(fun, args) => {
@@ -310,9 +315,7 @@ impl<'env> ElimCtx<'env> {
     pub fn apply_fun_closure(&self, closure: &FunClosure, args: Vec<Arc<Value>>) -> Arc<Value> {
         let mut env = closure.env.clone();
         let mut eval_ctx = self.eval_ctx(&mut env);
-        for (arg, value) in closure.args.iter().zip(args.into_iter()) {
-            eval_ctx.subst_value_into_pat(&arg.pat, value);
-        }
+        eval_ctx.subst_values_into_telescope(&closure.args, args);
         eval_ctx.eval_expr(&closure.body)
     }
 
@@ -350,7 +353,7 @@ impl<'env> ElimCtx<'env> {
         &self,
         mut closure: FunClosure,
     ) -> Option<(FunArg<Arc<Value>>, impl FnOnce(Arc<Value>) -> FunClosure)> {
-        let (FunArg { pat, r#type }, args) = closure.args.split_first()?;
+        let (FunArg { pat, r#type }, args) = closure.args.0.split_first()?;
         let pat = pat.clone();
         let args = Arc::from(args);
         let r#type = self.eval_ctx(&mut closure.env).eval_expr(r#type);
@@ -361,7 +364,7 @@ impl<'env> ElimCtx<'env> {
         };
         let cont = move |prev| {
             closure.env.subst_value_into_pat(&pat, prev);
-            closure.args = args;
+            closure.args = Telescope(args);
             closure
         };
         Some((arg, cont))
