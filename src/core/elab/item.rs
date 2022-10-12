@@ -21,33 +21,32 @@ pub fn elab_module(db: &dyn crate::Db, ir: ir::Module) -> Module {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LetDefSig {
-    ty: (Expr, Arc<Value>),
+    r#type: (Expr, Arc<Value>),
     subst: (LocalEnv, MetaEnv, PartialRenaming),
 }
 
 #[salsa::tracked]
 pub fn let_def_sig(db: &dyn crate::Db, ir: ir::LetDef) -> LetDefSig {
     let mut ctx = ElabCtx::new(db, ir.file(db));
-    let surface::LetDef { ty, .. } = ir.surface(db);
+    let surface::LetDef { type_: r#type, .. } = ir.surface(db);
 
-    let (type_expr, type_value) = match ty {
-        Some(ty) => {
-            let CheckExpr(type_expr) = ctx.check_expr_is_type(&ty);
+    let (type_expr, type_value) = match r#type {
+        Some(r#type) => {
+            let CheckExpr(type_expr) = ctx.check_expr_is_type(&r#type);
             let type_value = ctx.eval_ctx().eval_expr(&type_expr);
             (type_expr, type_value)
         }
         None => {
             let name = ctx.name_source.fresh();
             let source = MetaSource::Error;
-            let ty = Arc::new(Value::TYPE);
-            let type_expr = ctx.push_meta_expr(name, source, ty);
+            let type_expr = ctx.push_meta_expr(name, source, Arc::new(Value::TYPE));
             let type_value = ctx.eval_ctx().eval_expr(&type_expr);
             (type_expr, type_value)
         }
     };
 
     LetDefSig {
-        ty: (type_expr, type_value),
+        r#type: (type_expr, type_value),
         subst: (ctx.local_env, ctx.meta_env, ctx.renaming),
     }
 }
@@ -58,7 +57,7 @@ pub fn elab_let_def(db: &dyn crate::Db, ir: ir::LetDef) -> LetDef {
     let name = Symbol::new(db, name.to_owned());
 
     let LetDefSig {
-        ty: (type_expr, type_value),
+        r#type: (type_expr, type_value),
         subst,
     } = let_def_sig(db, ir);
     let mut ctx = ElabCtx::new(db, ir.file(db));
@@ -91,15 +90,15 @@ pub fn elab_let_def(db: &dyn crate::Db, ir: ir::LetDef) -> LetDef {
     LetDef {
         name,
         body: (body_expr, body_value),
-        ty: (type_expr, type_value),
+        r#type: (type_expr, type_value),
     }
 }
 
 #[salsa::tracked]
 /// Synthesise the type of an `Expr::EnumDef(ir)`
 pub fn synth_let_def_expr(db: &dyn crate::Db, ir: ir::LetDef) -> Arc<Value> {
-    let LetDef { ty, .. } = elab_let_def(db, ir);
-    ty.1
+    let LetDef { r#type, .. } = elab_let_def(db, ir);
+    r#type.1
 }
 
 #[salsa::tracked]
@@ -133,7 +132,7 @@ pub fn enum_def_sig(db: &dyn crate::Db, ir: ir::EnumDef) -> EnumDefSig {
             ctx.subst_pat(&pat_core, type_value, None);
             FunArg {
                 pat: pat_core,
-                ty: type_core,
+                r#type: type_core,
             }
         })
         .collect();
@@ -211,7 +210,7 @@ pub fn elab_enum_def(db: &dyn crate::Db, ir: ir::EnumDef) -> EnumDef {
                     ctx.subst_pat(&pat_core, type_value, None);
                     FunArg {
                         pat: pat_core,
-                        ty: type_core,
+                        r#type: type_core,
                     }
                 })
                 .collect();

@@ -156,12 +156,12 @@ impl<'env> EvalCtx<'env> {
                 let initial_len = self.local_env.len();
                 let args = args
                     .iter()
-                    .map(|arg| {
-                        let ty = self.zonk_expr(&arg.ty);
-                        self.subst_arg_into_pat(&arg.pat);
+                    .map(|FunArg { pat, r#type }| {
+                        let r#type = self.zonk_expr(&r#type);
+                        self.subst_arg_into_pat(&pat);
                         FunArg {
-                            pat: arg.pat.clone(),
-                            ty,
+                            pat: pat.clone(),
+                            r#type,
                         }
                     })
                     .collect();
@@ -173,12 +173,12 @@ impl<'env> EvalCtx<'env> {
                 let initial_len = self.local_env.len();
                 let args = args
                     .iter()
-                    .map(|arg| {
-                        let ty = self.zonk_expr(&arg.ty);
-                        self.subst_arg_into_pat(&arg.pat);
+                    .map(|FunArg { pat, r#type }| {
+                        let r#type = self.zonk_expr(&r#type);
+                        self.subst_arg_into_pat(&pat);
                         FunArg {
-                            pat: arg.pat.clone(),
-                            ty,
+                            pat: pat.clone(),
+                            r#type,
                         }
                     })
                     .collect();
@@ -186,14 +186,19 @@ impl<'env> EvalCtx<'env> {
                 self.local_env.truncate(initial_len);
                 Expr::FunExpr(args, Arc::new(body))
             }
-            Expr::Let(pat, ty, init, body) => {
+            Expr::Let(pat, r#type, init, body) => {
                 let initial_len = self.local_env.len();
-                let ty = self.zonk_expr(ty);
+                let r#type = self.zonk_expr(r#type);
                 let init = self.zonk_expr(init);
                 self.subst_arg_into_pat(pat);
                 let body = self.zonk_expr(body);
                 self.local_env.truncate(initial_len);
-                Expr::Let(pat.clone(), Arc::new(ty), Arc::new(init), Arc::new(body))
+                Expr::Let(
+                    pat.clone(),
+                    Arc::new(r#type),
+                    Arc::new(init),
+                    Arc::new(body),
+                )
             }
         }
     }
@@ -341,14 +346,14 @@ impl<'env> ElimCtx<'env> {
         &self,
         mut closure: FunClosure,
     ) -> Option<(FunArg<Arc<Value>>, impl FnOnce(Arc<Value>) -> FunClosure)> {
-        let (FunArg { pat, ty }, args) = closure.args.split_first()?;
+        let (FunArg { pat, r#type }, args) = closure.args.split_first()?;
         let pat = pat.clone();
         let args = Arc::from(args);
-        let ty = self.eval_ctx(&mut closure.env).eval_expr(ty);
+        let r#type = self.eval_ctx(&mut closure.env).eval_expr(r#type);
 
         let arg = FunArg {
             pat: pat.clone(),
-            ty,
+            r#type,
         };
         let cont = move |prev| {
             closure.env.subst_value_into_pat(&pat, prev);
@@ -456,14 +461,17 @@ impl<'env> QuoteCtx<'env> {
         let mut fun_args = Vec::with_capacity(closure.arity());
         let mut arg_values = Vec::with_capacity(closure.arity());
 
-        while let Some((FunArg { pat, ty }, cont)) =
+        while let Some((FunArg { pat, r#type }, cont)) =
             self.elim_ctx().split_fun_closure(closure.clone())
         {
             let arg_value = Arc::new(Value::local(self.local_len.to_level()));
             closure = cont(arg_value.clone());
-            let type_core = self.quote_value(&ty);
+            let type_core = self.quote_value(&r#type);
             self.local_len.subst_pat(&pat);
-            fun_args.push(FunArg { pat, ty: type_core });
+            fun_args.push(FunArg {
+                pat,
+                r#type: type_core,
+            });
             arg_values.push(arg_value);
         }
 
@@ -549,18 +557,18 @@ mod subst {
 
     impl ElabCtx<'_> {
         #[debug_ensures(self.local_env.len() == old(self.local_env.len()) + pat.num_binders())]
-        pub fn subst_pat(&mut self, pat: &Pat, ty: Arc<Value>, value: Option<Arc<Value>>) {
-            match (pat, ty.as_ref(), value.as_ref()) {
+        pub fn subst_pat(&mut self, pat: &Pat, r#type: Arc<Value>, value: Option<Arc<Value>>) {
+            match (pat, r#type.as_ref(), value.as_ref()) {
                 (Pat::Error, ..) => {
-                    self.local_env.push(VarName::Underscore, ty, value);
+                    self.local_env.push(VarName::Underscore, r#type, value);
                 }
                 (Pat::Name(name), ..) => {
-                    self.local_env.push(*name, ty, value);
+                    self.local_env.push(*name, r#type, value);
                 }
                 (Pat::Lit(lit), ..) => {
                     let pat_value = Arc::new(Value::Lit(lit.clone()));
                     let name = self.name_source.fresh();
-                    self.local_env.push(name, ty, Some(pat_value));
+                    self.local_env.push(name, r#type, Some(pat_value));
                 }
                 (Pat::Variant(variant, pats), ..) => {
                     let EnumVariant { args, .. } = elab_enum_variant(self.db, *variant);
@@ -568,8 +576,8 @@ mod subst {
                         unreachable!("pattern arity mismatch")
                     }
 
-                    for (pat, _arg) in pats.iter().zip(args.iter()) {
-                        // let type_value = self.eval_ctx().eval_expr(&arg.ty);
+                    for (pat, _) in pats.iter().zip(args.iter()) {
+                        // let type_value = self.eval_ctx().eval_expr(&arg.r#type);
                         let type_value = Arc::new(Value::ERROR);
                         self.subst_pat(pat, type_value, None);
                     }

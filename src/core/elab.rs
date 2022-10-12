@@ -198,8 +198,13 @@ impl ElabCtx<'_> {
         )
     }
 
-    pub fn push_meta_expr(&mut self, name: VarName, source: MetaSource, ty: Arc<Value>) -> Expr {
-        let var = self.meta_env.push(name, source, ty);
+    pub fn push_meta_expr(
+        &mut self,
+        name: VarName,
+        source: MetaSource,
+        r#type: Arc<Value>,
+    ) -> Expr {
+        let var = self.meta_env.push(name, source, r#type);
         Expr::MetaInsertion(var, self.local_env.sources.clone())
     }
 
@@ -207,9 +212,9 @@ impl ElabCtx<'_> {
         &mut self,
         name: VarName,
         source: MetaSource,
-        ty: Arc<Value>,
+        r#type: Arc<Value>,
     ) -> Arc<Value> {
-        let expr = self.push_meta_expr(name, source, ty);
+        let expr = self.push_meta_expr(name, source, r#type);
         self.eval_ctx().eval_expr(&expr)
     }
 

@@ -96,7 +96,7 @@ impl<'env> UnifyCtx<'env> {
             self.elim_ctx().split_fun_closure(closure1.clone()),
             self.elim_ctx().split_fun_closure(closure2.clone()),
         ) {
-            match self.unify_values(&arg1.ty, &arg2.ty) {
+            match self.unify_values(&arg1.r#type, &arg2.r#type) {
                 Ok(_) => {}
                 Err(err) => {
                     self.local_env.truncate(initial_len);
@@ -311,7 +311,7 @@ impl<'env> UnifyCtx<'env> {
                 // TODO: what should the introduced args be?
                 let args: Vec<_> = std::iter::repeat_with(|| FunArg {
                     pat: Pat::Error,
-                    ty: Expr::ERROR,
+                    r#type: Expr::ERROR,
                 })
                 .take(arity)
                 .collect();
@@ -336,20 +336,20 @@ impl<'env> UnifyCtx<'env> {
         let mut fun_args = Vec::with_capacity(closure.arity());
         let mut arg_values = Vec::with_capacity(closure.arity());
 
-        while let Some((FunArg { pat, ty }, cont)) =
+        while let Some((FunArg { pat, r#type }, cont)) =
             self.elim_ctx().split_fun_closure(closure.clone())
         {
             let arg_value = self.renaming.next_local_var();
             closure = cont(arg_value.clone());
-            let ty = match self.rename_value(meta_var, &ty) {
-                Ok(ty) => ty,
+            let r#type = match self.rename_value(meta_var, &r#type) {
+                Ok(r#type) => r#type,
                 Err(err) => {
                     self.renaming
                         .truncate(initial_source_len, initial_target_len);
                     return Err(err);
                 }
             };
-            fun_args.push(FunArg { pat, ty });
+            fun_args.push(FunArg { pat, r#type });
             arg_values.push(arg_value);
             self.renaming.push_local();
         }

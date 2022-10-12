@@ -48,15 +48,19 @@ impl<'a> PrettyCtx {
     }
 
     pub fn pretty_let_def<Span>(&'a self, let_def: &LetDef<Span>) -> DocBuilder<'a> {
-        let LetDef { name, ty, body } = let_def;
-        let ty = self.pretty_type_annotation(ty);
+        let LetDef {
+            name,
+            type_: r#type,
+            body,
+        } = let_def;
+        let r#type = self.pretty_type_annotation(r#type);
         let body = self.pretty_expr(body);
         docs!(
             self,
             "let",
             self.space(),
             name.clone(),
-            ty,
+            r#type,
             self.space(),
             "=",
             self.space(),
@@ -69,7 +73,7 @@ impl<'a> PrettyCtx {
         let EnumDef {
             name,
             args,
-            ret_type: ty,
+            ret_type,
             variants,
         } = enum_def;
         let pats = args.iter().map(|pat| self.pretty_ann_pat(pat));
@@ -80,7 +84,7 @@ impl<'a> PrettyCtx {
         } else {
             docs!(self, "(", pats, ")")
         };
-        let ty = self.pretty_type_annotation(ty);
+        let ret_type = self.pretty_type_annotation(ret_type);
         let variants_empty = variants.is_empty();
         let variants = variants.iter().map(|variant| {
             let variant = self.pretty_enum_variant(variant);
@@ -92,7 +96,7 @@ impl<'a> PrettyCtx {
             self.space(),
             name.clone(),
             pats,
-            ty,
+            ret_type,
             self.space(),
             "{",
             self.concat(variants).nest(INDENT),
@@ -105,7 +109,7 @@ impl<'a> PrettyCtx {
         let EnumVariant {
             name,
             args,
-            ret_type: ty,
+            ret_type,
         } = enum_variant;
         let pats = args.iter().map(|pat| self.pretty_ann_pat(pat));
         let sep = docs!(self, ",", self.space());
@@ -115,8 +119,8 @@ impl<'a> PrettyCtx {
         } else {
             docs!(self, "(", pats, ")")
         };
-        let ty = self.pretty_type_annotation(ty);
-        docs!(self, name.clone(), pats, ty)
+        let ret_type = self.pretty_type_annotation(ret_type);
+        docs!(self, name.clone(), pats, ret_type)
     }
 
     pub fn pretty_expr<Span>(&'a self, expr: &Expr<Span>) -> DocBuilder<'a> {
@@ -257,17 +261,17 @@ impl<'a> PrettyCtx {
     }
 
     pub fn pretty_ann_pat<Span>(&self, pat: &AnnPat<Span>) -> DocBuilder {
-        let AnnPat { pat, ty } = pat;
+        let AnnPat { pat, type_: r#type } = pat;
         let pat = self.pretty_pat(pat);
-        let ty = self.pretty_type_annotation(ty);
-        docs!(self, pat, ty)
+        let r#type = self.pretty_type_annotation(r#type);
+        docs!(self, pat, r#type)
     }
 
-    fn pretty_type_annotation<Span>(&'a self, ty: &Option<Expr<Span>>) -> DocBuilder {
-        let ty = ty
+    fn pretty_type_annotation<Span>(&'a self, r#type: &Option<Expr<Span>>) -> DocBuilder {
+        let r#type = r#type
             .as_ref()
-            .map(|ty| docs!(self, ":", self.space(), self.pretty_expr(ty)));
-        docs!(self, ty)
+            .map(|r#type| docs!(self, ":", self.space(), self.pretty_expr(r#type)));
+        docs!(self, r#type)
     }
 
     pub fn pretty_lit<Span>(&'a self, lit: &Lit<Span>) -> DocBuilder<'a> {

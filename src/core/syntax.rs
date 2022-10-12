@@ -18,7 +18,7 @@ pub enum Item {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LetDef {
     pub name: Symbol,
-    pub ty: (Expr, Arc<Value>),
+    pub r#type: (Expr, Arc<Value>),
     pub body: (Expr, Arc<Value>),
 }
 
@@ -66,8 +66,8 @@ impl Expr {
             Self::Local(var) => var.0 < local_len.0,
             Self::Meta(var) | Self::MetaInsertion(var, ..) => var.0 < meta_len.0,
             Self::FunType(args, ret) | Self::FunExpr(args, ret) => {
-                args.iter().all(|FunArg { pat, ty }| {
-                    let ret = ty.is_closed(local_len, meta_len);
+                args.iter().all(|FunArg { pat, r#type }| {
+                    let ret = r#type.is_closed(local_len, meta_len);
                     local_len.subst_pat(pat);
                     ret
                 }) && ret.is_closed(local_len, meta_len)
@@ -76,8 +76,8 @@ impl Expr {
                 fun.is_closed(local_len, meta_len)
                     && args.iter().all(|arg| arg.is_closed(local_len, meta_len))
             }
-            Self::Let(pat, ty, init, body) => {
-                ty.is_closed(local_len, meta_len)
+            Self::Let(pat, r#type, init, body) => {
+                r#type.is_closed(local_len, meta_len)
                     && init.is_closed(local_len, meta_len)
                     && body.is_closed(local_len + pat.num_binders(), meta_len)
             }
@@ -108,7 +108,7 @@ pub enum GlobalVar {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FunArg<Type> {
     pub pat: Pat,
-    pub ty: Type,
+    pub r#type: Type,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -205,8 +205,8 @@ impl FunClosure {
 
     pub fn is_closed(&self, meta_len: EnvLen) -> bool {
         let mut local_len = self.env.len();
-        self.args.iter().all(|FunArg { pat, ty }| {
-            let ret = ty.is_closed(local_len, meta_len);
+        self.args.iter().all(|FunArg { pat, r#type }| {
+            let ret = r#type.is_closed(local_len, meta_len);
             local_len.subst_pat(pat);
             ret
         }) && self.body.is_closed(local_len, meta_len)

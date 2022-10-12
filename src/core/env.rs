@@ -212,7 +212,12 @@ impl LocalEnv {
         self.types.pop();
     }
 
-    pub fn push(&mut self, name: VarName, ty: Arc<Value>, value: Option<Arc<Value>>) -> Arc<Value> {
+    pub fn push(
+        &mut self,
+        name: VarName,
+        r#type: Arc<Value>,
+        value: Option<Arc<Value>>,
+    ) -> Arc<Value> {
         let (source, value) = match value {
             Some(value) => (LocalSource::Def, value),
             None => (
@@ -222,17 +227,17 @@ impl LocalEnv {
         };
         self.names.push(name);
         self.sources.push(source);
-        self.types.push(ty);
+        self.types.push(r#type);
         self.values.push(value.clone());
         value
     }
 
-    pub fn push_def(&mut self, name: VarName, ty: Arc<Value>, value: Arc<Value>) -> Arc<Value> {
-        self.push(name, ty, Some(value))
+    pub fn push_def(&mut self, name: VarName, r#type: Arc<Value>, value: Arc<Value>) -> Arc<Value> {
+        self.push(name, r#type, Some(value))
     }
 
-    pub fn push_param(&mut self, name: VarName, ty: Arc<Value>) -> Arc<Value> {
-        self.push(name, ty, None)
+    pub fn push_param(&mut self, name: VarName, r#type: Arc<Value>) -> Arc<Value> {
+        self.push(name, r#type, None)
     }
 
     pub fn truncate(&mut self, len: EnvLen) {
@@ -254,8 +259,8 @@ impl LocalEnv {
                 _ => false,
             })
             .map(|(index, _)| VarIndex(index))?;
-        let ty = self.types.get(index)?;
-        Some((index, ty.clone()))
+        let r#type = self.types.get(index)?;
+        Some((index, r#type.clone()))
     }
 }
 
@@ -280,11 +285,11 @@ impl MetaEnv {
         }
     }
 
-    pub fn push(&mut self, name: VarName, source: MetaSource, ty: Arc<Value>) -> VarLevel {
+    pub fn push(&mut self, name: VarName, source: MetaSource, r#type: Arc<Value>) -> VarLevel {
         let var = self.values.len().to_level();
         self.names.push(name);
         self.sources.push(source);
-        self.types.push(ty);
+        self.types.push(r#type);
         self.values.push(None);
         var
     }

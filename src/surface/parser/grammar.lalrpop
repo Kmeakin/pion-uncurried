@@ -52,7 +52,7 @@ pub Item: Item<Span> = {
 }
 
 pub LetDef: LetDef<Span> = {
-    "let" <name: Name> <ty: (":" <Expr>)?> "=" <body: Expr> ";" => LetDef {name, ty, body},
+    "let" <name: Name> <type_: (":" <Expr>)?> "=" <body: Expr> ";" => LetDef {name, type_, body},
 }
 
 pub EnumDef: EnumDef<Span> = {
@@ -106,7 +106,7 @@ pub Pat: Pat<Span> = {
 }
 
 AnnPat: AnnPat<Span> = {
-    <pat: Pat> <ty: (":" <Expr>)?> => AnnPat {pat, ty},
+    <pat: Pat> <type_: (":" <Expr>)?> => AnnPat {pat, type_},
 }
 
 pub Lit: Lit<Span> = {

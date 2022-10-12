@@ -90,13 +90,13 @@ impl<'a> UnelabCtx<'a> {
                 let initial_len = self.local_names.len();
                 let pats = args
                     .iter()
-                    .map(|FunArg { pat, ty }| {
+                    .map(|FunArg { pat, r#type }| {
                         let pat_surface = self.unelab_pat(pat);
-                        let type_surface = self.unelab_expr(ty);
+                        let type_surface = self.unelab_expr(r#type);
                         self.subst_pat(pat);
                         surface::AnnPat {
                             pat: pat_surface,
-                            ty: Some(type_surface),
+                            type_: Some(type_surface),
                         }
                     })
                     .collect();
@@ -108,13 +108,13 @@ impl<'a> UnelabCtx<'a> {
                 let initial_len = self.local_names.len();
                 let pats = args
                     .iter()
-                    .map(|FunArg { pat, ty }| {
+                    .map(|FunArg { pat, r#type }| {
                         let pat_surface = self.unelab_pat(pat);
-                        let type_surface = self.unelab_expr(ty);
+                        let type_surface = self.unelab_expr(r#type);
                         self.subst_pat(pat);
                         surface::AnnPat {
                             pat: pat_surface,
-                            ty: Some(type_surface),
+                            type_: Some(type_surface),
                         }
                     })
                     .collect();
@@ -127,10 +127,10 @@ impl<'a> UnelabCtx<'a> {
                 let args = args.iter().map(|arg| self.unelab_expr(arg)).collect();
                 surface::Expr::FunCall((), Arc::new(fun), args)
             }
-            Expr::Let(pat, ty, init, body) => {
+            Expr::Let(pat, r#type, init, body) => {
                 let initial_len = self.local_names.len();
                 let pat_surface = self.unelab_pat(pat);
-                let type_surface = self.unelab_expr(ty);
+                let type_surface = self.unelab_expr(r#type);
                 let init = self.unelab_expr(init);
                 self.subst_pat(pat);
                 let body = self.unelab_expr(body);
@@ -139,7 +139,7 @@ impl<'a> UnelabCtx<'a> {
                     (),
                     Arc::new(surface::AnnPat {
                         pat: pat_surface,
-                        ty: Some(type_surface),
+                        type_: Some(type_surface),
                     }),
                     Arc::new(init),
                     Arc::new(body),
@@ -213,14 +213,16 @@ pub fn unelab_let_def(db: &dyn crate::Db, let_def: &LetDef) -> surface::LetDef<(
     let mut name_source = NameSource::new(0);
     let mut ctx = UnelabCtx::new(&mut local_names, &meta_names, &mut name_source, db);
 
-    let LetDef { name, body, ty, .. } = let_def;
+    let LetDef {
+        name, body, r#type, ..
+    } = let_def;
 
     let name = name.contents(db).clone();
-    let ty = ctx.unelab_expr(&ty.0);
+    let r#type = ctx.unelab_expr(&r#type.0);
     let body = ctx.unelab_expr(&body.0);
     surface::LetDef {
         name,
-        ty: Some(ty),
+        type_: Some(r#type),
         body,
     }
 }
@@ -242,13 +244,13 @@ pub fn unelab_enum_def(db: &dyn crate::Db, enum_def: &EnumDef) -> surface::EnumD
 
     let args = args
         .iter()
-        .map(|FunArg { pat, ty }| {
+        .map(|FunArg { pat, r#type }| {
             let pat_surface = ctx.unelab_pat(pat);
-            let type_surface = ctx.unelab_expr(ty);
+            let type_surface = ctx.unelab_expr(r#type);
             ctx.subst_pat(pat);
             surface::AnnPat {
                 pat: pat_surface,
-                ty: Some(type_surface),
+                type_: Some(type_surface),
             }
         })
         .collect();
@@ -267,13 +269,13 @@ pub fn unelab_enum_def(db: &dyn crate::Db, enum_def: &EnumDef) -> surface::EnumD
                 let name = name.contents(db).to_owned();
                 let args = args
                     .iter()
-                    .map(|FunArg { pat, ty }| {
+                    .map(|FunArg { pat, r#type }| {
                         let pat_surface = ctx.unelab_pat(pat);
-                        let type_surface = ctx.unelab_expr(ty);
+                        let type_surface = ctx.unelab_expr(r#type);
                         ctx.subst_pat(pat);
                         surface::AnnPat {
                             pat: pat_surface,
-                            ty: Some(type_surface),
+                            type_: Some(type_surface),
                         }
                     })
                     .collect();

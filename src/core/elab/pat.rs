@@ -27,8 +27,8 @@ impl ElabCtx<'_> {
                 SynthPat(Pat::Name(name), meta())
             }
             surface::Pat::Lit(_, lit) => {
-                let (lit, ty) = self.synth_lit(lit);
-                SynthPat(Pat::Lit(lit), ty)
+                let (lit, r#type) = self.synth_lit(lit);
+                SynthPat(Pat::Lit(lit), r#type)
             }
             surface::Pat::Variant(_, name, pats) => {
                 let name = Symbol::new(self.db, name.to_owned());
@@ -68,11 +68,11 @@ impl ElabCtx<'_> {
 
     #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
     pub fn synth_ann_pat(&mut self, pat: &surface::AnnPat<Span>) -> SynthPat {
-        let surface::AnnPat { pat, ty } = pat;
-        match ty {
+        let surface::AnnPat { pat, type_: r#type } = pat;
+        match r#type {
             None => self.synth_pat(pat),
-            Some(ty) => {
-                let CheckExpr(type_core) = self.check_expr_is_type(ty);
+            Some(r#type) => {
+                let CheckExpr(type_core) = self.check_expr_is_type(r#type);
                 let type_value = self.eval_ctx().eval_expr(&type_core);
                 let CheckPat(pat_core) = self.check_pat(pat, &type_value);
                 SynthPat(pat_core, type_value)
@@ -86,11 +86,11 @@ impl ElabCtx<'_> {
         pat: &surface::AnnPat<Span>,
         expected: &Arc<Value>,
     ) -> CheckPat {
-        let surface::AnnPat { pat, ty } = pat;
-        match ty {
+        let surface::AnnPat { pat, type_: r#type } = pat;
+        match r#type {
             None => self.check_pat(pat, expected),
-            Some(ty) => {
-                let CheckExpr(type_core) = self.check_expr_is_type(ty);
+            Some(r#type) => {
+                let CheckExpr(type_core) = self.check_expr_is_type(r#type);
                 let type_value = self.eval_ctx().eval_expr(&type_core);
 
                 if let Err(error) = self.unify_ctx().unify_values(&type_value, expected) {

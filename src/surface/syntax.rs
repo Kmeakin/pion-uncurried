@@ -16,7 +16,7 @@ pub enum Item<Span> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LetDef<Span> {
     pub name: String,
-    pub ty: Option<Expr<Span>>,
+    pub type_: Option<Expr<Span>>,
     pub body: Expr<Span>,
 }
 
@@ -100,7 +100,7 @@ impl<Span> Pat<Span> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AnnPat<Span> {
     pub pat: Pat<Span>,
-    pub ty: Option<Expr<Span>>,
+    pub type_: Option<Expr<Span>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

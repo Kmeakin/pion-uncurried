@@ -28,14 +28,14 @@ impl ElabCtx<'_> {
         match expr {
             surface::Expr::Error(_) => self.synth_error_expr(),
             surface::Expr::Lit(_, lit) => {
-                let (lit, ty) = self.synth_lit(lit);
-                SynthExpr(Expr::Lit(lit), ty)
+                let (lit, type_value) = self.synth_lit(lit);
+                SynthExpr(Expr::Lit(lit), type_value)
             }
             surface::Expr::Name(span, name) => {
                 let symbol = Symbol::intern(self.db, name);
 
-                if let Some((index, ty)) = self.local_env.lookup(symbol) {
-                    return SynthExpr(Expr::Local(index), ty);
+                if let Some((index, type_value)) = self.local_env.lookup(symbol) {
+                    return SynthExpr(Expr::Local(index), type_value);
                 }
 
                 if let Some(item) = crate::ir::lookup_item(self.db, file, symbol) {
@@ -73,9 +73,10 @@ impl ElabCtx<'_> {
                 let type_name = self.name_source.fresh();
                 let type_source = MetaSource::HoleType(*span);
                 let expr_source = MetaSource::HoleExpr(*span);
-                let ty = self.push_meta_value(expr_name, type_source, Arc::new(Value::TYPE));
-                let expr = self.push_meta_expr(type_name, expr_source, ty.clone());
-                SynthExpr(expr, ty)
+                let type_value =
+                    self.push_meta_value(expr_name, type_source, Arc::new(Value::TYPE));
+                let expr = self.push_meta_expr(type_name, expr_source, type_value.clone());
+                SynthExpr(expr, type_value)
             }
             surface::Expr::FunType(_, pats, ret) => {
                 let initial_len = self.local_env.len();
@@ -87,7 +88,7 @@ impl ElabCtx<'_> {
                         self.subst_pat(&pat_core, pat_type, None);
                         FunArg {
                             pat: pat_core,
-                            ty: type_core,
+                            r#type: type_core,
                         }
                     })
                     .collect();
@@ -108,7 +109,7 @@ impl ElabCtx<'_> {
                         self.subst_pat(&pat_core, pat_type, None);
                         FunArg {
                             pat: pat_core,
-                            ty: type_core,
+                            r#type: type_core,
                         }
                     })
                     .collect();
@@ -159,10 +160,10 @@ impl ElabCtx<'_> {
                 let mut arg_values = Vec::with_capacity(args.len());
                 let mut args = args.iter();
 
-                while let Some((arg, (FunArg { ty, .. }, cont))) =
+                while let Some((arg, (FunArg { r#type, .. }, cont))) =
                     Option::zip(args.next(), self.elim_ctx().split_fun_closure(closure))
                 {
-                    let CheckExpr(arg_core) = self.check_expr(arg, &ty);
+                    let CheckExpr(arg_core) = self.check_expr(arg, &r#type);
                     let arg_value = self.eval_ctx().eval_expr(&arg_core);
                     closure = cont(arg_value.clone());
                     arg_cores.push(arg_core);
@@ -238,8 +239,15 @@ impl ElabCtx<'_> {
                 let mut fun_args = Vec::with_capacity(pats.len());
 
                 let mut pats = pats.iter();
-                while let Some((pat, (FunArg { ty: expected, .. }, cont))) =
-                    Option::zip(pats.next(), self.elim_ctx().split_fun_closure(closure))
+                while let Some((
+                    pat,
+                    (
+                        FunArg {
+                            r#type: expected, ..
+                        },
+                        cont,
+                    ),
+                )) = Option::zip(pats.next(), self.elim_ctx().split_fun_closure(closure))
                 {
                     let type_core = self.quote_ctx().quote_value(&expected);
 
@@ -251,7 +259,7 @@ impl ElabCtx<'_> {
                     args_values.push(arg_value);
                     fun_args.push(FunArg {
                         pat: pat_core,
-                        ty: type_core,
+                        r#type: type_core,
                     });
                 }
 
