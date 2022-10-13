@@ -47,20 +47,20 @@ impl LocalEnv {
 impl EvalCtx<'_> {
     /// Push an `Value::local` onto env for each binder in `pat`.
     #[debug_ensures(self.local_env.len() == old(self.local_env.len()) + pat.num_binders())]
-    pub fn subst_arg_into_pat(&mut self, pat: &Pat) { self.local_env.subst_arg_into_pat(pat) }
+    pub fn subst_param_pat(&mut self, pat: &Pat) { self.local_env.subst_arg_into_pat(pat) }
 
     #[debug_ensures(self.local_env.len() == old(self.local_env.len()) + pat.num_binders())]
-    pub fn subst_value_into_pat(&mut self, pat: &Pat, value: Arc<Value>) {
+    pub fn subst_def_pat(&mut self, pat: &Pat, value: Arc<Value>) {
         self.local_env.subst_value_into_pat(pat, value)
     }
 
-    pub fn subst_values_into_telescope(
+    pub fn subst_def_telescope(
         &mut self,
         telescope: &Telescope<Expr>,
         values: impl IntoIterator<Item = Arc<Value>>,
     ) {
         for (arg, value) in telescope.iter().zip(values.into_iter()) {
-            self.subst_value_into_pat(&arg.pat, value);
+            self.subst_def_pat(&arg.pat, value);
         }
     }
 }
@@ -79,18 +79,46 @@ impl UnelabCtx<'_> {
 
 impl ElabCtx<'_> {
     #[debug_ensures(self.local_env.len() == old(self.local_env.len()) + pat.num_binders())]
-    pub fn subst_pat(&mut self, pat: &Pat, r#type: Arc<Value>, value: Option<Arc<Value>>) {
+    pub fn push_param(&mut self, pat: &Pat, r#type: Arc<Value>) {
+        match pat {
+            Pat::Error => {
+                self.local_env.push_param(VarName::Underscore, r#type);
+            }
+            Pat::Name(name) => {
+                self.local_env.push_param(*name, r#type);
+            }
+            Pat::Lit(_) => {
+                let name = self.name_source.fresh();
+                self.local_env.push_param(name, r#type);
+            }
+            Pat::Variant(variant, pats) => {
+                let EnumVariant { args, .. } = elab_enum_variant(self.db, *variant);
+                if args.len() != pats.len() {
+                    unreachable!("pattern arity mismatch")
+                }
+
+                for (pat, _) in pats.iter().zip(args.iter()) {
+                    // let type_value = self.eval_ctx().eval_expr(&arg.r#type);
+                    let type_value = Arc::new(Value::ERROR);
+                    self.push_param(pat, type_value);
+                }
+            }
+        }
+    }
+
+    #[debug_ensures(self.local_env.len() == old(self.local_env.len()) + pat.num_binders())]
+    pub fn push_def(&mut self, pat: &Pat, r#type: Arc<Value>, value: Arc<Value>) {
         match (pat, r#type.as_ref(), value.as_ref()) {
             (Pat::Error, ..) => {
-                self.local_env.push(VarName::Underscore, r#type, value);
+                self.local_env.push_def(VarName::Underscore, r#type, value);
             }
             (Pat::Name(name), ..) => {
-                self.local_env.push(*name, r#type, value);
+                self.local_env.push_def(*name, r#type, value);
             }
             (Pat::Lit(lit), ..) => {
-                let pat_value = Arc::new(Value::Lit(lit.clone()));
+                let value = Arc::new(Value::Lit(lit.clone()));
                 let name = self.name_source.fresh();
-                self.local_env.push(name, r#type, Some(pat_value));
+                self.local_env.push_def(name, r#type, value);
             }
             (Pat::Variant(variant, pats), ..) => {
                 let EnumVariant { args, .. } = elab_enum_variant(self.db, *variant);
@@ -101,7 +129,7 @@ impl ElabCtx<'_> {
                 for (pat, _) in pats.iter().zip(args.iter()) {
                     // let type_value = self.eval_ctx().eval_expr(&arg.r#type);
                     let type_value = Arc::new(Value::ERROR);
-                    self.subst_pat(pat, type_value, None);
+                    self.push_def(pat, type_value, Arc::new(Value::ERROR));
                 }
             }
         }

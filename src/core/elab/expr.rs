@@ -171,7 +171,7 @@ impl ElabCtx<'_> {
                 let CheckExpr(init_core) = self.check_expr(init, &type_value);
                 let init_value = self.eval_ctx().eval_expr(&init_core);
 
-                self.subst_pat(&pat_core, type_value, Some(init_value));
+                self.push_def(&pat_core, type_value, init_value);
                 let SynthExpr(body_core, body_type) = self.synth_expr(body);
                 self.local_env.truncate(initial_len);
 
@@ -203,7 +203,7 @@ impl ElabCtx<'_> {
     pub fn synth_fun_arg(&mut self, arg: &surface::AnnPat<Span>) -> FunArg<Expr> {
         let SynthPat(pat_core, pat_type) = self.synth_ann_pat(arg);
         let type_core = self.quote_ctx().quote_value(&pat_type);
-        self.subst_pat(&pat_core, pat_type, None);
+        self.push_param(&pat_core, pat_type);
         FunArg {
             pat: pat_core,
             r#type: type_core,
@@ -245,7 +245,7 @@ impl ElabCtx<'_> {
 
                     let arg_value = Arc::new(Value::local(self.local_env.len().to_level()));
                     let CheckPat(pat_core) = self.check_ann_pat(pat, &expected);
-                    self.subst_pat(&pat_core, expected, None);
+                    self.push_param(&pat_core, expected);
 
                     closure = cont(arg_value.clone());
                     args_values.push(arg_value);
@@ -274,7 +274,7 @@ impl ElabCtx<'_> {
                 let CheckExpr(init_core) = self.check_expr(init, &type_value);
                 let init_value = self.eval_ctx().eval_expr(&init_core);
 
-                self.subst_pat(&pat_core, type_value, Some(init_value));
+                self.push_def(&pat_core, type_value, init_value);
                 let CheckExpr(body_core) = self.check_expr(body, expected);
                 self.local_env.truncate(initial_len);
 
@@ -325,7 +325,7 @@ impl ElabCtx<'_> {
             .map(|(pat, expr)| {
                 let initial_len = self.local_env.len();
                 let CheckPat(pat_core) = self.check_pat(pat, &scrut_type);
-                self.subst_pat(&pat_core, scrut_type.clone(), Some(scrut_value.clone()));
+                self.push_def(&pat_core, scrut_type.clone(), scrut_value.clone());
                 let expected = &self.eval_ctx().eval_expr(&expected_core);
                 let CheckExpr(expr_core) = self.check_expr(expr, expected);
                 self.local_env.truncate(initial_len);

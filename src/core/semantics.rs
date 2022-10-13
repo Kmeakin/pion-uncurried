@@ -119,7 +119,7 @@ impl<'env> EvalCtx<'env> {
             Expr::Let(pat, _, init, body) => {
                 let initial_len = self.local_env.len();
                 let init = self.eval_expr(init);
-                self.subst_value_into_pat(pat, init);
+                self.subst_def_pat(pat, init);
                 let ret = self.eval_expr(body);
                 self.local_env.truncate(initial_len);
                 ret
@@ -175,7 +175,7 @@ impl<'env> EvalCtx<'env> {
                 let initial_len = self.local_env.len();
                 let r#type = self.zonk_expr(r#type);
                 let init = self.zonk_expr(init);
-                self.subst_arg_into_pat(pat);
+                self.subst_param_pat(pat);
                 let body = self.zonk_expr(body);
                 self.local_env.truncate(initial_len);
                 Expr::Let(
@@ -221,7 +221,7 @@ impl<'env> EvalCtx<'env> {
                     let branches = branches
                         .iter()
                         .map(|(pat, expr)| {
-                            self.subst_arg_into_pat(pat);
+                            self.subst_param_pat(pat);
                             (pat.clone(), self.zonk_expr(expr))
                         })
                         .collect();
@@ -240,7 +240,7 @@ impl<'env> EvalCtx<'env> {
     fn zonk_fun_arg(&mut self, arg: &FunArg<Expr>) -> FunArg<Expr> {
         let FunArg { pat, r#type } = arg;
         let r#type = self.zonk_expr(r#type);
-        self.subst_arg_into_pat(pat);
+        self.subst_param_pat(pat);
         FunArg {
             pat: pat.clone(),
             r#type,
@@ -305,7 +305,7 @@ impl<'env> ElimCtx<'env> {
     pub fn apply_fun_closure(&self, closure: &FunClosure, args: Vec<Arc<Value>>) -> Arc<Value> {
         let mut env = closure.env.clone();
         let mut eval_ctx = self.eval_ctx(&mut env);
-        eval_ctx.subst_values_into_telescope(&closure.args, args);
+        eval_ctx.subst_def_telescope(&closure.args, args);
         eval_ctx.eval_expr(&closure.body)
     }
 
@@ -320,15 +320,15 @@ impl<'env> ElimCtx<'env> {
         for (pat, expr) in branches.iter() {
             match pat {
                 Pat::Error => {
-                    eval_ctx.subst_value_into_pat(pat, scrut);
+                    eval_ctx.subst_def_pat(pat, scrut);
                     return eval_ctx.eval_expr(expr);
                 }
                 Pat::Name(_) => {
-                    eval_ctx.subst_value_into_pat(pat, scrut);
+                    eval_ctx.subst_def_pat(pat, scrut);
                     return eval_ctx.eval_expr(expr);
                 }
                 Pat::Lit(lit1) if scrut.as_ref() == &Value::Lit(lit1.clone()) => {
-                    eval_ctx.subst_value_into_pat(pat, scrut);
+                    eval_ctx.subst_def_pat(pat, scrut);
                     return eval_ctx.eval_expr(expr);
                 }
                 Pat::Lit(_) => continue,
