@@ -123,6 +123,30 @@ impl Value {
         Self::Stuck(Head::Global(GlobalVar::Variant(def)), Vec::new())
     }
     pub const fn global(var: GlobalVar) -> Self { Self::Stuck(Head::Global(var), Vec::new()) }
+
+    pub fn as_enum(&self) -> Option<(ir::EnumDef, &[Arc<Self>])> {
+        match self {
+            Self::Stuck(Head::Global(GlobalVar::Enum(r#enum)), spine) => match spine.as_slice() {
+                [] => Some((*r#enum, &[])),
+                [Elim::FunCall(args)] => Some((*r#enum, args)),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    pub fn as_variant(&self) -> Option<(ir::EnumVariant, &[Arc<Self>])> {
+        match self {
+            Self::Stuck(Head::Global(GlobalVar::Variant(variant)), spine) => {
+                match spine.as_slice() {
+                    [] => Some((*variant, &[])),
+                    [Elim::FunCall(args)] => Some((*variant, args)),
+                    _ => None,
+                }
+            }
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
