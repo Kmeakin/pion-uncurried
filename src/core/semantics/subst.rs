@@ -9,7 +9,7 @@ impl EnvLen {
 }
 
 impl QuoteCtx<'_> {
-    pub fn push_pat_params(&mut self, pat: &Pat) { self.local_len.push_pat_params(pat) }
+    pub fn push_pat_params(&mut self, pat: &Pat) { self.local_env.push_pat_params(pat) }
 }
 
 impl LocalEnv {
@@ -27,19 +27,14 @@ impl LocalEnv {
     pub fn push_pat_defs(&mut self, pat: &Pat, value: Arc<Value>) {
         match pat {
             Pat::Error | Pat::Lit(_) | Pat::Name(_) => self.push(value),
-            Pat::Variant(variant, pats) => match value.as_ref() {
-                Value::Stuck(Head::Global(GlobalVar::Variant(v)), spine) if variant == v => {
-                    if let [Elim::FunCall(args)] = spine.as_slice() {
-                        let args = args.iter().cloned();
-                        for (pat, arg) in pats.iter().zip(args) {
-                            self.push_pat_defs(pat, arg);
-                        }
-                    } else {
-                        unreachable!()
-                    }
+            Pat::Variant(variant, pats) => {
+                let (v, value_args) = value.as_variant().unwrap();
+                assert_eq!(v, *variant);
+                assert_eq!(value_args.len(), pats.len());
+                for (pat, arg) in pats.iter().zip(value_args) {
+                    self.push_pat_defs(pat, arg.clone());
                 }
-                _ => unreachable!("Cannot subst {value:?} into {pat:?}"),
-            },
+            }
         }
     }
 }
@@ -81,6 +76,8 @@ impl UnelabCtx<'_> {
 impl ElabCtx<'_> {
     #[debug_ensures(self.local_env.len() == old(self.local_env.len()) + pat.num_binders())]
     pub fn push_pat_params(&mut self, pat: &Pat, r#type: Arc<Value>) {
+        let r#type = self.elim_ctx().force_value(&r#type);
+
         match pat {
             Pat::Error => {
                 self.local_env.push_param(VarName::Underscore, r#type);
@@ -94,13 +91,9 @@ impl ElabCtx<'_> {
             }
             Pat::Variant(variant, pats) => {
                 let EnumVariant { args, .. } = elab_enum_variant(self.db, *variant);
-                if args.len() != pats.len() {
-                    unreachable!("pattern arity mismatch")
-                }
-
-                for (pat, _) in pats.iter().zip(args.iter()) {
-                    // let type_value = self.eval_ctx().eval_expr(&arg.r#type);
-                    let type_value = Arc::new(Value::ERROR);
+                assert_eq!(args.len(), pats.len());
+                for (pat, arg) in pats.iter().zip(args.iter()) {
+                    let type_value = self.eval_ctx().eval_expr(&arg.r#type);
                     self.push_pat_params(pat, type_value);
                 }
             }
@@ -109,6 +102,10 @@ impl ElabCtx<'_> {
 
     #[debug_ensures(self.local_env.len() == old(self.local_env.len()) + pat.num_binders())]
     pub fn push_pat_defs(&mut self, pat: &Pat, r#type: Arc<Value>, value: Arc<Value>) {
+        let db = self.db;
+        let r#type = self.elim_ctx().force_value(&r#type);
+        let value = self.elim_ctx().force_value(&value);
+
         match (pat, r#type.as_ref(), value.as_ref()) {
             (Pat::Error, ..) => {
                 self.local_env.push_def(VarName::Underscore, r#type, value);
@@ -122,15 +119,25 @@ impl ElabCtx<'_> {
                 self.local_env.push_def(name, r#type, value);
             }
             (Pat::Variant(variant, pats), ..) => {
-                let EnumVariant { args, .. } = elab_enum_variant(self.db, *variant);
-                if args.len() != pats.len() {
-                    unreachable!("pattern arity mismatch")
-                }
+                let (e, _) = r#type.as_enum().unwrap();
+                let (v, value_args) = match value.as_variant() {
+                    Some(x) => x,
+                    None => return self.push_pat_params(pat, r#type),
+                };
+                assert_eq!(e, variant.parent(db));
+                assert_eq!(v, *variant);
+                assert_eq!(value_args.len(), pats.len());
 
-                for (pat, _) in pats.iter().zip(args.iter()) {
-                    // let type_value = self.eval_ctx().eval_expr(&arg.r#type);
-                    let type_value = Arc::new(Value::ERROR);
-                    self.push_pat_defs(pat, type_value, Arc::new(Value::ERROR));
+                let EnumVariant {
+                    args: variant_args, ..
+                } = elab_enum_variant(self.db, *variant);
+                assert_eq!(value_args.len(), variant_args.len());
+
+                for ((pat, value_arg), variant_arg) in
+                    pats.iter().zip(value_args.iter()).zip(variant_args.iter())
+                {
+                    let type_value = self.eval_ctx().eval_expr(&variant_arg.r#type);
+                    self.push_pat_defs(pat, type_value, value_arg.clone());
                 }
             }
         }
