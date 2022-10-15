@@ -175,7 +175,7 @@ impl<'env> EvalCtx<'env> {
                 let initial_len = self.local_env.len();
                 let r#type = self.zonk_expr(r#type);
                 let init = self.zonk_expr(init);
-                self.push_pat_param(pat);
+                self.push_pat_params(pat);
                 let body = self.zonk_expr(body);
                 self.local_env.truncate(initial_len);
                 Expr::Let(
@@ -221,7 +221,7 @@ impl<'env> EvalCtx<'env> {
                     let branches = branches
                         .iter()
                         .map(|(pat, expr)| {
-                            self.push_pat_param(pat);
+                            self.push_pat_params(pat);
                             (pat.clone(), self.zonk_expr(expr))
                         })
                         .collect();
@@ -240,7 +240,7 @@ impl<'env> EvalCtx<'env> {
     fn zonk_fun_arg(&mut self, arg: &FunArg<Expr>) -> FunArg<Expr> {
         let FunArg { pat, r#type } = arg;
         let r#type = self.zonk_expr(r#type);
-        self.push_pat_param(pat);
+        self.push_pat_params(pat);
         FunArg {
             pat: pat.clone(),
             r#type,
