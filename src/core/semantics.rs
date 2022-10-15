@@ -119,7 +119,7 @@ impl<'env> EvalCtx<'env> {
             Expr::Let(pat, _, init, body) => {
                 let initial_len = self.local_env.len();
                 let init = self.eval_expr(init);
-                self.subst_def_pat(pat, init);
+                self.push_pat_defs(pat, init);
                 let ret = self.eval_expr(body);
                 self.local_env.truncate(initial_len);
                 ret
@@ -175,7 +175,7 @@ impl<'env> EvalCtx<'env> {
                 let initial_len = self.local_env.len();
                 let r#type = self.zonk_expr(r#type);
                 let init = self.zonk_expr(init);
-                self.subst_param_pat(pat);
+                self.push_pat_param(pat);
                 let body = self.zonk_expr(body);
                 self.local_env.truncate(initial_len);
                 Expr::Let(
@@ -221,7 +221,7 @@ impl<'env> EvalCtx<'env> {
                     let branches = branches
                         .iter()
                         .map(|(pat, expr)| {
-                            self.subst_param_pat(pat);
+                            self.push_pat_param(pat);
                             (pat.clone(), self.zonk_expr(expr))
                         })
                         .collect();
@@ -240,7 +240,7 @@ impl<'env> EvalCtx<'env> {
     fn zonk_fun_arg(&mut self, arg: &FunArg<Expr>) -> FunArg<Expr> {
         let FunArg { pat, r#type } = arg;
         let r#type = self.zonk_expr(r#type);
-        self.subst_param_pat(pat);
+        self.push_pat_param(pat);
         FunArg {
             pat: pat.clone(),
             r#type,
@@ -305,7 +305,7 @@ impl<'env> ElimCtx<'env> {
     pub fn apply_fun_closure(&self, closure: &FunClosure, args: Vec<Arc<Value>>) -> Arc<Value> {
         let mut env = closure.env.clone();
         let mut eval_ctx = self.eval_ctx(&mut env);
-        eval_ctx.subst_def_telescope(&closure.args, args);
+        eval_ctx.push_telescope_defs(&closure.args, args);
         eval_ctx.eval_expr(&closure.body)
     }
 
@@ -320,15 +320,15 @@ impl<'env> ElimCtx<'env> {
         for (pat, expr) in branches.iter() {
             match pat {
                 Pat::Error => {
-                    eval_ctx.subst_def_pat(pat, scrut);
+                    eval_ctx.push_pat_defs(pat, scrut);
                     return eval_ctx.eval_expr(expr);
                 }
                 Pat::Name(_) => {
-                    eval_ctx.subst_def_pat(pat, scrut);
+                    eval_ctx.push_pat_defs(pat, scrut);
                     return eval_ctx.eval_expr(expr);
                 }
                 Pat::Lit(lit1) if scrut.as_ref() == &Value::Lit(lit1.clone()) => {
-                    eval_ctx.subst_def_pat(pat, scrut);
+                    eval_ctx.push_pat_defs(pat, scrut);
                     return eval_ctx.eval_expr(expr);
                 }
                 Pat::Lit(_) => continue,
@@ -353,7 +353,7 @@ impl<'env> ElimCtx<'env> {
             r#type,
         };
         let cont = move |prev| {
-            closure.env.subst_value_into_pat(&pat, prev);
+            closure.env.push_pat_defs(&pat, prev);
             closure.args = Telescope(args);
             closure
         };
@@ -371,7 +371,7 @@ impl<'env> ElimCtx<'env> {
         let first = (pat.clone(), value);
 
         let cont = move |prev| {
-            closure.env.subst_value_into_pat(&pat, prev);
+            closure.env.push_pat_defs(&pat, prev);
             closure.branches = rest;
             closure
         };
@@ -477,7 +477,7 @@ impl<'env> QuoteCtx<'env> {
     fn quote_fun_arg(&mut self, arg: FunArg<Arc<Value>>) -> FunArg<Expr> {
         let FunArg { pat, r#type } = arg;
         let r#type = self.quote_value(&r#type);
-        self.local_len.subst_pat(&pat);
+        self.local_len.push_pat_params(&pat);
         FunArg { pat, r#type }
     }
 }

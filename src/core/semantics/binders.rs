@@ -69,7 +69,7 @@ impl IsClosed<()> for MatchClosure {
         let mut local_env = self.env.len();
         self.branches.iter().all(|(pat, expr)| {
             let initial_len = local_env;
-            local_env.subst_pat(pat);
+            local_env.push_pat_params(pat);
             local_env.truncate(initial_len);
             expr.is_closed(local_env, meta_env)
         })
@@ -80,7 +80,7 @@ impl<Type: IsClosed> IsClosed<&mut EnvLen> for Telescope<Type> {
     fn is_closed(&self, local_env: &mut EnvLen, meta_env: EnvLen) -> bool {
         self.0.iter().all(|FunArg { pat, r#type }| {
             let ret = r#type.is_closed(*local_env, meta_env);
-            local_env.subst_pat(pat);
+            local_env.push_pat_params(pat);
             ret
         })
     }

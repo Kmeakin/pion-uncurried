@@ -95,7 +95,7 @@ impl<'a> UnelabCtx<'a> {
                     .map(|FunArg { pat, r#type }| {
                         let pat_surface = self.unelab_pat(pat);
                         let type_surface = self.unelab_expr(r#type);
-                        self.subst_pat(pat);
+                        self.push_pat_params(pat);
                         surface::AnnPat {
                             pat: pat_surface,
                             type_: Some(type_surface),
@@ -113,7 +113,7 @@ impl<'a> UnelabCtx<'a> {
                     .map(|FunArg { pat, r#type }| {
                         let pat_surface = self.unelab_pat(pat);
                         let type_surface = self.unelab_expr(r#type);
-                        self.subst_pat(pat);
+                        self.push_pat_params(pat);
                         surface::AnnPat {
                             pat: pat_surface,
                             type_: Some(type_surface),
@@ -134,7 +134,7 @@ impl<'a> UnelabCtx<'a> {
                 let pat_surface = self.unelab_pat(pat);
                 let type_surface = self.unelab_expr(r#type);
                 let init = self.unelab_expr(init);
-                self.subst_pat(pat);
+                self.push_pat_params(pat);
                 let body = self.unelab_expr(body);
                 self.local_names.truncate(initial_len);
                 surface::Expr::Let(
@@ -154,7 +154,7 @@ impl<'a> UnelabCtx<'a> {
                     .map(|(pat, body)| {
                         let initial_len = self.local_names.len();
                         let pat_surface = self.unelab_pat(pat);
-                        self.subst_pat(pat);
+                        self.push_pat_params(pat);
                         let body_surface = self.unelab_expr(body);
                         self.local_names.truncate(initial_len);
                         (pat_surface, body_surface)
@@ -249,7 +249,7 @@ pub fn unelab_enum_def(db: &dyn crate::Db, enum_def: &EnumDef) -> surface::EnumD
         .map(|FunArg { pat, r#type }| {
             let pat_surface = ctx.unelab_pat(pat);
             let type_surface = ctx.unelab_expr(r#type);
-            ctx.subst_pat(pat);
+            ctx.push_pat_params(pat);
             surface::AnnPat {
                 pat: pat_surface,
                 type_: Some(type_surface),
@@ -274,7 +274,7 @@ pub fn unelab_enum_def(db: &dyn crate::Db, enum_def: &EnumDef) -> surface::EnumD
                     .map(|FunArg { pat, r#type }| {
                         let pat_surface = ctx.unelab_pat(pat);
                         let type_surface = ctx.unelab_expr(r#type);
-                        ctx.subst_pat(pat);
+                        ctx.push_pat_params(pat);
                         surface::AnnPat {
                             pat: pat_surface,
                             type_: Some(type_surface),

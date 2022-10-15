@@ -130,7 +130,7 @@ pub fn enum_def_sig(db: &dyn crate::Db, ir: ir::EnumDef) -> EnumDefSig {
             let SynthPat(pat_core, type_value) = ctx.synth_ann_pat(pat);
             let type_core = ctx.quote_ctx().quote_value(&type_value);
             self_type_args.push(Arc::new(Value::local(ctx.local_env.len().to_level())));
-            ctx.push_param(&pat_core, type_value);
+            ctx.push_pat_params(&pat_core, type_value);
             FunArg {
                 pat: pat_core,
                 r#type: type_core,

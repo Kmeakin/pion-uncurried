@@ -77,6 +77,10 @@ pub struct FunArg<Type> {
     pub r#type: Type,
 }
 
+impl<Type> FunArg<Type> {
+    pub fn num_binders(&self) -> EnvLen { self.pat.num_binders() }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Pat {
     Error,
@@ -150,6 +154,7 @@ impl<Type> Telescope<Type> {
     pub fn len(&self) -> usize { self.0.len() }
     pub fn is_empty(&self) -> bool { self.len() == 0 }
     pub fn iter(&self) -> impl ExactSizeIterator<Item = &FunArg<Type>> { self.0.iter() }
+    pub fn num_binders(&self) -> EnvLen { self.0.iter().map(|arg| arg.num_binders()).sum() }
 }
 
 impl<Type> FromIterator<FunArg<Type>> for Telescope<Type> {
