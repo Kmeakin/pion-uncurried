@@ -51,7 +51,12 @@ fn elab_ok(path: String) -> libtest_mimic::Trial {
             writeln!(output, "\n====DIAGNOSTICS====").unwrap();
         }
 
-        for diag in lower_diagnostics.iter().chain(elab_diagnostics.iter()) {
+        let mut diagnostics: Vec<_> = lower_diagnostics
+            .iter()
+            .chain(elab_diagnostics.iter())
+            .collect();
+        diagnostics.sort_by_key(|diag| diag.file_span);
+        for diag in diagnostics {
             let mut builder = ariadne::Report::build(
                 ariadne::ReportKind::Error,
                 diag.file_span.file,
