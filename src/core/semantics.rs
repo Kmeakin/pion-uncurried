@@ -62,7 +62,9 @@ impl<'env> EvalCtx<'env> {
 
     pub fn with_flags(self, flags: EvalFlags) -> Self { Self { flags, ..self } }
 
-    fn elim_ctx(&self) -> ElimCtx { ElimCtx::new(self.meta_env, self.db, self.flags) }
+    fn elim_ctx(&self) -> ElimCtx {
+        ElimCtx::new(self.local_env.len(), self.meta_env, self.db, self.flags)
+    }
 
     fn quote_ctx(&self) -> QuoteCtx {
         QuoteCtx::new(self.local_env.len(), self.meta_env, self.db, self.flags)
@@ -257,14 +259,21 @@ impl<'env> EvalCtx<'env> {
 }
 
 pub struct ElimCtx<'env> {
+    local_env: EnvLen,
     meta_env: &'env MetaEnv,
     db: &'env dyn crate::Db,
     flags: EvalFlags,
 }
 
 impl<'env> ElimCtx<'env> {
-    pub fn new(meta_env: &'env MetaEnv, db: &'env dyn crate::Db, flags: EvalFlags) -> Self {
+    pub fn new(
+        local_env: EnvLen,
+        meta_env: &'env MetaEnv,
+        db: &'env dyn crate::Db,
+        flags: EvalFlags,
+    ) -> Self {
         Self {
+            local_env,
             meta_env,
             db,
             flags,
@@ -314,6 +323,7 @@ impl<'env> ElimCtx<'env> {
         eval_ctx.eval_expr(&closure.body)
     }
 
+    #[track_caller]
     pub fn apply_match_closure(&self, mut scrut: Arc<Value>, closure: MatchClosure) -> Arc<Value> {
         if let Value::Stuck(_, spine) = Arc::make_mut(&mut scrut) {
             spine.push(Elim::Match(closure));
@@ -385,7 +395,7 @@ impl<'env> ElimCtx<'env> {
 }
 
 pub struct QuoteCtx<'env> {
-    local_len: EnvLen,
+    local_env: EnvLen,
     meta_env: &'env MetaEnv,
     db: &'env dyn crate::Db,
     flags: EvalFlags,
@@ -393,31 +403,33 @@ pub struct QuoteCtx<'env> {
 
 impl<'env> QuoteCtx<'env> {
     pub fn new(
-        local_len: EnvLen,
+        local_env: EnvLen,
         meta_env: &'env MetaEnv,
         db: &'env dyn crate::Db,
         flags: EvalFlags,
     ) -> Self {
         Self {
-            local_len,
+            local_env,
             meta_env,
             db,
             flags,
         }
     }
 
-    fn elim_ctx(&self) -> ElimCtx { ElimCtx::new(self.meta_env, self.db, self.flags) }
+    fn elim_ctx(&self) -> ElimCtx {
+        ElimCtx::new(self.local_env, self.meta_env, self.db, self.flags)
+    }
 
     #[track_caller]
-    #[debug_requires(value.is_closed(self.local_len, self.meta_env.len()))]
-    #[debug_ensures(self.local_len == old(self.local_len))]
-    #[debug_ensures(ret.is_closed(self.local_len, self.meta_env.len()))]
+    #[debug_requires(value.is_closed(self.local_env, self.meta_env.len()))]
+    #[debug_ensures(self.local_env == old(self.local_env))]
+    #[debug_ensures(ret.is_closed(self.local_env, self.meta_env.len()))]
     pub fn quote_value(&mut self, value: &Value) -> Expr {
         match value {
             Value::Lit(lit) => Expr::Lit(lit.clone()),
             Value::Stuck(head, spine) => {
                 let head_expr = match head {
-                    Head::Local(var) => match self.local_len.level_to_index(*var) {
+                    Head::Local(var) => match self.local_env.level_to_index(*var) {
                         Some(var) => Expr::Local(var),
                         None => unreachable!("Unbound local variable: {var:?}"),
                     },
@@ -456,9 +468,9 @@ impl<'env> QuoteCtx<'env> {
 
     #[track_caller]
     #[debug_requires(closure.is_closed((), self.meta_env.len()))]
-    #[debug_ensures(self.local_len == old(self.local_len))]
+    #[debug_ensures(self.local_env == old(self.local_env))]
     fn quote_closure(&mut self, closure: &FunClosure) -> (Telescope<Expr>, Expr) {
-        let start_len = self.local_len;
+        let start_len = self.local_env;
 
         let initial_closure = closure.clone();
         let mut closure = closure.clone();
@@ -466,7 +478,7 @@ impl<'env> QuoteCtx<'env> {
         let mut arg_values = Vec::with_capacity(closure.arity());
 
         while let Some((fun_arg, cont)) = self.elim_ctx().split_fun_closure(closure.clone()) {
-            let arg_value = Arc::new(Value::local(self.local_len.to_level()));
+            let arg_value = Arc::new(Value::local(self.local_env.to_level()));
             closure = cont(arg_value.clone());
             fun_args.push(self.quote_fun_arg(fun_arg));
             arg_values.push(arg_value);
@@ -476,7 +488,7 @@ impl<'env> QuoteCtx<'env> {
             .elim_ctx()
             .apply_fun_closure(&initial_closure, arg_values);
         let body = self.quote_value(&body);
-        self.local_len.truncate(start_len);
+        self.local_env.truncate(start_len);
 
         (Telescope(Arc::from(fun_args)), body)
     }
@@ -484,7 +496,7 @@ impl<'env> QuoteCtx<'env> {
     fn quote_fun_arg(&mut self, arg: FunArg<Arc<Value>>) -> FunArg<Expr> {
         let FunArg { pat, r#type } = arg;
         let r#type = self.quote_value(&r#type);
-        self.local_len.push_pat_params(&pat);
+        self.local_env.push_pat_params(&pat);
         FunArg { pat, r#type }
     }
 }

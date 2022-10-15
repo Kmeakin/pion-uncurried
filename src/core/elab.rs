@@ -168,7 +168,12 @@ impl ElabCtx<'_> {
     }
 
     pub fn elim_ctx(&self) -> semantics::ElimCtx {
-        semantics::ElimCtx::new(&self.meta_env.values, self.db, EvalFlags::EVAL)
+        semantics::ElimCtx::new(
+            self.local_env.len(),
+            &self.meta_env.values,
+            self.db,
+            EvalFlags::EVAL,
+        )
     }
 
     pub fn quote_ctx(&mut self) -> semantics::QuoteCtx {

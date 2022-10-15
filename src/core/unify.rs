@@ -33,7 +33,7 @@ impl<'env> UnifyCtx<'env> {
     }
 
     fn elim_ctx(&self) -> semantics::ElimCtx<'_> {
-        semantics::ElimCtx::new(self.meta_env, self.db, EvalFlags::EVAL)
+        semantics::ElimCtx::new(self.local_env, self.meta_env, self.db, EvalFlags::EVAL)
     }
 
     #[debug_ensures(self.local_env == old(self.local_env))]

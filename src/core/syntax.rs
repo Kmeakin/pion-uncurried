@@ -193,6 +193,8 @@ impl FunClosure {
     }
 
     pub fn arity(&self) -> usize { self.args.len() }
+
+    pub fn num_binders(&self) -> EnvLen { self.args.num_binders() }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
