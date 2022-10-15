@@ -88,6 +88,7 @@ pub fn elab_let_def(db: &dyn crate::Db, ir: ir::LetDef) -> LetDef {
         "free variables in `type_expr`: {type_expr:#?}"
     );
 
+    ctx.report_unsolved_metas();
     LetDef {
         name,
         body: (body_expr, body_value),
@@ -168,6 +169,7 @@ pub fn enum_def_sig(db: &dyn crate::Db, ir: ir::EnumDef) -> EnumDefSig {
         )),
     };
 
+    ctx.report_unsolved_metas();
     EnumDefSig {
         args: telescope,
         ret_type: (ret_type_expr, ret_type_value),
