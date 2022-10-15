@@ -49,6 +49,17 @@ impl<'a> UnelabCtx<'a> {
                 };
                 surface::Expr::Name((), name)
             }
+            Expr::Meta(level) => {
+                let name = match self.meta_names.get(*level) {
+                    Some(VarName::User(name)) => name.contents(self.db).clone(),
+                    Some(VarName::Synth(count)) => self.gen_name(*count),
+                    Some(VarName::Underscore) => {
+                        unreachable!("Underscore cannot not be referenced by a local variable")
+                    }
+                    None => unreachable!("Unbound meta variable: {level:?}"),
+                };
+                surface::Expr::Hole((), surface::Hole::Name(name))
+            }
             Expr::Global(GlobalVar::Let(ir)) => {
                 let name = ir.name(self.db).contents(self.db).to_owned();
                 surface::Expr::Name((), name)
@@ -61,17 +72,7 @@ impl<'a> UnelabCtx<'a> {
                 let name = ir.name(self.db).contents(self.db).to_owned();
                 surface::Expr::Name((), name)
             }
-            Expr::Meta(level) => {
-                let name = match self.meta_names.get(*level) {
-                    Some(VarName::User(name)) => name.contents(self.db).clone(),
-                    Some(VarName::Synth(count)) => self.gen_name(*count),
-                    Some(VarName::Underscore) => {
-                        unreachable!("Underscore cannot not be referenced by a local variable")
-                    }
-                    None => unreachable!("Unbound meta variable: {level:?}"),
-                };
-                surface::Expr::Hole((), surface::Hole::Name(name))
-            }
+
             Expr::MetaInsertion(level, infos) => {
                 let mut head = self.unelab_expr(&Expr::Meta(*level));
                 for (info, var) in infos.iter().zip(0..) {
