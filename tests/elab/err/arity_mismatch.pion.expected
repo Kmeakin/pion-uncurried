@@ -5,21 +5,21 @@ let x: #error = #error;
 let y: #error = #error;
 
 ====DIAGNOSTICS====
-Error: Called function with too many arguments
-   ╭─[tests/elab/err/arity_mismatch.pion:5:9]
-   │
- 5 │ let y = f(true, false);
-   ·         │ 
-   ·         ╰─ Help: this function expects 1 argument but you gave it 2
-   ·         │ 
-   ·         ╰─ Help: type of this function is `fn(x: Bool) -> Bool`
-───╯
 Error: Called function with too few arguments
    ╭─[tests/elab/err/arity_mismatch.pion:3:9]
    │
  3 │ let x = f();
    ·         │ 
    ·         ╰─ Help: this function expects 1 argument but you gave it 0
+   ·         │ 
+   ·         ╰─ Help: type of this function is `fn(x: Bool) -> Bool`
+───╯
+Error: Called function with too many arguments
+   ╭─[tests/elab/err/arity_mismatch.pion:5:9]
+   │
+ 5 │ let y = f(true, false);
+   ·         │ 
+   ·         ╰─ Help: this function expects 1 argument but you gave it 2
    ·         │ 
    ·         ╰─ Help: type of this function is `fn(x: Bool) -> Bool`
 ───╯
