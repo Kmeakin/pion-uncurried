@@ -68,6 +68,7 @@ impl<'env> EvalCtx<'env> {
         QuoteCtx::new(self.local_env.len(), self.meta_env, self.db, self.flags)
     }
 
+    #[track_caller]
     #[debug_requires(expr.is_closed(self.local_env.len(), self.meta_env.len()))]
     #[debug_ensures(ret.is_closed(self.local_env.len(), self.meta_env.len()))]
     #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
@@ -127,6 +128,7 @@ impl<'env> EvalCtx<'env> {
         }
     }
 
+    #[track_caller]
     #[debug_requires(head.is_closed(self.local_env.len(), self.meta_env.len()))]
     #[debug_ensures(ret.is_closed(self.local_env.len(), self.meta_env.len()))]
     #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
@@ -145,6 +147,7 @@ impl<'env> EvalCtx<'env> {
         head
     }
 
+    #[track_caller]
     #[debug_requires(expr.is_closed(self.local_env.len(), self.meta_env.len()))]
     #[debug_ensures(ret.is_closed(self.local_env.len(), EnvLen(0)))]
     #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
@@ -188,6 +191,7 @@ impl<'env> EvalCtx<'env> {
         }
     }
 
+    #[track_caller]
     #[debug_requires(expr.is_closed(self.local_env.len(), self.meta_env.len()))]
     #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
     fn zonk_spine(&mut self, expr: &Expr) -> Either<Expr, Arc<Value>> {
@@ -301,6 +305,7 @@ impl<'env> ElimCtx<'env> {
         }
     }
 
+    #[track_caller]
     #[debug_requires(closure.arity() == args.len())]
     pub fn apply_fun_closure(&self, closure: &FunClosure, args: Vec<Arc<Value>>) -> Arc<Value> {
         let mut env = closure.env.clone();
@@ -403,6 +408,7 @@ impl<'env> QuoteCtx<'env> {
 
     fn elim_ctx(&self) -> ElimCtx { ElimCtx::new(self.meta_env, self.db, self.flags) }
 
+    #[track_caller]
     #[debug_requires(value.is_closed(self.local_len, self.meta_env.len()))]
     #[debug_ensures(self.local_len == old(self.local_len))]
     #[debug_ensures(ret.is_closed(self.local_len, self.meta_env.len()))]
@@ -448,6 +454,7 @@ impl<'env> QuoteCtx<'env> {
         }
     }
 
+    #[track_caller]
     #[debug_requires(closure.is_closed((), self.meta_env.len()))]
     #[debug_ensures(self.local_len == old(self.local_len))]
     fn quote_closure(&mut self, closure: &FunClosure) -> (Telescope<Expr>, Expr) {
