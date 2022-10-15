@@ -9,6 +9,19 @@ pub struct FileSpan {
     pub span: Span,
 }
 
+impl PartialOrd for FileSpan {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> { Some(self.cmp(other)) }
+}
+
+impl Ord for FileSpan {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        let file = self.file.cmp(&other.file);
+        let start = self.span.start().cmp(&other.span.start());
+        let end = self.span.end().cmp(&other.span.end());
+        file.then(start).then(end)
+    }
+}
+
 impl ariadne::Span for FileSpan {
     type SourceId = File;
     fn source(&self) -> &Self::SourceId { &self.file }
