@@ -1,0 +1,13 @@
+enum Triple(A: Type, B: Type, C: Type): Type {
+    MkPair(x: A, y: B): Triple(A, B, C),
+}
+
+let mkpair: fn(A: Type, B: Type, C: Type, x: A, y: B) -> Triple(A, B, C) = MkPair;
+
+let fst: fn(A: Type, B: Type, C: Type, p: Triple(A, B, C)) -> A = fn(A: Type, B: Type, C: Type, p: Triple(A, B, C)) => match p {
+    MkPair(z, foo) => z,
+};
+
+let fst_ann: fn(X: Type, Y: Type, Z: Type, q: Triple(X, Y, Z)) -> X = fn(A: Type, B: Type, C: Type, p: Triple(A, B, C)) => match p {
+    MkPair(z, foo) => z,
+};

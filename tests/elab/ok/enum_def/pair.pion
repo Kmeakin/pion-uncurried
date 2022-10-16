@@ -2,14 +2,17 @@ enum Pair(A: Type, B: Type) {
     MkPair(x: A, y: B),
 }
 
-// let mkpair = MkPair;
+let mkpair = MkPair;
 
-let fst = fn(p) => match p {
-    MkPair(z, _) => z,
+let fst 
+= fn(A: Type, B: Type, p: Pair(A, B)) => match p {
+    MkPair(z, foo) => z, // Pair(A, B)
 };
 
-/*
-let snd = fn(p) => match p {
-    MkPair(_, y) => x,
+
+let fst_ann 
+: fn (X: Type, Y: Type, q: Pair(X, Y)) -> X
+= fn(A: Type, B: Type, p: Pair(A, B)) => match p {
+    MkPair(z, foo) => z, // Pair(A, B)
 };
-*/
+

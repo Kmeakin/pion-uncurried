@@ -1,0 +1,33 @@
+enum Id(A: Type) {
+    MkId(_: A),
+}
+
+let mkid = MkId;
+
+let get
+= fn(B: Type, it: Id(B)) => match it {
+    MkId(z) => z,
+};
+
+let get_ann:
+fn (C: Type, that: Id(C)) -> C
+= fn(B: ?_, it: ?_) => match it {
+    MkId(z) => z,
+};
+
+enum Id2(A: Type) {
+    MkId2(_: A, _: A),
+}
+
+let mkid2 = MkId2;
+
+let get2
+= fn(B: Type, it: Id2(B)) => match it {
+    MkId2(z,foo) => z,
+};
+
+let get2_ann:
+fn (C: Type, that: Id2(C)) -> C
+= fn(B: ?_, it: ?_) => match it {
+    MkId2(z,foo) => z,
+};

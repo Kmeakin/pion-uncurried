@@ -266,6 +266,7 @@ pub fn unelab_enum_def(db: &dyn crate::Db, enum_def: &EnumDef) -> surface::EnumD
                  name,
                  args,
                  ret_type,
+                 ..
              }| {
                 let initial_len = ctx.local_names.len();
                 let name = name.contents(db).to_owned();

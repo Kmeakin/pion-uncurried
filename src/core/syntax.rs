@@ -34,6 +34,7 @@ pub struct EnumDef {
 pub struct EnumVariant {
     pub name: Symbol,
     pub args: Telescope<Expr>,
+    pub arg_values: Telescope<Arc<Value>>,
     pub ret_type: (Expr, Arc<Value>),
 }
 

@@ -3,12 +3,35 @@ enum Option(T: Type) {
     Some(x: T),
 }
 
-let n = None;
-let s = Some;
+let n = None; // fn(T: Type) -> Option(T)
+let s = Some; // fn(T: Type, x: T) -> Option(T)
 
-let unwrap_or: fn(_: Option(Bool), _: Bool) -> Bool 
-= fn(o: Option(Bool), d: Bool) => 
+let unwrap_or
+= fn(B: Type, o: Option(B), d: B) => 
     match o {
-        Some(y) => y, 
-        None => d, 
+        None => d,  // Option(B)
+        Some(y) => y, // Option(B)
+    };
+
+let unwrap_or_2
+= fn(B: Type, o: Option(B), d: B) => 
+    match o {
+        Some(y) => y, // Option(B)
+        None => d,  // Option(B)
+    };
+
+let unwrap_or_ann
+: fn(A: Type, oo: Option(A), dd: A) -> A
+= fn(B: Type, o: Option(B), d: B) => 
+    match o {
+        None => d,  // Option(B)
+        Some(y) => y, // Option(B)
+    };
+
+let unwrap_or_ann_2
+: fn(A: Type, oo: Option(A), dd: A) -> A
+= fn(B: Type, o: Option(B), d: B) => 
+    match o {
+        Some(y) => y, // Option(B)
+        None => d,  // Option(B)
     };

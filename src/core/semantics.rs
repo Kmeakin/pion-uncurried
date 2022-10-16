@@ -5,7 +5,7 @@ use either::Either;
 use either::Either::*;
 
 use self::binders::IsClosed;
-use super::elab::{elab_enum_variant, eval_let_def_expr};
+use super::elab::eval_let_def_expr;
 use super::env::{EnvLen, LocalSource, SharedEnv, UniqueEnv};
 use super::syntax::*;
 
@@ -316,6 +316,7 @@ impl<'env> ElimCtx<'env> {
 
     #[track_caller]
     #[debug_requires(closure.arity() == args.len())]
+    #[debug_requires(closure.is_closed((), self.meta_env.len()))]
     pub fn apply_fun_closure(&self, closure: &FunClosure, args: Vec<Arc<Value>>) -> Arc<Value> {
         let mut env = closure.env.clone();
         let mut eval_ctx = self.eval_ctx(&mut env);

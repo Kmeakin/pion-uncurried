@@ -2,6 +2,28 @@ let f: fn(b: Bool) -> match b {
     false => Type,
     true => Bool,
 } = fn(x: Bool) => match x {
-    false => Type,
-    true => false,
+    false => #error,
+    true => #error,
 };
+
+====DIAGNOSTICS====
+Error: Type mismatch
+   ╭─[tests/elab/ok/dependent_match.pion:3:14]
+   │
+ 3 │     false => Type,
+   ·              │ 
+   ·              ╰─ Help: expected match x {
+    false => Type,
+    true => Bool,
+}, got Type
+───╯
+Error: Type mismatch
+   ╭─[tests/elab/ok/dependent_match.pion:4:13]
+   │
+ 4 │     true => false,
+   ·             │ 
+   ·             ╰─ Help: expected match x {
+    false => Type,
+    true => Bool,
+}, got Bool
+───╯

@@ -205,7 +205,25 @@ pub fn elab_enum_def(db: &dyn crate::Db, ir: ir::EnumDef) -> EnumDef {
                 ret_type,
             } = surface;
             let name = Symbol::new(db, name.to_owned());
-            let telescope = ctx.synth_telescope(args);
+
+            let mut arg_exprs = Vec::new();
+            let mut arg_values = Vec::new();
+            for arg in args {
+                let SynthPat(pat_core, pat_type) = ctx.synth_ann_pat(arg);
+                let type_core = ctx.quote_ctx().quote_value(&pat_type);
+                ctx.push_pat_params(&pat_core, pat_type.clone());
+                arg_exprs.push(FunArg {
+                    pat: pat_core.clone(),
+                    r#type: type_core,
+                });
+                arg_values.push(FunArg {
+                    pat: pat_core,
+                    r#type: pat_type,
+                });
+            }
+            let arg_exprs = Telescope(Arc::from(arg_exprs));
+            let arg_values = Telescope(Arc::from(arg_values));
+
             let ret_type = match ret_type {
                 None => (ctx.quote_ctx().quote_value(&self_type), self_type.clone()),
                 Some(ret_type_surface) => {
@@ -218,7 +236,8 @@ pub fn elab_enum_def(db: &dyn crate::Db, ir: ir::EnumDef) -> EnumDef {
             ctx.local_env.truncate(initial_len);
             EnumVariant {
                 name,
-                args: telescope,
+                args: arg_exprs,
+                arg_values,
                 ret_type,
             }
         })

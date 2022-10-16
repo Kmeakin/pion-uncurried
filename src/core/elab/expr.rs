@@ -312,13 +312,8 @@ impl ElabCtx<'_> {
     ) -> CheckExpr {
         // TODO: check for exhaustivity and report unreachable patterns
 
-        // FIXME: update `expected` with defintions introduced by `check_pat`
-        // without having to quote `expected` back to `Expr`
-
         let SynthExpr(scrut_core, scrut_type) = self.synth_expr(scrut);
         let scrut_value = self.eval_ctx().eval_expr(&scrut_core);
-
-        let expected_core = self.quote_ctx().quote_value(expected);
 
         let branches = branches
             .iter()
@@ -326,10 +321,8 @@ impl ElabCtx<'_> {
                 let initial_len = self.local_env.len();
                 let CheckPat(pat_core) = self.check_pat(pat, &scrut_type);
                 self.push_pat_defs(&pat_core, scrut_type.clone(), scrut_value.clone());
-                let expected = &self.eval_ctx().eval_expr(&expected_core);
                 let CheckExpr(expr_core) = self.check_expr(expr, expected);
                 self.local_env.truncate(initial_len);
-
                 (pat_core, expr_core)
             })
             .collect();
