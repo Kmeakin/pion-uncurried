@@ -306,16 +306,12 @@ impl<'env> UnifyCtx<'env> {
     fn fun_intros(&mut self, spine: &[Elim], expr: Expr) -> Expr {
         spine.iter().fold(expr, |expr, elim| match elim {
             Elim::FunCall(args) => {
-                let arity = args.len();
-
                 // TODO: what should the introduced args be?
-                let args: Vec<_> = std::iter::repeat_with(|| FunArg {
+                let arg = FunArg {
                     pat: Pat::Error,
                     r#type: Expr::ERROR,
-                })
-                .take(arity)
-                .collect();
-                let types = Arc::from(args);
+                };
+                let types = Arc::from(vec![arg; args.len()]);
                 Expr::FunExpr(Telescope(types), Arc::new(expr))
             }
             Elim::Match(_) => unreachable!("should have been caught by `init_renaming`"),
