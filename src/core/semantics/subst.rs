@@ -49,6 +49,8 @@ impl EvalCtx<'_> {
         self.local_env.push_pat_defs(pat, value)
     }
 
+    #[track_caller]
+    #[debug_requires(telescope.is_closed(self.local_env.len(),self.meta_env.len()))]
     #[debug_ensures(self.local_env.len() == old(self.local_env.len()) + telescope.num_binders())]
     pub fn push_telescope_defs(
         &mut self,

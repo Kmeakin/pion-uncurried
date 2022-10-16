@@ -8,13 +8,14 @@ pub trait IsClosed<LocalEnv = EnvLen, MetaEnv = EnvLen> {
 }
 
 impl IsClosed for Expr {
-    fn is_closed(&self, mut local_env: EnvLen, meta_env: EnvLen) -> bool {
+    fn is_closed(&self, local_env: EnvLen, meta_env: EnvLen) -> bool {
         match self {
             Self::Prim(_) | Self::Lit(_) | Self::Global(_) => true,
             Self::Local(var) => var.0 < local_env.0,
             Self::Meta(var) | Self::MetaInsertion(var, ..) => var.0 < meta_env.0,
             Self::FunType(args, ret) | Self::FunExpr(args, ret) => {
-                args.is_closed(&mut local_env, meta_env) && ret.is_closed(local_env, meta_env)
+                args.is_closed(local_env, meta_env)
+                    && ret.is_closed(local_env + args.num_binders(), meta_env)
             }
             Self::FunCall(fun, args) => {
                 fun.is_closed(local_env, meta_env)
@@ -59,8 +60,11 @@ impl IsClosed for Value {
 
 impl IsClosed<()> for FunClosure {
     fn is_closed(&self, _: (), meta_env: EnvLen) -> bool {
-        let mut local_env = self.env.len();
-        self.args.is_closed(&mut local_env, meta_env) && self.body.is_closed(local_env, meta_env)
+        let local_env = self.env.len();
+        self.args.is_closed(local_env, meta_env)
+            && self
+                .body
+                .is_closed(local_env + self.args.num_binders(), meta_env)
     }
 }
 
@@ -76,10 +80,10 @@ impl IsClosed<()> for MatchClosure {
     }
 }
 
-impl<Type: IsClosed> IsClosed<&mut EnvLen> for Telescope<Type> {
-    fn is_closed(&self, local_env: &mut EnvLen, meta_env: EnvLen) -> bool {
+impl<Type: IsClosed> IsClosed for Telescope<Type> {
+    fn is_closed(&self, mut local_env: EnvLen, meta_env: EnvLen) -> bool {
         self.0.iter().all(|FunArg { pat, r#type }| {
-            let ret = r#type.is_closed(*local_env, meta_env);
+            let ret = r#type.is_closed(local_env, meta_env);
             local_env.push_pat_params(pat);
             ret
         })

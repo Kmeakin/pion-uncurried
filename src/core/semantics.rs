@@ -259,6 +259,7 @@ impl<'env> EvalCtx<'env> {
 }
 
 pub struct ElimCtx<'env> {
+    /// Only used for `debug_ensures` / `debug_requires`
     local_env: EnvLen,
     meta_env: &'env MetaEnv,
     db: &'env dyn crate::Db,
@@ -296,6 +297,9 @@ impl<'env> ElimCtx<'env> {
         forced_value
     }
 
+    #[track_caller]
+    #[debug_requires(head.is_closed(self.local_env, self.meta_env.len()))]
+    #[debug_ensures(ret.is_closed(self.local_env, self.meta_env.len()))]
     fn apply_spine(&self, head: Arc<Value>, spine: &[Elim]) -> Arc<Value> {
         spine.iter().fold(head, |head, elim| match elim {
             Elim::FunCall(args) => self.apply_fun_value(head, args.clone()),
@@ -303,7 +307,12 @@ impl<'env> ElimCtx<'env> {
         })
     }
 
-    pub fn apply_fun_value(&self, mut fun: Arc<Value>, args: Vec<Arc<Value>>) -> Arc<Value> {
+    #[track_caller]
+    #[debug_requires(fun.is_closed(self.local_env, self.meta_env.len()))]
+    #[debug_requires(args.iter().all(|arg| arg.is_closed(self.local_env, self.meta_env.len())))]
+    #[debug_ensures(ret.is_closed(self.local_env, self.meta_env.len()))]
+    pub fn apply_fun_value(&self, fun: Arc<Value>, args: Vec<Arc<Value>>) -> Arc<Value> {
+        let mut fun = fun;
         match Arc::make_mut(&mut fun) {
             Value::Stuck(_, spine) => {
                 spine.push(Elim::FunCall(args));
@@ -317,6 +326,7 @@ impl<'env> ElimCtx<'env> {
     #[track_caller]
     #[debug_requires(closure.arity() == args.len())]
     #[debug_requires(closure.is_closed((), self.meta_env.len()))]
+    #[debug_ensures(ret.is_closed(closure.env.len() + closure.num_binders(), self.meta_env.len()))]
     pub fn apply_fun_closure(&self, closure: &FunClosure, args: Vec<Arc<Value>>) -> Arc<Value> {
         let mut env = closure.env.clone();
         let mut eval_ctx = self.eval_ctx(&mut env);
@@ -325,7 +335,11 @@ impl<'env> ElimCtx<'env> {
     }
 
     #[track_caller]
-    pub fn apply_match_closure(&self, mut scrut: Arc<Value>, closure: MatchClosure) -> Arc<Value> {
+    #[debug_requires(scrut.is_closed(self.local_env, self.meta_env.len()))]
+    #[debug_requires(closure.is_closed((), self.meta_env.len()))]
+    #[debug_ensures(ret.is_closed(self.local_env, self.meta_env.len()))]
+    pub fn apply_match_closure(&self, scrut: Arc<Value>, closure: MatchClosure) -> Arc<Value> {
+        let mut scrut = scrut;
         if let Value::Stuck(_, spine) = Arc::make_mut(&mut scrut) {
             spine.push(Elim::Match(closure));
             return scrut;
@@ -355,6 +369,8 @@ impl<'env> ElimCtx<'env> {
         unreachable!("non-exhaustive match: {scrut:?}")
     }
 
+    #[track_caller]
+    #[debug_requires(closure.is_closed((), self.meta_env.len()))]
     pub fn split_fun_closure(
         &self,
         mut closure: FunClosure,
@@ -376,6 +392,8 @@ impl<'env> ElimCtx<'env> {
         Some((arg, cont))
     }
 
+    #[track_caller]
+    #[debug_requires(closure.is_closed((), self.meta_env.len()))]
     pub fn split_match_closure(
         &self,
         mut closure: MatchClosure,
@@ -423,8 +441,8 @@ impl<'env> QuoteCtx<'env> {
 
     #[track_caller]
     #[debug_requires(value.is_closed(self.local_env, self.meta_env.len()))]
-    #[debug_ensures(self.local_env == old(self.local_env))]
     #[debug_ensures(ret.is_closed(self.local_env, self.meta_env.len()))]
+    #[debug_ensures(self.local_env == old(self.local_env))]
     pub fn quote_value(&mut self, value: &Value) -> Expr {
         match value {
             Value::Lit(lit) => Expr::Lit(lit.clone()),
@@ -469,6 +487,7 @@ impl<'env> QuoteCtx<'env> {
 
     #[track_caller]
     #[debug_requires(closure.is_closed((), self.meta_env.len()))]
+    #[debug_ensures(ret.0.is_closed(self.local_env, self.meta_env.len()))]
     #[debug_ensures(self.local_env == old(self.local_env))]
     fn quote_closure(&mut self, closure: &FunClosure) -> (Telescope<Expr>, Expr) {
         let start_len = self.local_env;
