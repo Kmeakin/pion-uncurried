@@ -278,6 +278,7 @@ impl<'a> PrettyCtx {
         match lit {
             Lit::Bool(_, true) => self.text("true"),
             Lit::Bool(_, false) => self.text("false"),
+            Lit::String(_, s) => self.text(format!("{s:?}")),
         }
     }
 }

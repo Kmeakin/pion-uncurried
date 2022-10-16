@@ -106,4 +106,5 @@ pub struct AnnPat<Span> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Lit<Span> {
     Bool(Span, bool),
+    String(Span, String),
 }

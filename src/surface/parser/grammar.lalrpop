@@ -19,6 +19,7 @@ extern {
         "_" =>          Token::Underscore,
         "Name" =>       Token::Name(<&'src str>),
         "Hole" =>       Token::Hole(<&'src str>),
+        "String" =>     Token::String(<&'src str>),
 
         "(" =>          Token::LParen,
         ")" =>          Token::RParen,
@@ -111,11 +112,16 @@ AnnPat: AnnPat<Span> = {
 
 pub Lit: Lit<Span> = {
     <start: @L> <b: Bool> <end: @R> => Lit::Bool(Span::new(start, end), b),
+    <start: @L> <s: String> <end: @R> => Lit::String(Span::new(start, end), s),
 }
 
 Bool: bool = {
     "true" => true,
     "false" => false,
+}
+
+String: String = {
+    <s: "String"> => s.into(),
 }
 
 Name: String = {

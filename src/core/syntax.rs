@@ -63,6 +63,7 @@ pub enum Prim {
     Error,
     Type,
     BoolType,
+    StringType,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -217,6 +218,7 @@ impl MatchClosure {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Lit {
     Bool(bool),
+    String(String),
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]

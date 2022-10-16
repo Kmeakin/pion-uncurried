@@ -37,6 +37,7 @@ impl<'a> UnelabCtx<'a> {
             Expr::Prim(Prim::Error) => surface::Expr::Error(()),
             Expr::Prim(Prim::Type) => surface::Expr::Name((), "Type".into()),
             Expr::Prim(Prim::BoolType) => surface::Expr::Name((), "Bool".into()),
+            Expr::Prim(Prim::StringType) => surface::Expr::Name((), "String".into()),
             Expr::Lit(lit) => surface::Expr::Lit((), self.unelab_lit(lit)),
             Expr::Local(index) => {
                 let name = match self.local_names.get(*index) {
@@ -187,6 +188,7 @@ impl<'a> UnelabCtx<'a> {
     pub fn unelab_lit(&mut self, lit: &Lit) -> surface::Lit<()> {
         match lit {
             Lit::Bool(b) => surface::Lit::Bool((), *b),
+            Lit::String(s) => surface::Lit::String((), s.clone()),
         }
     }
 

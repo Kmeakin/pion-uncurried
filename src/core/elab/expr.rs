@@ -13,6 +13,10 @@ impl ElabCtx<'_> {
     pub fn synth_lit(&mut self, lit: &surface::Lit<Span>) -> (Lit, Arc<Value>) {
         match lit {
             surface::Lit::Bool(_, b) => (Lit::Bool(*b), Arc::new(Value::prim(Prim::BoolType))),
+            surface::Lit::String(_, s) => (
+                Lit::String(s.clone()),
+                Arc::new(Value::prim(Prim::StringType)),
+            ),
         }
     }
 
@@ -59,6 +63,9 @@ impl ElabCtx<'_> {
                 match name.as_str() {
                     "Type" => return SynthExpr(Expr::Prim(Prim::Type), Arc::new(Value::TYPE)),
                     "Bool" => return SynthExpr(Expr::Prim(Prim::BoolType), Arc::new(Value::TYPE)),
+                    "String" => {
+                        return SynthExpr(Expr::Prim(Prim::StringType), Arc::new(Value::TYPE))
+                    }
                     _ => {}
                 }
 

@@ -18,6 +18,7 @@ pub enum Token<'src> {
     #[token("_")]                                   Underscore,
     #[regex(r"[a-zA-Z_][a-zA-Z0-9_-]*")]            Name(&'src str),
     #[regex(r"\?[a-zA-Z_][a-zA-Z0-9_-]*")]          Hole(&'src str),
+    #[regex(r#""([^"\\]|\\.)*""#, |lex| &lex.slice()[1..(lex.slice().len() - 1)])] String(&'src str),
 
     #[token("(")]                                   LParen,
     #[token(")")]                                   RParen,
@@ -81,6 +82,7 @@ impl<'src> Token<'src> {
             Self::Underscore => "`_`",
             Self::Name(_) => "name",
             Self::Hole(_) => "hole",
+            Self::String(_) => "string literal",
             Self::LParen => "`(`",
             Self::RParen => "`)`",
             Self::LCurly => "`{`",
