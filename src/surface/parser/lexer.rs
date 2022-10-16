@@ -18,7 +18,7 @@ pub enum Token<'src> {
     #[token("_")]                                   Underscore,
     #[regex(r"[a-zA-Z_][a-zA-Z0-9_-]*")]            Name(&'src str),
     #[regex(r"\?[a-zA-Z_][a-zA-Z0-9_-]*")]          Hole(&'src str),
-    #[regex(r#""([^"\\]|\\.)*""#, |lex| &lex.slice()[1..(lex.slice().len() - 1)])] String(&'src str),
+    #[regex(r#""([^"\\]|\\.)*""#, strip_quotes)]    String(&'src str),
 
     #[token("(")]                                   LParen,
     #[token(")")]                                   RParen,
@@ -39,6 +39,10 @@ pub enum Token<'src> {
     #[token("let")]                                 KwLet,
     #[token("match")]                               KwMatch,
     #[token("true")]                                KwTrue,
+}
+
+fn strip_quotes<'src>(lexer: &mut Lexer<'src, Token<'src>>) -> &'src str {
+    &lexer.slice()[1..(lexer.slice().len() - 1)]
 }
 
 fn block_comment<'src>(lexer: &mut Lexer<'src, Token<'src>>) -> logos::Skip {
