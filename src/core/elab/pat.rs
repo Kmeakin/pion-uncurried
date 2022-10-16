@@ -78,7 +78,7 @@ impl ElabCtx<'_> {
                             .iter()
                             .map(|_| {
                                 let name = self.name_source.fresh();
-                                let source = MetaSource::Error;
+                                let source = MetaSource::Error; // TODO: proper source
                                 let r#type = Arc::new(Value::TYPE);
                                 self.push_meta_value(name, source, r#type)
                             })
