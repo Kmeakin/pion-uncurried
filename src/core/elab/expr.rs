@@ -1,3 +1,5 @@
+use contracts::debug_requires;
+
 use super::semantics::binders::IsClosed;
 use super::*;
 
@@ -9,7 +11,6 @@ pub struct CheckExpr(pub Expr);
 
 /// Expressions
 impl ElabCtx<'_> {
-    #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
     pub fn synth_lit(&mut self, lit: &surface::Lit<Span>) -> (Lit, Arc<Value>) {
         match lit {
             surface::Lit::Bool(_, b) => (Lit::Bool(*b), Arc::new(Value::prim(Prim::BoolType))),
@@ -20,14 +21,18 @@ impl ElabCtx<'_> {
         }
     }
 
+    #[track_caller]
     #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
     #[debug_ensures(ret.0.is_closed(self.local_env.len(), self.meta_env.len()))]
+    #[debug_ensures(ret.1.is_closed(self.local_env.len(), self.meta_env.len()))]
     pub fn synth_error_expr(&mut self) -> SynthExpr {
         SynthExpr(Expr::ERROR, Arc::new(Value::ERROR))
     }
 
+    #[track_caller]
     #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
     #[debug_ensures(ret.0.is_closed(self.local_env.len(), self.meta_env.len()))]
+    #[debug_ensures(ret.1.is_closed(self.local_env.len(), self.meta_env.len()))]
     pub fn synth_expr(&mut self, expr: &surface::Expr<Span>) -> SynthExpr {
         let file = self.file;
         match expr {
@@ -217,11 +222,14 @@ impl ElabCtx<'_> {
         }
     }
 
+    #[track_caller]
     #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
     pub fn check_expr_is_type(&mut self, expr: &surface::Expr<Span>) -> CheckExpr {
         self.check_expr(expr, &Arc::new(Value::TYPE))
     }
 
+    #[track_caller]
+    #[debug_requires(expected.is_closed(self.local_env.len(), self.meta_env.len()))]
     #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
     #[debug_ensures(ret.0.is_closed(self.local_env.len(), self.meta_env.len()))]
     pub fn check_expr(&mut self, expr: &surface::Expr<Span>, expected: &Arc<Value>) -> CheckExpr {
@@ -309,6 +317,8 @@ impl ElabCtx<'_> {
         }
     }
 
+    #[track_caller]
+    #[debug_requires(expected.is_closed(self.local_env.len(), self.meta_env.len()))]
     #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
     #[debug_ensures(ret.0.is_closed(self.local_env.len(), self.meta_env.len()))]
     fn check_match_expr(
