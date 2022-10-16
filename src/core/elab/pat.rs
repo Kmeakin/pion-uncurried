@@ -46,7 +46,9 @@ impl ElabCtx<'_> {
                     ret_type: variant_ret_type,
                     ..
                 } = elab_enum_variant(db, variant);
-                assert_eq!(pats.len(), variant_arg_values.len());
+                if pats.len() != variant_arg_values.len() {
+                    todo!("arity mismatch")
+                }
 
                 let pats = pats
                     .iter()
@@ -83,73 +85,6 @@ impl ElabCtx<'_> {
                             .chain(variant_arg_values.iter().map(|arg| arg.r#type.clone()))
                             .collect();
                         self.elim_ctx().apply_fun_closure(&closure, args)
-                    }
-                };
-                SynthPat(Pat::Variant(variant, pats), ret_type)
-            }
-            #[cfg(FALSE)]
-            surface::Pat::Variant(_, name, pats) => {
-                let name = Symbol::new(self.db, name.to_owned());
-                let variant = match lookup_item(self.db, self.file, name) {
-                    Some(ir::Item::Variant(ir)) => ir,
-                    _ => todo!("No such variant"),
-                };
-
-                let EnumDefSig {
-                    args: parent_args, ..
-                } = enum_def_sig(self.db, variant.parent(self.db));
-
-                let EnumVariant {
-                    args: variant_args,
-                    ret_type,
-                    ..
-                } = elab_enum_variant(db, variant);
-
-                if pats.len() != variant_args.len() {
-                    todo!("arity mismatch")
-                }
-
-                let mut pat_types = Vec::with_capacity(pats.len());
-                let pats = pats
-                    .iter()
-                    .zip(variant_args.iter())
-                    .map(|(pat, expected)| {
-                        // let expected = self.eval_ctx().eval_expr(&expected.r#type);
-                        let expected = Arc::new(Value::ERROR);
-                        let CheckPat(pat_core) = self.check_pat(pat, &expected);
-                        pat_types.push(expected);
-                        pat_core
-                    })
-                    .collect();
-
-                let ret_type = match (parent_args.len(), variant_args.len()) {
-                    (0, 0) => ret_type.1,
-                    // (0, _) => todo!(),
-                    // (_, 0) => todo!(),
-                    (..) => {
-                        let closure = FunClosure::new(
-                            SharedEnv::new(),
-                            // self.local_env.values.clone(),
-                            parent_args
-                                .iter()
-                                .chain(variant_args.iter())
-                                .cloned()
-                                .collect(),
-                            Arc::new(ret_type.0),
-                        );
-                        let args = std::iter::repeat_with(|| {
-                            // let name = self.name_source.fresh();
-                            // let source = MetaSource::Error;
-                            // let r#type = Arc::new(Value::TYPE);
-                            // self.push_meta_value(name, source, r#type)
-                            Arc::new(Value::ERROR)
-                        })
-                        .take(parent_args.len())
-                        .chain(pat_types.into_iter().map(|_| Arc::new(Value::ERROR)))
-                        .collect();
-                        let ret = self.elim_ctx().apply_fun_closure(&closure, args);
-                        eprintln!("ret: {}", self.pretty_value(&ret));
-                        ret
                     }
                 };
                 SynthPat(Pat::Variant(variant, pats), ret_type)
