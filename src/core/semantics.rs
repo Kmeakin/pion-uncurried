@@ -307,9 +307,6 @@ impl<'env> ElimCtx<'env> {
     }
 
     #[track_caller]
-    #[debug_requires(fun.is_closed(self.local_env, self.meta_env.len()))]
-    #[debug_requires(args.iter().all(|arg| arg.is_closed(self.local_env, self.meta_env.len())))]
-    #[debug_ensures(ret.is_closed(self.local_env, self.meta_env.len()))]
     pub fn apply_fun_value(&self, fun: Arc<Value>, args: Vec<Arc<Value>>) -> Arc<Value> {
         let mut fun = fun;
         match Arc::make_mut(&mut fun) {
