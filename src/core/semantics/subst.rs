@@ -18,7 +18,8 @@ impl LocalEnv {
     pub fn push_pat_params(&mut self, pat: &Pat) {
         let var = || Arc::new(Value::local(self.len().to_level()));
         match pat {
-            Pat::Error | Pat::Lit(_) | Pat::Name(_) => self.push(var()),
+            Pat::Lit(_) => {}
+            Pat::Error | Pat::Name(_) => self.push(var()),
             Pat::Variant(_, pats) => pats.iter().for_each(|pat| self.push_pat_params(pat)),
         }
     }
@@ -26,7 +27,8 @@ impl LocalEnv {
     #[debug_ensures(self.len() == old(self.len()) + pat.num_binders())]
     pub fn push_pat_defs(&mut self, pat: &Pat, value: Arc<Value>) {
         match pat {
-            Pat::Error | Pat::Lit(_) | Pat::Name(_) => self.push(value),
+            Pat::Lit(_) => {}
+            Pat::Error | Pat::Name(_) => self.push(value),
             Pat::Variant(variant, pats) => {
                 let (v, value_args) = value.as_variant().unwrap();
                 assert_eq!(v, *variant);
@@ -67,9 +69,9 @@ impl UnelabCtx<'_> {
     #[debug_ensures(self.local_names.len() == old(self.local_names.len()) + pat.num_binders())]
     pub fn push_pat_params(&mut self, pat: &Pat) {
         match pat {
+            Pat::Lit(_) => {}
             Pat::Error => self.local_names.push(VarName::Underscore),
             Pat::Name(name) => self.local_names.push(*name),
-            Pat::Lit(_) => self.local_names.push(self.name_source.fresh()),
             Pat::Variant(_, pats) => pats.iter().for_each(|pat| self.push_pat_params(pat)),
         }
     }
@@ -88,10 +90,7 @@ impl ElabCtx<'_> {
             Pat::Name(name) => {
                 self.local_env.push_param(*name, r#type);
             }
-            Pat::Lit(_) => {
-                let name = self.name_source.fresh();
-                self.local_env.push_param(name, r#type);
-            }
+            Pat::Lit(_) => {}
             Pat::Variant(variant, pats) => {
                 let (e, enum_args) = r#type.as_enum().unwrap();
                 assert_eq!(e, variant.parent(db));
@@ -137,11 +136,7 @@ impl ElabCtx<'_> {
             Pat::Name(name) => {
                 self.local_env.push_def(*name, r#type, value);
             }
-            Pat::Lit(lit) => {
-                let value = Arc::new(Value::Lit(lit.clone()));
-                let name = self.name_source.fresh();
-                self.local_env.push_def(name, r#type, value);
-            }
+            Pat::Lit(_) => {}
             Pat::Variant(..) => self.push_pat_params(pat, r#type),
         }
     }

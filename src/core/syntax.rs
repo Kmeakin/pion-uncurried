@@ -94,7 +94,8 @@ pub enum Pat {
 impl Pat {
     pub fn num_binders(&self) -> EnvLen {
         match self {
-            Self::Error | Self::Lit(_) | Self::Name(_) => EnvLen(1),
+            Self::Lit(_) => EnvLen(0),
+            Self::Error | Self::Name(_) => EnvLen(1),
             Self::Variant(_, pats) => pats.iter().map(Self::num_binders).sum(),
         }
     }
