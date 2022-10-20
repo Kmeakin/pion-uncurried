@@ -1,0 +1,7 @@
+enum Id(A: Type): Type {
+    MkId(_: A): Id(A),
+}
+
+let get: fn(A: Type, it: Id(A)) -> A = fn(A: Type, it: Id(A)) => match it {
+    MkId(x) => x,
+};

@@ -1,0 +1,22 @@
+enum YesOrNo {
+    Yes,
+    No,
+}
+
+let to_bool = fn(x) => match x {
+    Yes() => true,
+    No() => false,
+};
+
+let from_bool = fn(x) => match x {
+    true => Yes,
+    false => No,
+};
+
+let not = fn(x) => match x {
+    Yes() => No,
+    No() => Yes,
+};
+
+let not_yes = not(Yes);
+let not_no = not(No);

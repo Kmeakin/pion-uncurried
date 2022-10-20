@@ -1,7 +1,0 @@
-enum Id {
-    MkId(_: Bool),
-}
-
-let get = fn(x) => match x {
-    MkId(z) => z,
-};

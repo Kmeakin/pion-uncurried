@@ -3,25 +3,3 @@ enum Id(A: Type): Type {
 }
 
 let mkid: fn(A: Type, _: A) -> Id(A) = MkId;
-
-let get: fn(B: Type, it: Id(B)) -> B = fn(B: Type, it: Id(B)) => match it {
-    MkId(z) => z,
-};
-
-let get_ann: fn(C: Type, that: Id(C)) -> C = fn(B: Type, it: Id(B)) => match it {
-    MkId(z) => z,
-};
-
-enum Id2(A: Type): Type {
-    MkId2(_: A, _: A): Id2(A),
-}
-
-let mkid2: fn(A: Type, _: A, _: A) -> Id2(A) = MkId2;
-
-let get2: fn(B: Type, it: Id2(B)) -> B = fn(B: Type, it: Id2(B)) => match it {
-    MkId2(z, foo) => z,
-};
-
-let get2_ann: fn(C: Type, that: Id2(C)) -> C = fn(B: Type, it: Id2(B)) => match it {
-    MkId2(z, foo) => z,
-};

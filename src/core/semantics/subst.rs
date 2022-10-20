@@ -98,6 +98,7 @@ impl ElabCtx<'_> {
 
                 let mut closure = match synth_enum_variant_expr(db, *variant).as_ref() {
                     Value::FunType(closure) => closure.clone(),
+                    r#type if r#type.as_enum().is_some() => return,
                     _ => unreachable!(),
                 };
 

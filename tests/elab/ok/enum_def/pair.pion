@@ -3,16 +3,3 @@ enum Pair(A: Type, B: Type) {
 }
 
 let mkpair = MkPair;
-
-let fst 
-= fn(A: Type, B: Type, p: Pair(A, B)) => match p {
-    MkPair(z, foo) => z, // Pair(A, B)
-};
-
-
-let fst_ann 
-: fn (X: Type, Y: Type, q: Pair(X, Y)) -> X
-= fn(A: Type, B: Type, p: Pair(A, B)) => match p {
-    MkPair(z, foo) => z, // Pair(A, B)
-};
-

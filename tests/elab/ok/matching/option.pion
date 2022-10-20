@@ -1,0 +1,9 @@
+enum Option(T: Type) {
+    None,
+    Some(x: T),
+}
+
+let unwrap_or = fn(A: Type, it: Option(A), default: A) => match it {
+    None => default,
+    Some(y) => y,
+};

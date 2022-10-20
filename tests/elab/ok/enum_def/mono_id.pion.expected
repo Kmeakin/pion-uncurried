@@ -1,7 +1,0 @@
-enum Id: Type {
-    MkId(_: Bool): Id,
-}
-
-let get: fn(x: Id) -> Bool = fn(x: Id) => match x {
-    MkId(z) => z,
-};

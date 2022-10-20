@@ -62,8 +62,6 @@ impl ElabCtx<'_> {
 
                 let ret_type = match (parent_args.len(), variant_arg_values.len()) {
                     (0, 0) => variant_ret_type.1,
-                    // (0, _) => todo!(),
-                    // (_, 0) => todo!(),
                     (..) => {
                         let closure = FunClosure::new(
                             self.local_env.values.clone(),
