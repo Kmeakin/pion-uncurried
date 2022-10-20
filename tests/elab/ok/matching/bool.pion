@@ -1,4 +1,7 @@
-let not = fn(b) => match b {true => false, false => true};
+let not = fn(b) => match b {
+    true => false, 
+    false => true
+};
 
 let not_true = not(true);
 let not_false = not(false);

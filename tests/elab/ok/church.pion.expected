@@ -1,0 +1,45 @@
+let Nat: Type = fn(Nat: Type, succ: fn(_: Nat) -> Nat, zero: Nat) -> Nat;
+
+let zero: Nat = fn(Nat: Type, succ: fn(_: Nat) -> Nat, zero: Nat) => zero;
+
+let succ: fn(x: fn(Nat: Type, succ: fn(_: Nat) -> Nat, zero: Nat) -> Nat) -> Nat = fn(prev: fn(Nat: Type, succ: fn(_: Nat) -> Nat, zero: Nat) -> Nat) => fn(Nat: Type, succ: fn(_: Nat) -> Nat, zero: Nat) => succ(prev(Nat, succ, zero));
+
+let add: fn(_: fn(Nat: Type, succ: fn(_: Nat) -> Nat, zero: Nat) -> Nat, _: fn(Nat: Type, succ: fn(_: Nat) -> Nat, zero: Nat) -> Nat) -> Nat = fn(n0: fn(Nat: Type, succ: fn(_: Nat) -> Nat, zero: Nat) -> Nat, n1: fn(Nat: Type, succ: fn(_: Nat) -> Nat, zero: Nat) -> Nat) => fn(Nat: Type, succ: fn(_: Nat) -> Nat, zero: Nat) => n0(Nat, succ, n1(Nat, succ, zero));
+
+let mul: fn(_: fn(Nat: Type, succ: fn(_: Nat) -> Nat, zero: Nat) -> Nat, _: fn(Nat: Type, succ: fn(_: Nat) -> Nat, zero: Nat) -> Nat) -> Nat = fn(n0: fn(Nat: Type, succ: fn(_: Nat) -> Nat, zero: Nat) -> Nat, n1: fn(Nat: Type, succ: fn(_: Nat) -> Nat, zero: Nat) -> Nat) => fn(Nat: Type, succ: fn(_: Nat) -> Nat, zero: Nat) => n0(Nat, fn(x: Nat) => n1(Nat, succ, x), zero);
+
+let n0: fn(Nat: Type, succ: fn(_: Nat) -> Nat, zero: Nat) -> Nat = zero;
+
+let n1: fn(Nat: Type, succ: fn(_: Nat) -> Nat, zero: Nat) -> Nat = succ(n0);
+
+let n2: fn(Nat: Type, succ: fn(_: Nat) -> Nat, zero: Nat) -> Nat = succ(n1);
+
+let n3: fn(Nat: Type, succ: fn(_: Nat) -> Nat, zero: Nat) -> Nat = succ(n2);
+
+let n4: fn(Nat: Type, succ: fn(_: Nat) -> Nat, zero: Nat) -> Nat = succ(n3);
+
+let n5: fn(Nat: Type, succ: fn(_: Nat) -> Nat, zero: Nat) -> Nat = succ(n4);
+
+let n6: fn(Nat: Type, succ: fn(_: Nat) -> Nat, zero: Nat) -> Nat = succ(n5);
+
+let n7: fn(Nat: Type, succ: fn(_: Nat) -> Nat, zero: Nat) -> Nat = succ(n6);
+
+let n8: fn(Nat: Type, succ: fn(_: Nat) -> Nat, zero: Nat) -> Nat = succ(n7);
+
+let n9: fn(Nat: Type, succ: fn(_: Nat) -> Nat, zero: Nat) -> Nat = succ(n8);
+
+let n10: fn(Nat: Type, succ: fn(_: Nat) -> Nat, zero: Nat) -> Nat = succ(n9);
+
+let n3000: fn(Nat: Type, succ: fn(_: Nat) -> Nat, zero: Nat) -> Nat = mul(n10, mul(n10, mul(n10, n3)));
+
+let Vec: fn(_: Type, _: fn(Nat: Type, succ: fn(_: Nat) -> Nat, zero: Nat) -> Nat) -> Type = fn(Elem: Type, len: fn(Nat: Type, succ: fn(_: Nat) -> Nat, zero: Nat) -> Nat) => fn(Vec: fn(len: fn(Nat: Type, succ: fn(_: Nat) -> Nat, zero: Nat) -> Nat) -> Type, nil: Vec(fn(Nat: Type, succ: fn(_: Nat) -> Nat, zero: Nat) => zero), cons: fn(len: fn(Nat: Type, succ: fn(_: Nat) -> Nat, zero: Nat) -> Nat, head: Elem, tail: Vec(len)) -> Vec(fn(Nat: Type, succ: fn(_: Nat) -> Nat, zero: Nat) => succ(len(Nat, succ, zero)))) -> Vec(len);
+
+let vnil: fn(Elem: Type) -> Vec(Elem, zero) = fn(Elem: Type) => fn(Vec: fn(len: fn(Nat: Type, succ: fn(_: Nat) -> Nat, zero: Nat) -> Nat) -> Type, nil: Vec(fn(Nat: Type, succ: fn(_: Nat) -> Nat, zero: Nat) => zero), cons: fn(len: fn(Nat: Type, succ: fn(_: Nat) -> Nat, zero: Nat) -> Nat, head: Elem, tail: Vec(len)) -> Vec(fn(Nat: Type, succ: fn(_: Nat) -> Nat, zero: Nat) => succ(len(Nat, succ, zero)))) => nil;
+
+let vcons: fn(Elem: Type, len: fn(Nat: Type, succ: fn(_: Nat) -> Nat, zero: Nat) -> Nat, head: Elem, tail: fn(Vec: fn(len: fn(Nat: Type, succ: fn(_: Nat) -> Nat, zero: Nat) -> Nat) -> Type, nil: Vec(fn(Nat: Type, succ: fn(_: Nat) -> Nat, zero: Nat) => zero), cons: fn(len: fn(Nat: Type, succ: fn(_: Nat) -> Nat, zero: Nat) -> Nat, head: Elem, tail: Vec(len)) -> Vec(fn(Nat: Type, succ: fn(_: Nat) -> Nat, zero: Nat) => succ(len(Nat, succ, zero)))) -> Vec(len)) -> Vec(Elem, succ(len)) = fn(Elem: Type, len: fn(Nat: Type, succ: fn(_: Nat) -> Nat, zero: Nat) -> Nat, head: Elem, tail: fn(Vec: fn(len: fn(Nat: Type, succ: fn(_: Nat) -> Nat, zero: Nat) -> Nat) -> Type, nil: Vec(fn(Nat: Type, succ: fn(_: Nat) -> Nat, zero: Nat) => zero), cons: fn(len: fn(Nat: Type, succ: fn(_: Nat) -> Nat, zero: Nat) -> Nat, head: Elem, tail: Vec(len)) -> Vec(fn(Nat: Type, succ: fn(_: Nat) -> Nat, zero: Nat) => succ(len(Nat, succ, zero)))) -> Vec(len)) => fn(Vec: fn(len: fn(Nat: Type, succ: fn(_: Nat) -> Nat, zero: Nat) -> Nat) -> Type, nil: Vec(fn(Nat: Type, succ: fn(_: Nat) -> Nat, zero: Nat) => zero), cons: fn(len: fn(Nat: Type, succ: fn(_: Nat) -> Nat, zero: Nat) -> Nat, head: Elem, tail: Vec(len)) -> Vec(fn(Nat: Type, succ: fn(_: Nat) -> Nat, zero: Nat) => succ(len(Nat, succ, zero)))) => cons(len, head, tail(Vec, nil, cons));
+
+let Eq: fn(A: Type, x: A, y: A) -> Type = fn(A: Type, x: A, y: A) => fn(P: fn(_: A) -> Type, px: P(x)) -> P(y);
+
+let id: fn(A: Type, x: A) -> A = fn(A: Type, x: A) => x;
+
+let refl: fn(A: Type, a: A) -> Eq(A, a, a) = fn(A: Type, a: A) => fn(P: fn(_: A) -> Type, x: P(a)) => id(P(a), x);
