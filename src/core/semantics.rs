@@ -72,7 +72,6 @@ impl<'env> EvalCtx<'env> {
 
     #[track_caller]
     #[debug_requires(expr.is_closed(self.local_env.len(), self.meta_env.len()))]
-    #[debug_ensures(ret.is_closed(self.local_env.len(), self.meta_env.len()))]
     #[debug_ensures(self.local_env.len() == old(self.local_env.len()))]
     pub fn eval_expr(&mut self, expr: &Expr) -> Arc<Value> {
         match expr {
@@ -326,7 +325,6 @@ impl<'env> ElimCtx<'env> {
     #[track_caller]
     #[debug_requires(closure.arity() == args.len())]
     #[debug_requires(closure.is_closed((), self.meta_env.len()))]
-    #[debug_ensures(ret.is_closed(closure.env.len() + closure.num_binders(), self.meta_env.len()))]
     pub fn apply_fun_closure(&self, closure: &FunClosure, args: Vec<Arc<Value>>) -> Arc<Value> {
         let mut env = closure.env.clone();
         let mut eval_ctx = self.eval_ctx(&mut env);
