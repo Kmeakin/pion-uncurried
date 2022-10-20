@@ -89,12 +89,12 @@ impl<'env> UnifyCtx<'env> {
         let initial_len = self.local_env;
         let mut args = Vec::with_capacity(closure1.arity());
 
-        let mut closure1 = closure1.clone();
-        let mut closure2 = closure2.clone();
+        let mut c1 = closure1.clone();
+        let mut c2 = closure2.clone();
 
         while let Some(((arg1, cont1), (arg2, cont2))) = Option::zip(
-            self.elim_ctx().split_fun_closure(closure1.clone()),
-            self.elim_ctx().split_fun_closure(closure2.clone()),
+            self.elim_ctx().split_fun_closure(c1.clone()),
+            self.elim_ctx().split_fun_closure(c2.clone()),
         ) {
             match self.unify_values(&arg1.r#type, &arg2.r#type) {
                 Ok(_) => {}
@@ -105,14 +105,14 @@ impl<'env> UnifyCtx<'env> {
             }
 
             let arg = Arc::new(Value::local(self.local_env.to_level()));
-            closure1 = cont1(arg.clone());
-            closure2 = cont2(arg.clone());
+            c1 = cont1(arg.clone());
+            c2 = cont2(arg.clone());
             self.local_env.push();
             args.push(arg);
         }
 
-        let body1 = self.elim_ctx().apply_fun_closure(&closure1, args.clone());
-        let body2 = self.elim_ctx().apply_fun_closure(&closure2, args);
+        let body1 = self.elim_ctx().apply_fun_closure(closure1, args.clone());
+        let body2 = self.elim_ctx().apply_fun_closure(closure2, args);
         let result = self.unify_values(&body1, &body2);
 
         self.local_env.truncate(initial_len);
