@@ -102,14 +102,15 @@ impl ElabCtx<'_> {
                     _ => unreachable!(),
                 };
 
+                debug_assert!(enum_args.len() <= closure.args.len());
                 for arg in enum_args {
                     match self.elim_ctx().split_fun_closure(closure) {
                         None => unreachable!(),
                         Some((_, cont)) => closure = cont(arg.clone()),
                     }
                 }
-                assert_eq!(pats.len(), closure.args.len());
 
+                assert_eq!(pats.len(), closure.args.len());
                 for pat in pats.iter() {
                     match self.elim_ctx().split_fun_closure(closure) {
                         None => unreachable!(),
