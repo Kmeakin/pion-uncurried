@@ -325,7 +325,7 @@ impl<'env> ElimCtx<'env> {
     pub fn apply_fun_closure(&self, closure: &FunClosure, args: Vec<Arc<Value>>) -> Arc<Value> {
         let mut env = closure.env.clone();
         let mut eval_ctx = self.eval_ctx(&mut env);
-        eval_ctx.push_telescope_defs(&closure.args, args);
+        eval_ctx.push_telescope_defs(&closure.args, &args);
         eval_ctx.eval_expr(&closure.body)
     }
 

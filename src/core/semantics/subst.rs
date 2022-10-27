@@ -52,15 +52,12 @@ impl EvalCtx<'_> {
     }
 
     #[track_caller]
+    #[debug_requires(telescope.len() == values.len())]
     #[debug_requires(telescope.is_closed(self.local_env.len(),self.meta_env.len()))]
     #[debug_ensures(self.local_env.len() == old(self.local_env.len()) + telescope.num_binders())]
-    pub fn push_telescope_defs(
-        &mut self,
-        telescope: &Telescope<Expr>,
-        values: impl IntoIterator<Item = Arc<Value>>,
-    ) {
-        for (arg, value) in telescope.iter().zip(values.into_iter()) {
-            self.push_pat_defs(&arg.pat, value);
+    pub fn push_telescope_defs(&mut self, telescope: &Telescope<Expr>, values: &[Arc<Value>]) {
+        for (arg, value) in telescope.iter().zip(values.iter()) {
+            self.push_pat_defs(&arg.pat, value.clone());
         }
     }
 }
