@@ -3,6 +3,7 @@ use std::sync::Arc;
 use contracts::debug_invariant;
 
 use super::syntax::{Value, VarName};
+use crate::ir;
 use crate::span::Span;
 use crate::symbol::Symbol;
 
@@ -310,4 +311,5 @@ pub enum MetaSource {
     HoleExpr(Span),
     PatType(Span),
     MatchType(Span),
+    LetDefType(ir::LetDef),
 }

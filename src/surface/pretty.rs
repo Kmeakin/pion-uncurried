@@ -59,7 +59,7 @@ impl<'a> PrettyCtx {
             self,
             "let",
             self.space(),
-            name.clone(),
+            name.1.clone(),
             r#type,
             self.space(),
             "=",

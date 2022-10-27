@@ -214,7 +214,7 @@ pub fn unelab_let_def(db: &dyn crate::Db, let_def: &LetDef) -> surface::LetDef<(
     let r#type = ctx.unelab_expr(&r#type.0);
     let body = ctx.unelab_expr(&body.0);
     surface::LetDef {
-        name,
+        name: ((), name),
         type_: Some(r#type),
         body,
     }

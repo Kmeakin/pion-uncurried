@@ -39,7 +39,7 @@ pub fn let_def_sig(db: &dyn crate::Db, ir: ir::LetDef) -> LetDefSig {
         }
         None => {
             let name = VarName::Generated("let-type");
-            let source = MetaSource::Error; // TODO: proper source
+            let source = MetaSource::LetDefType(ir);
             let type_expr = ctx.push_meta_expr(name, source, Arc::new(Value::TYPE));
             let type_value = ctx.eval_ctx().eval_expr(&type_expr);
             (type_expr, type_value)
@@ -54,7 +54,11 @@ pub fn let_def_sig(db: &dyn crate::Db, ir: ir::LetDef) -> LetDefSig {
 
 #[salsa::tracked]
 pub fn elab_let_def(db: &dyn crate::Db, ir: ir::LetDef) -> LetDef {
-    let surface::LetDef { name, body, .. } = ir.surface(db);
+    let surface::LetDef {
+        name: (_, name),
+        body,
+        ..
+    } = ir.surface(db);
     let name = Symbol::new(db, name.to_owned());
 
     let LetDefSig {

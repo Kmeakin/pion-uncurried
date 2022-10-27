@@ -57,6 +57,9 @@ impl<'db> ElabCtx<'db> {
                 (None, MetaSource::HoleExpr(span)) => (*span, "expr of hole"),
                 (None, MetaSource::PatType(span)) => (*span, "type of pattern"),
                 (None, MetaSource::MatchType(span)) => (*span, "type of `match` expression"),
+                (None, MetaSource::LetDefType(ir)) => {
+                    (ir.surface(self.db).name.0, "type of definition")
+                }
             };
             crate::error!(span.into_file_span(self.file), "Unable to infer {name}").emit(self.db);
         }

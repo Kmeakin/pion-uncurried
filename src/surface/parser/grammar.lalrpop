@@ -53,7 +53,7 @@ pub Item: Item<Span> = {
 }
 
 pub LetDef: LetDef<Span> = {
-    "let" <name: Name> <type_: (":" <Expr>)?> "=" <body: Expr> ";" => LetDef {name, type_, body},
+    "let" <name: SpannedName> <type_: (":" <Expr>)?> "=" <body: Expr> ";" => LetDef {name, type_, body},
 }
 
 pub EnumDef: EnumDef<Span> = {
@@ -126,6 +126,10 @@ String: String = {
 
 Name: String = {
     <s: "Name"> => s.into(),
+}
+
+SpannedName: (Span, String) = {
+    <start: @L> <s: "Name"> <end: @R> => (Span::new(start, end), s.into()),
 }
 
 #[inline]

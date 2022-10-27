@@ -1,6 +1,13 @@
 let x: #error = #error;
 
 ====DIAGNOSTICS====
+Error: Unable to infer type of definition
+   ╭─[tests/elab/err/unbound_variable.pion:1:5]
+   │
+ 1 │ let x = y;
+   ·     │ 
+   ·     ╰─ here
+───╯
 Error: Unbound variable: `y`
    ╭─[tests/elab/err/unbound_variable.pion:1:9]
    │

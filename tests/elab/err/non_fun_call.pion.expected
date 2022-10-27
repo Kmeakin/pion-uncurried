@@ -3,6 +3,13 @@ let f: Bool = false;
 let x: #error = #error;
 
 ====DIAGNOSTICS====
+Error: Unable to infer type of definition
+   ╭─[tests/elab/err/non_fun_call.pion:3:5]
+   │
+ 3 │ let x = f(false);
+   ·     │ 
+   ·     ╰─ here
+───╯
 Error: Called non-function expression
    ╭─[tests/elab/err/non_fun_call.pion:3:9]
    │

@@ -14,7 +14,7 @@ pub fn lower_file(db: &dyn crate::Db, file: File) -> Module {
     for item in &module.items {
         match item {
             surface::syntax::Item::Let(surface) => {
-                let name = Symbol::new(db, surface.name.clone());
+                let name = Symbol::new(db, surface.name.1.clone());
                 items.push(Item::Let(LetDef::new(db, name, file, surface.clone())));
             }
             surface::syntax::Item::Enum(surface) => {
