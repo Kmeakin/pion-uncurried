@@ -1,0 +1,5 @@
+enum Any: Type {
+    MkAny(A: Type, a: A): Any,
+}
+
+let mk_any: fn(A: Type, a: A) -> Any = MkAny;

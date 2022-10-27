@@ -1,0 +1,8 @@
+enum Any {
+    MkAny(A: Type, a: A),
+}
+
+let get: fn(_:Any) -> ?_
+= fn(it) => match it {
+    MkAny(A, a) => a,
+};

@@ -114,8 +114,9 @@ impl ElabCtx<'_> {
                     match self.elim_ctx().split_fun_closure(closure) {
                         None => unreachable!(),
                         Some((arg, cont)) => {
+                            let arg_value = Arc::new(Value::local(self.local_env.len().to_level()));
                             let type_value = arg.r#type;
-                            closure = cont(type_value.clone());
+                            closure = cont(arg_value.clone());
                             self.push_pat_params(pat, type_value);
                         }
                     }

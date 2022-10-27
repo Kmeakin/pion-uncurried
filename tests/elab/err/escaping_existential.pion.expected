@@ -1,0 +1,25 @@
+enum Any: Type {
+    MkAny(A: Type, a: A): Any,
+}
+
+let get: fn(_: Any) -> #error = fn(it: Any) => match it {
+    MkAny(A, a) => #error,
+};
+
+====DIAGNOSTICS====
+Error: Unable to infer expr of hole
+   ╭─[tests/elab/err/escaping_existential.pion:5:23]
+   │
+ 5 │ let get: fn(_:Any) -> ?_
+   ·                       │ 
+   ·                       ╰─ here
+───╯
+Error: Type mismatch
+   ╭─[tests/elab/err/escaping_existential.pion:7:20]
+   │
+ 7 │     MkAny(A, a) => a,
+   ·                    │ 
+   ·                    ╰─ Help: expected ?ty(it), got A
+   ·                    │ 
+   ·                    ╰─ local variable escapes solution
+───╯
