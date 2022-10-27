@@ -312,4 +312,5 @@ pub enum MetaSource {
     PatType(Span),
     MatchType(Span),
     LetDefType(ir::LetDef),
+    PatternArg(Span, usize),
 }

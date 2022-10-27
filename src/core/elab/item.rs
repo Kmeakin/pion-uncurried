@@ -116,6 +116,7 @@ pub fn eval_let_def_expr(db: &dyn crate::Db, ir: ir::LetDef) -> Arc<Value> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EnumDefSig {
     pub args: Telescope<Expr>,
+    pub arg_values: Telescope<Arc<Value>>,
     pub ret_type: (Expr, Arc<Value>),
     pub self_type: Arc<Value>,
     pub subst: (LocalEnv, MetaEnv, PartialRenaming),
@@ -129,20 +130,28 @@ pub fn enum_def_sig(db: &dyn crate::Db, ir: ir::EnumDef) -> EnumDefSig {
     let surface::EnumDef { args, ret_type, .. } = ir.surface(db);
 
     let mut self_type_args = Vec::with_capacity(args.len());
-    let args: Arc<[_]> = args
-        .iter()
-        .map(|pat| {
-            let SynthPat(pat_core, type_value) = ctx.synth_ann_pat(pat);
-            let type_core = ctx.quote_ctx().quote_value(&type_value);
-            self_type_args.push(Arc::new(Value::local(ctx.local_env.len().to_level())));
-            ctx.push_pat_params(&pat_core, type_value);
-            FunArg {
-                pat: pat_core,
-                r#type: type_core,
-            }
-        })
-        .collect();
-    let telescope = Telescope(args);
+    let mut args_exprs = Vec::with_capacity(args.len());
+    let mut arg_values = Vec::with_capacity(args.len());
+
+    for arg in args {
+        let SynthPat(pat_core, type_value) = ctx.synth_ann_pat(&arg);
+        let type_core = ctx.quote_ctx().quote_value(&type_value);
+
+        self_type_args.push(Arc::new(Value::local(ctx.local_env.len().to_level())));
+        ctx.push_pat_params(&pat_core, type_value.clone());
+
+        args_exprs.push(FunArg {
+            pat: pat_core.clone(),
+            r#type: type_core,
+        });
+        arg_values.push(FunArg {
+            pat: pat_core,
+            r#type: type_value,
+        });
+    }
+
+    let arg_exprs = Telescope(Arc::from(args_exprs));
+    let arg_values = Telescope(Arc::from(arg_values));
 
     let (ret_type_expr, ret_type_value) = match ret_type {
         None => (Expr::Prim(Prim::Type), Arc::new(Value::TYPE)),
@@ -175,7 +184,8 @@ pub fn enum_def_sig(db: &dyn crate::Db, ir: ir::EnumDef) -> EnumDefSig {
 
     ctx.report_unsolved_metas();
     EnumDefSig {
-        args: telescope,
+        args: arg_exprs,
+        arg_values,
         ret_type: (ret_type_expr, ret_type_value),
         self_type,
         subst: (ctx.local_env, ctx.meta_env, ctx.renaming),
@@ -192,6 +202,7 @@ pub fn elab_enum_def(db: &dyn crate::Db, ir: ir::EnumDef) -> EnumDef {
         ret_type,
         self_type,
         subst,
+        ..
     } = enum_def_sig(db, ir);
 
     let mut ctx = ElabCtx::new(db, ir.file(db));

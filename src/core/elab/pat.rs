@@ -32,7 +32,7 @@ impl ElabCtx<'_> {
                 let (lit, r#type) = self.synth_lit(lit);
                 SynthPat(Pat::Lit(lit), r#type)
             }
-            surface::Pat::Variant(_, name, pats) => {
+            surface::Pat::Variant(span, name, pats) => {
                 let name = Symbol::new(self.db, name.to_owned());
                 let variant = match lookup_item(self.db, self.file, name) {
                     Some(ir::Item::Variant(ir)) => ir,
@@ -40,7 +40,9 @@ impl ElabCtx<'_> {
                 };
 
                 let EnumDefSig {
-                    args: parent_args, ..
+                    args: parent_args,
+                    arg_values: parent_arg_values,
+                    ..
                 } = enum_def_sig(self.db, variant.parent(self.db));
                 let EnumVariant {
                     args: variant_arg_exprs,
@@ -74,13 +76,13 @@ impl ElabCtx<'_> {
                                 .collect(),
                             Arc::new(variant_ret_type.0),
                         );
-                        let args = parent_args
+                        let args = parent_arg_values
                             .iter()
-                            .map(|_| {
+                            .enumerate()
+                            .map(|(idx, arg)| {
                                 let name = VarName::Generated("arg");
-                                let source = MetaSource::Error; // TODO: proper source
-                                let r#type = Arc::new(Value::TYPE);
-                                self.push_meta_value(name, source, r#type)
+                                let source = MetaSource::PatternArg(*span, idx);
+                                self.push_meta_value(name, source, arg.r#type.clone())
                             })
                             .chain(variant_arg_values.iter().map(|arg| arg.r#type.clone()))
                             .collect();

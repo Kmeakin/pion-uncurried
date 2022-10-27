@@ -60,6 +60,12 @@ impl<'db> ElabCtx<'db> {
                 (None, MetaSource::LetDefType(ir)) => {
                     (ir.surface(self.db).name.0, "type of definition")
                 }
+                (None, MetaSource::PatternArg(span, idx)) => {
+                    let name = format!("argument {idx} of pattern");
+                    crate::error!(span.into_file_span(self.file), "Unable to infer {name}")
+                        .emit(self.db);
+                    return;
+                }
             };
             crate::error!(span.into_file_span(self.file), "Unable to infer {name}").emit(self.db);
         }
