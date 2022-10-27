@@ -80,10 +80,10 @@ impl ElabCtx<'_> {
             }
             surface::Expr::Hole(span, hole) => {
                 let expr_name = match hole {
-                    surface::Hole::Underscore => self.name_source.fresh(),
+                    surface::Hole::Underscore => VarName::UNDERSCORE,
                     surface::Hole::Name(name) => VarName::User(Symbol::new(self.db, name.clone())),
                 };
-                let type_name = self.name_source.fresh();
+                let type_name = VarName::Generated("ty");
                 let type_source = MetaSource::HoleType(*span);
                 let expr_source = MetaSource::HoleExpr(*span);
                 let type_value =
@@ -198,7 +198,7 @@ impl ElabCtx<'_> {
                 )
             }
             surface::Expr::Match(span, scrut, branches) => {
-                let name = self.name_source.fresh();
+                let name = VarName::Generated("match-type");
                 let source = MetaSource::MatchType(*span);
                 let match_type = self.push_meta_value(name, source, Arc::new(Value::TYPE));
 

@@ -91,7 +91,7 @@ impl ParseError {
             }
             Self::ExtraToken(span, unexpected) => {
                 crate::error!(span.into_file_span(file), "Parse error: unexpected token")
-                    .with_primary_label(format!("Help: got {}", unexpected,))
+                    .with_primary_label(format!("Help: got {unexpected}"))
             }
         }
         .finish()

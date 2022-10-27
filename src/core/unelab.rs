@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use contracts::{debug_ensures, debug_requires};
 
-use super::env::{LocalSource, NameSource, UniqueEnv, VarLevel};
+use super::env::{LocalSource, UniqueEnv, VarLevel};
 use super::semantics::binders::IsClosed;
 use super::syntax::*;
 use crate::surface;
@@ -11,7 +11,6 @@ pub struct UnelabCtx<'a> {
     pub local_names: &'a mut UniqueEnv<VarName>,
     pub meta_names: &'a UniqueEnv<VarName>,
 
-    pub name_source: &'a mut NameSource,
     pub db: &'a dyn crate::Db,
 }
 
@@ -19,13 +18,11 @@ impl<'a> UnelabCtx<'a> {
     pub fn new(
         local_names: &'a mut UniqueEnv<VarName>,
         meta_names: &'a UniqueEnv<VarName>,
-        name_source: &'a mut NameSource,
         db: &'a dyn crate::Db,
     ) -> Self {
         Self {
             local_names,
             meta_names,
-            name_source,
             db,
         }
     }
@@ -39,25 +36,19 @@ impl<'a> UnelabCtx<'a> {
             Expr::Prim(Prim::BoolType) => surface::Expr::Name((), "Bool".into()),
             Expr::Prim(Prim::StringType) => surface::Expr::Name((), "String".into()),
             Expr::Lit(lit) => surface::Expr::Lit((), self.unelab_lit(lit)),
-            Expr::Local(index) => {
-                let name = match self.local_names.get(*index) {
+            Expr::Local(var) => {
+                let name = match self.local_names.get(*var) {
                     Some(VarName::User(name)) => name.contents(self.db).clone(),
-                    Some(VarName::Synth(count)) => self.gen_name(*count),
-                    Some(VarName::Underscore) => {
-                        unreachable!("Underscore cannot not be referenced by a local variable")
-                    }
-                    _ => unreachable!("Unbound local variable: {index:?}"),
+                    Some(VarName::Generated(prefix)) => self.gen_name(prefix),
+                    None => unreachable!("Unbound local variable: {var:?}"),
                 };
                 surface::Expr::Name((), name)
             }
-            Expr::Meta(level) => {
-                let name = match self.meta_names.get(*level) {
+            Expr::Meta(var) => {
+                let name = match self.meta_names.get(*var) {
                     Some(VarName::User(name)) => name.contents(self.db).clone(),
-                    Some(VarName::Synth(count)) => self.gen_name(*count),
-                    Some(VarName::Underscore) => {
-                        unreachable!("Underscore cannot not be referenced by a local variable")
-                    }
-                    None => unreachable!("Unbound meta variable: {level:?}"),
+                    Some(VarName::Generated(prefix)) => self.gen_name(prefix),
+                    None => unreachable!("Unbound meta variable: {var:?}"),
                 };
                 surface::Expr::Hole((), surface::Hole::Name(name))
             }
@@ -173,8 +164,7 @@ impl<'a> UnelabCtx<'a> {
             Pat::Lit(lit) => surface::Pat::Lit((), self.unelab_lit(lit)),
             Pat::Name(name) => match name {
                 VarName::User(name) => surface::Pat::Name((), name.contents(self.db).clone()),
-                VarName::Synth(count) => surface::Pat::Name((), self.gen_name(*count)),
-                VarName::Underscore => surface::Pat::Wildcard(()),
+                VarName::Generated(prefix) => surface::Pat::Name((), self.gen_name(prefix)),
             },
             Pat::Variant(variant, pats) => {
                 let name = variant.name(self.db).contents(self.db);
@@ -192,9 +182,9 @@ impl<'a> UnelabCtx<'a> {
         }
     }
 
-    fn gen_name(&mut self, count: u32) -> String {
-        // FIXME: something nicer?
-        format!("${count}")
+    fn gen_name(&mut self, prefix: &str) -> String {
+        // TODO: ensure the name is unique
+        prefix.to_string()
     }
 }
 
@@ -214,8 +204,7 @@ pub fn unelab_item(db: &dyn crate::Db, item: &Item) -> surface::Item<()> {
 pub fn unelab_let_def(db: &dyn crate::Db, let_def: &LetDef) -> surface::LetDef<()> {
     let mut local_names = UniqueEnv::new();
     let meta_names = UniqueEnv::new();
-    let mut name_source = NameSource::new(0);
-    let mut ctx = UnelabCtx::new(&mut local_names, &meta_names, &mut name_source, db);
+    let mut ctx = UnelabCtx::new(&mut local_names, &meta_names, db);
 
     let LetDef {
         name, body, r#type, ..
@@ -234,8 +223,7 @@ pub fn unelab_let_def(db: &dyn crate::Db, let_def: &LetDef) -> surface::LetDef<(
 pub fn unelab_enum_def(db: &dyn crate::Db, enum_def: &EnumDef) -> surface::EnumDef<()> {
     let mut local_names = UniqueEnv::new();
     let meta_names = UniqueEnv::new();
-    let mut name_source = NameSource::new(0);
-    let mut ctx = UnelabCtx::new(&mut local_names, &meta_names, &mut name_source, db);
+    let mut ctx = UnelabCtx::new(&mut local_names, &meta_names, db);
 
     let EnumDef {
         name,

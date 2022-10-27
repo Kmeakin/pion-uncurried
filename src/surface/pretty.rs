@@ -131,7 +131,7 @@ impl<'a> PrettyCtx {
         match expr {
             Expr::Error(_) => self.text("#error"),
             Expr::Hole(_, Hole::Underscore) => self.text("?_"),
-            Expr::Hole(_, Hole::Name(name)) => self.text(format!("?{}", name)),
+            Expr::Hole(_, Hole::Name(name)) => self.text(format!("?{name}")),
             Expr::Name(_, name) => self.text(name.to_string()),
             Expr::Lit(_, lit) => self.pretty_lit(lit),
             Expr::FunType(_, pats, ret) => {

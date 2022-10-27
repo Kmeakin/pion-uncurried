@@ -70,7 +70,7 @@ impl UnelabCtx<'_> {
     pub fn push_pat_params(&mut self, pat: &Pat) {
         match pat {
             Pat::Lit(_) => {}
-            Pat::Error => self.local_names.push(VarName::Underscore),
+            Pat::Error => self.local_names.push(VarName::UNDERSCORE),
             Pat::Name(name) => self.local_names.push(*name),
             Pat::Variant(_, pats) => pats.iter().for_each(|pat| self.push_pat_params(pat)),
         }
@@ -85,7 +85,7 @@ impl ElabCtx<'_> {
 
         match pat {
             Pat::Error => {
-                self.local_env.push_param(VarName::Underscore, r#type);
+                self.local_env.push_param(VarName::UNDERSCORE, r#type);
             }
             Pat::Name(name) => {
                 self.local_env.push_param(*name, r#type);
@@ -131,7 +131,7 @@ impl ElabCtx<'_> {
 
         match pat {
             Pat::Error => {
-                self.local_env.push_def(VarName::Underscore, r#type, value);
+                self.local_env.push_def(VarName::UNDERSCORE, r#type, value);
             }
             Pat::Name(name) => {
                 self.local_env.push_def(*name, r#type, value);

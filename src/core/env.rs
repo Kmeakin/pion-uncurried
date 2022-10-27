@@ -311,22 +311,3 @@ pub enum MetaSource {
     PatType(Span),
     MatchType(Span),
 }
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Default)]
-pub struct NameSource(u32);
-
-impl NameSource {
-    pub fn new(counter: u32) -> Self { Self(counter) }
-
-    pub fn fresh(&mut self) -> VarName {
-        let next = VarName::Synth(self.0);
-        self.0 += 1;
-        next
-    }
-
-    pub fn current(&self) -> VarName { VarName::Synth(self.0) }
-
-    pub fn truncate(&mut self, new_count: u32) { self.0 = new_count; }
-
-    pub fn reset(&mut self) { self.0 = 0; }
-}

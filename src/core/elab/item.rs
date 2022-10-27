@@ -38,7 +38,7 @@ pub fn let_def_sig(db: &dyn crate::Db, ir: ir::LetDef) -> LetDefSig {
             (type_expr, type_value)
         }
         None => {
-            let name = ctx.name_source.fresh();
+            let name = VarName::Generated("let-type");
             let source = MetaSource::Error; // TODO: proper source
             let type_expr = ctx.push_meta_expr(name, source, Arc::new(Value::TYPE));
             let type_value = ctx.eval_ctx().eval_expr(&type_expr);

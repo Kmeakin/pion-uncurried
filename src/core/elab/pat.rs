@@ -13,15 +13,17 @@ impl ElabCtx<'_> {
     pub fn synth_pat(&mut self, pat: &surface::Pat<Span>) -> SynthPat {
         let db = self.db;
         let mut meta = || {
-            let name = self.name_source.fresh();
+            let name = VarName::Generated("pat-type");
             let span = pat.span();
             let source = MetaSource::PatType(span);
             self.push_meta_value(name, source, Arc::new(Value::TYPE))
         };
 
         match pat {
-            surface::Pat::Error(_) => SynthPat(Pat::Name(VarName::Underscore), meta()),
-            surface::Pat::Wildcard(_) => SynthPat(Pat::Name(VarName::Underscore), meta()),
+            surface::Pat::Error(_) => {
+                SynthPat(Pat::Name(VarName::UNDERSCORE), Arc::new(Value::ERROR))
+            }
+            surface::Pat::Wildcard(_) => SynthPat(Pat::Name(VarName::UNDERSCORE), meta()),
             surface::Pat::Name(_, name) => {
                 let name = VarName::User(Symbol::intern(db, name));
                 SynthPat(Pat::Name(name), meta())
@@ -75,7 +77,7 @@ impl ElabCtx<'_> {
                         let args = parent_args
                             .iter()
                             .map(|_| {
-                                let name = self.name_source.fresh();
+                                let name = VarName::Generated("arg");
                                 let source = MetaSource::Error; // TODO: proper source
                                 let r#type = Arc::new(Value::TYPE);
                                 self.push_meta_value(name, source, r#type)
@@ -94,8 +96,8 @@ impl ElabCtx<'_> {
     pub fn check_pat(&mut self, pat: &surface::Pat<Span>, expected: &Arc<Value>) -> CheckPat {
         let expected = self.elim_ctx().force_value(expected);
         match pat {
-            surface::Pat::Error(_) => CheckPat(Pat::Name(VarName::Underscore)),
-            surface::Pat::Wildcard(_) => CheckPat(Pat::Name(VarName::Underscore)),
+            surface::Pat::Error(_) => CheckPat(Pat::Name(VarName::UNDERSCORE)),
+            surface::Pat::Wildcard(_) => CheckPat(Pat::Name(VarName::UNDERSCORE)),
             surface::Pat::Name(_, name) => {
                 let name = VarName::User(Symbol::intern(self.db, name));
                 CheckPat(Pat::Name(name))

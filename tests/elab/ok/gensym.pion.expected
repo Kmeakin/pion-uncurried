@@ -1,0 +1,1 @@
+let f: fn(A: Type, a: A) -> A = fn(_: Type, x: _) => x;

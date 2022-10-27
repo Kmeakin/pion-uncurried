@@ -225,6 +225,9 @@ pub enum Lit {
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum VarName {
     User(Symbol),
-    Synth(u32),
-    Underscore,
+    Generated(&'static str),
+}
+
+impl VarName {
+    pub const UNDERSCORE: Self = Self::Generated("_");
 }

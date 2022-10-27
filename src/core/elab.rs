@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use contracts::debug_ensures;
 
-use super::env::{EnvLen, LocalEnv, MetaEnv, MetaSource, NameSource, SharedEnv};
+use super::env::{EnvLen, LocalEnv, MetaEnv, MetaSource, SharedEnv};
 use super::semantics::{self, EvalFlags};
 use super::syntax::*;
 use super::unelab::UnelabCtx;
@@ -26,7 +26,6 @@ pub struct ElabCtx<'db> {
     pub local_env: LocalEnv,
     pub meta_env: MetaEnv,
     pub renaming: PartialRenaming,
-    pub name_source: NameSource,
 
     pub db: &'db dyn crate::Db,
     pub file: File,
@@ -38,7 +37,6 @@ impl<'db> ElabCtx<'db> {
             local_env: LocalEnv::new(),
             meta_env: MetaEnv::new(),
             renaming: PartialRenaming::default(),
-            name_source: NameSource::default(),
 
             db,
             file,
@@ -195,12 +193,7 @@ impl ElabCtx<'_> {
     }
 
     pub fn unelab_ctx(&mut self) -> UnelabCtx<'_> {
-        UnelabCtx::new(
-            &mut self.local_env.names,
-            &self.meta_env.names,
-            &mut self.name_source,
-            self.db,
-        )
+        UnelabCtx::new(&mut self.local_env.names, &self.meta_env.names, self.db)
     }
 
     pub fn push_meta_expr(
